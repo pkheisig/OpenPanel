@@ -1,0 +1,10 @@
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+*.Rcheck/
+*.tar.gz
+inst/gui/node_modules/
+*.tsbuildinfo
+.DS_Store

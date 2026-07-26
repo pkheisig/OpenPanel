@@ -1,0 +1,9 @@
+^inst/gui/node_modules$
+^inst/gui/.*\.tsbuildinfo$
+^inst/gui/src/.*\.test\.(js|jsx|ts|tsx)$
+^\.git$
+^\.Rproj\.user$
+^.*\.Rproj$
+^.*\.Rcheck$
+^\.DS_Store$
+^README\.Rmd$

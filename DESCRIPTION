@@ -1,0 +1,30 @@
+Package: openpanel
+Title: Interactive Spectral Flow Cytometry Panel Builder
+Version: 0.1.0
+Authors@R: person(given = "Paul", family = "Heisig", email = "pkheisig@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-8529-7944"))
+Author: Paul Heisig [aut, cre] (<https://orcid.org/0000-0002-8529-7944>)
+Maintainer: Paul Heisig <pkheisig@gmail.com>
+Description: Build and inspect spectral flow cytometry panels with packaged
+    theoretical spectra. The browser interface supports Aurora, FACSDiscover,
+    ID7000, and Attune Xenith cytometers and reports detector overlap,
+    fluorophore similarity, and panel complexity.
+URL: https://github.com/pkheisig/openpanel
+BugReports: https://github.com/pkheisig/openpanel/issues
+License: MIT + file LICENSE
+Depends: R (>= 4.3.0)
+Imports:
+    ggplot2,
+    jsonlite,
+    scales,
+    tidyr
+Suggests:
+    httpuv,
+    later,
+    openssl,
+    plumber,
+    processx,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.0.0
