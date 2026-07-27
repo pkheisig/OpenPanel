@@ -1,10 +1,6 @@
-.Rproj.user/
-.Rhistory
-.RData
-.Ruserdata
-*.Rproj
-*.Rcheck/
-*.tar.gz
-inst/gui/node_modules/
+node_modules/
+dist/
+playwright-report/
+test-results/
 *.tsbuildinfo
 .DS_Store
