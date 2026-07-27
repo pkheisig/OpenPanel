@@ -100,6 +100,37 @@
   gap: 13px;
 }
 
+.panel-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel-name-input {
+  width: clamp(180px, 26vw, 360px);
+  min-width: 0;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: transparent;
+  font-size: 17px;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.panel-name-input:hover {
+  border-color: var(--input-border);
+  background: var(--input-bg);
+}
+
+.panel-name-input:focus {
+  border-color: var(--accent);
+  background: var(--input-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
 .panel-back-button {
   width: 37px;
   height: 37px;
@@ -136,6 +167,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.plot-size-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--button-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--button-bg) 88%, transparent);
+}
+
+.plot-size-controls .export-button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  box-shadow: none;
 }
 
 .panel-actions .applet-close-button {
@@ -303,43 +351,92 @@
 }
 
 .panel-sidebar-head {
+  position: relative;
+  z-index: 10;
   padding: 8px 20px 16px;
   border-bottom: 1px solid var(--border-color-soft);
 }
 
-.instrument-select {
-  width: 100%;
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  color: var(--text-primary);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
-  font-weight: 500;
-  outline: none;
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s, transform 0.2s;
+.panel-sidebar-select.launch-field {
+  display: block;
+  position: relative;
+  z-index: 1;
+  margin: 0;
 }
 
-.configuration-select {
-  width: 100%;
+.panel-sidebar-select.is-select-open {
+  z-index: 60;
+}
+
+.panel-sidebar-head:has(.panel-sidebar-select.is-select-open)
+  .panel-sidebar-select:not(.is-select-open) {
+  visibility: hidden;
+}
+
+.panel-sidebar-select.configuration-sidebar-select {
   margin-top: 10px;
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  color: var(--text-primary);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  outline: none;
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s, transform 0.2s;
 }
 
-.instrument-select:focus,
-.configuration-select:focus {
+.panel-sidebar-select .ui-select-trigger {
+  min-height: 40px;
+  height: auto;
+  padding: 9px 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: var(--input-bg);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.panel-sidebar-select .ui-select-trigger svg {
+  width: 14px;
+  color: var(--text-muted);
+}
+
+.panel-sidebar-select .ui-select.is-open .ui-select-trigger,
+.panel-sidebar-select .ui-select-trigger:focus-visible {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.panel-sidebar-select .ui-select.is-open .ui-select-trigger svg {
+  color: var(--accent);
+}
+
+.panel-sidebar-select .ui-select-options {
+  top: calc(100% + 5px);
+  z-index: 50;
+  padding: 4px;
+  border-color: var(--input-border);
+  border-radius: 8px;
+  background: var(--bg-topbar);
+  box-shadow: var(--shadow-dropdown);
+  backdrop-filter: none;
+}
+
+.panel-sidebar-select .ui-select-option {
+  min-height: 34px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.panel-sidebar-select .ui-select-option:hover,
+.panel-sidebar-select .ui-select-option:focus-visible {
+  background: var(--accent-soft);
+}
+
+.panel-sidebar-select .ui-select-option.is-selected {
+  color: #fff;
+  background: var(--accent);
+}
+
+.panel-builder.dark .panel-sidebar-select .ui-select-option.is-selected {
+  color: #111714;
 }
 
 .selector-list {
@@ -570,7 +667,7 @@
   border-bottom: 3px solid transparent;
   background: transparent;
   padding: 0 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--text-muted);

@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, FlaskConical } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, FlaskConical, Layers3, Moon, Sun } from 'lucide-react'
 import {
   getSpectralPanelConfigurations,
   getSpectralPanelLibraries,
   resolveConfiguration,
 } from './spectralEngine'
+import type { StoredPanelProject } from './projectStore'
+import { UiSelect } from './UiSelect'
 import './LandingPage.css'
 
 export type PanelLaunchSelection = {
+  name: string
   cytometer: string
   configuration: string
 }
 
 type LandingPageProps = {
-  onStart: (selection: PanelLaunchSelection) => void
+  panels: StoredPanelProject[]
+  onStart: (selection: PanelLaunchSelection) => Promise<void>
+  onOpen: (panel: StoredPanelProject) => void
 }
 
 function storedTheme(): 'light' | 'dark' {
@@ -27,9 +32,11 @@ function storedCytometer(fallback: string): string {
   return getSpectralPanelLibraries().some((library) => library.id === value) ? String(value) : fallback
 }
 
-export function LandingPage({ onStart }: LandingPageProps) {
+export function LandingPage({ panels, onStart, onOpen }: LandingPageProps) {
   const libraries = useMemo(() => getSpectralPanelLibraries(), [])
-  const [theme] = useState<'light' | 'dark'>(storedTheme)
+  const [theme, setTheme] = useState<'light' | 'dark'>(storedTheme)
+  const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
+  const [starting, setStarting] = useState(false)
   const [cytometer, setCytometer] = useState(
     () => storedCytometer(libraries[0].id),
   )
@@ -42,80 +49,141 @@ export function LandingPage({ onStart }: LandingPageProps) {
   )
 
   useEffect(() => {
+    localStorage.setItem('spectreasy-theme', theme)
+    localStorage.removeItem('spectreasy_theme')
     document.documentElement.dataset.theme = theme
   }, [theme])
 
   const selectedConfiguration = configurations.find((candidate) => candidate.id === configuration)
 
-  const startPanel = () => {
+  const startPanel = async () => {
     localStorage.setItem('spectreasy_cytometer', cytometer)
     localStorage.setItem('spectreasy_configuration', configuration)
-    onStart({ cytometer, configuration })
+    setStarting(true)
+    try {
+      await onStart({ name: panelName, cytometer, configuration })
+    } finally {
+      setStarting(false)
+    }
   }
+
+  const cytometerLabel = (id: string) => (
+    libraries.find((library) => library.id === id)?.label ?? id
+  )
+
+  const configurationLabel = (panel: StoredPanelProject) => (
+    getSpectralPanelConfigurations(panel.state.cytometer)
+      .find((candidate) => candidate.id === panel.state.configuration)?.label
+      ?? panel.state.configuration
+  )
 
   return (
     <main className={`launch-screen ${theme}`}>
       <div className="launch-grid" aria-hidden="true" />
-      <div className="launch-spectrum" aria-hidden="true">
-        <svg viewBox="0 0 1000 210" preserveAspectRatio="none">
-          <path className="spectrum-line spectrum-violet" d="M0 186 C90 182 128 176 170 42 S248 184 332 180 S408 175 452 88 S521 180 596 179 S665 176 710 24 S780 179 846 180 S920 174 1000 82" />
-          <path className="spectrum-line spectrum-blue" d="M0 184 C160 184 224 180 286 164 S360 182 470 180 S565 176 620 54 S694 178 768 180 S866 180 1000 158" />
-          <path className="spectrum-line spectrum-red" d="M0 182 C310 182 430 180 550 176 S708 178 792 172 S870 166 915 52 S965 170 1000 178" />
-        </svg>
-      </div>
 
       <header className="launch-header">
         <a className="launch-brand" href="./" aria-label="OpenPanel home">
           <span className="launch-brand-mark"><FlaskConical size={19} /></span>
           <span>OpenPanel</span>
         </a>
+        <button
+          type="button"
+          className="launch-theme-button"
+          onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+          aria-label={theme === 'light' ? 'Use dark mode' : 'Use light mode'}
+          title={theme === 'light' ? 'Use dark mode' : 'Use light mode'}
+        >
+          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
       </header>
 
       <section className="launch-layout">
         <form className="launch-card" onSubmit={(event) => {
           event.preventDefault()
-          startPanel()
+          void startPanel()
         }} aria-label="Panel configuration">
           <label className="launch-field">
-            <span>CYTOMETER</span>
-            <select
-              value={cytometer}
-              onChange={(event) => {
-                const nextCytometer = event.target.value
-                setCytometer(nextCytometer)
-                setConfiguration(getSpectralPanelConfigurations(nextCytometer)[0].id)
-              }}
-              aria-label="Cytometer"
-            >
-              {libraries.map((library) => (
-                <option key={library.id} value={library.id}>{library.label}</option>
-              ))}
-            </select>
+            <span>PANEL NAME</span>
+            <input
+              className="launch-name-input"
+              value={panelName}
+              onChange={(event) => setPanelName(event.target.value)}
+              aria-label="Panel name"
+              autoComplete="off"
+            />
           </label>
 
-          <label className="launch-field">
-            <span>DETECTOR CONFIGURATION</span>
-            <select
-              value={configuration}
-              onChange={(event) => setConfiguration(event.target.value)}
-              aria-label="Detector configuration"
-            >
-              {configurations.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>{candidate.label}</option>
-              ))}
-            </select>
-          </label>
+          <UiSelect
+            label="CYTOMETER"
+            value={cytometer}
+            options={libraries.map((library) => ({ value: library.id, label: library.label }))}
+            onChange={(nextCytometer) => {
+              setCytometer(nextCytometer)
+              setConfiguration(getSpectralPanelConfigurations(nextCytometer)[0].id)
+            }}
+          />
 
-          <div className="launch-configuration-note">
-            <span>Detector layout</span>
-            <strong>{selectedConfiguration?.description}</strong>
-          </div>
+          {cytometer !== 'xenith' && (
+            <>
+              <UiSelect
+                label="DETECTOR CONFIGURATION"
+                value={configuration}
+                options={configurations.map((candidate) => ({
+                  value: candidate.id,
+                  label: candidate.label,
+                }))}
+                onChange={setConfiguration}
+              />
 
-          <button className="launch-submit" type="submit">
-            Build panel
+              <div className="launch-configuration-note">
+                <span>Detector layout</span>
+                <strong>{selectedConfiguration?.description}</strong>
+              </div>
+            </>
+          )}
+
+          <button className="launch-submit" type="submit" disabled={starting}>
+            {starting ? 'Opening…' : 'Build panel'}
             <ArrowRight size={18} />
           </button>
         </form>
+
+        {panels.length > 0 && (
+          <section className="panel-library" aria-labelledby="panel-library-title">
+            <div className="panel-library-heading">
+              <div>
+                <p>LOCAL PANELS</p>
+                <h2 id="panel-library-title">Saved panels</h2>
+              </div>
+              <span>{panels.length}</span>
+            </div>
+            <div className="panel-library-list">
+              {panels.map((panel) => {
+                const colors = panel.state.slots.filter(Boolean).length
+                return (
+                  <button
+                    key={panel.id}
+                    type="button"
+                    className="panel-library-card"
+                    onClick={() => onOpen(panel)}
+                    aria-label={`Open ${panel.name}`}
+                  >
+                    <span className="panel-library-icon"><Layers3 size={17} /></span>
+                    <span className="panel-library-content">
+                      <strong>{panel.name}</strong>
+                      <span className="panel-library-summary">
+                        <span>{colors} {colors === 1 ? 'color' : 'colors'}</span>
+                        <span>{cytometerLabel(panel.state.cytometer)}</span>
+                        <span>{configurationLabel(panel)}</span>
+                      </span>
+                    </span>
+                    <ArrowUpRight className="panel-library-open-icon" size={17} />
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )}
       </section>
     </main>
   )

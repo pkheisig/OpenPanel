@@ -42,6 +42,7 @@ interface PanelVisualizationsProps {
     setHoveredFluor: Dispatch<SetStateAction<string | null>>;
     theme: 'light' | 'dark';
     error: string;
+    plotScale: number;
 }
 
 export function PanelVisualizations({
@@ -60,9 +61,14 @@ export function PanelVisualizations({
     setHoveredFluor,
     theme,
     error,
+    plotScale,
 }: PanelVisualizationsProps) {
+    const scale = plotScale / 100;
     const chartWidth = detectorAxisChartWidth(payload.detectors.length);
     const chartHeight = 230;
+    const spectrumHeight = chartHeight + DETECTOR_AXIS_FOOTER_HEIGHT;
+    const renderedSpectrumWidth = Math.round(chartWidth * scale);
+    const renderedSpectrumHeight = Math.round(spectrumHeight * scale);
     const spectrumLeft = 42;
     const spectrumRight = chartWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
@@ -77,7 +83,7 @@ export function PanelVisualizations({
     return (
 <main className="main-panel">
     <div className="top-spectrum">
-        <svg className="spectrum-svg" width={chartWidth} height={chartHeight + DETECTOR_AXIS_FOOTER_HEIGHT} viewBox={`0 0 ${chartWidth} ${chartHeight + DETECTOR_AXIS_FOOTER_HEIGHT}`} role="img" aria-label="Combined spectral signatures">
+        <svg className="spectrum-svg" width={renderedSpectrumWidth} height={renderedSpectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label="Combined spectral signatures">
             {[0, 25, 50, 75, 100].map(tick => {
                 const y = chartHeight - (tick / 100) * (chartHeight - 32) - 24;
                 return (

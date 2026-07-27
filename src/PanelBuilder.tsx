@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, FileDown, FolderOpen, Moon, PanelLeftClose, PanelLeftOpen, Plus, Save, Sun, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, FileDown, FolderOpen, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Save, Sun, Trash2, Upload, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ModuleLoadingState } from './ModuleLoadingState';
 import { PanelVisualizations } from './PanelVisualizations';
+import { UiSelect } from './UiSelect';
 import { openTextFile, saveBlob } from './browserFiles';
 import { buildPanelPayload } from './spectralEngine';
 import {
     parseProject,
+    DEFAULT_PLOT_SCALE,
+    MAX_PLOT_SCALE,
+    MIN_PLOT_SCALE,
     saveActiveProject,
+    savePanelProject,
     serializeProject,
 } from './projectStore';
 import type { ProjectState } from './projectStore';
@@ -38,7 +43,10 @@ type PanelBuilderProps = {
     projectRevision?: string;
     initialCytometer?: string;
     initialConfiguration?: string;
-    onRequestExit?: () => void;
+    initialProject?: ProjectState;
+    projectId?: string;
+    projectName?: string;
+    onRequestExit?: () => void | Promise<void>;
 };
 
 const PanelBuilder = ({
@@ -46,22 +54,30 @@ const PanelBuilder = ({
     cockpitTheme = null,
     initialCytometer = 'aurora',
     initialConfiguration = '5l_uv_v_b_yg_r',
+    initialProject,
+    projectId,
+    projectName = 'Untitled panel',
     onRequestExit,
 }: PanelBuilderProps) => {
     const [payload, setPayload] = useState<PanelPayload | null>(null);
-    const [cytometer, setCytometer] = useState(() => getCytometerName(initialCytometer));
-    const [configuration, setConfiguration] = useState(() => getCytometerName(initialConfiguration));
-    const [slots, setSlots] = useState<string[]>(() => Array(emptySlots).fill(''));
+    const [cytometer, setCytometer] = useState(() => getCytometerName(initialProject?.cytometer ?? initialCytometer));
+    const [configuration, setConfiguration] = useState(() => getCytometerName(initialProject?.configuration ?? initialConfiguration));
+    const [slots, setSlots] = useState<string[]>(() => {
+        const restored = initialProject?.slots.slice(0, emptySlots) ?? [];
+        while (restored.length < emptySlots) restored.push('');
+        return restored;
+    });
     const slotsRef = useRef<string[]>(slots);
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const projectInputRef = useRef<HTMLInputElement | null>(null);
-    const [markers, setMarkers] = useState<Record<number, string>>({});
-    const bootSelectionRef = useRef({ cytometer, configuration });
+    const [markers, setMarkers] = useState<Record<number, string>>(() => initialProject?.markers ?? {});
+    const [panelName, setPanelName] = useState(projectName);
+    const bootSelectionRef = useRef({ cytometer, configuration, slots });
     const bootPromiseRef = useRef<Promise<void> | null>(null);
     const panelRequestSequenceRef = useRef(createRefreshSequence());
     const [queries, setQueries] = useState<Record<number, string>>({});
     const [activeSlot, setActiveSlot] = useState<number | null>(null);
-    const [tab, setTab] = useState<TabId>('panel');
+    const [tab, setTab] = useState<TabId>(initialProject?.tab ?? 'panel');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [exporting, setExporting] = useState(false);
@@ -69,13 +85,15 @@ const PanelBuilder = ({
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
     const [theme, setTheme] = useState<'light' | 'dark'>(() => {
         if (embedded && cockpitTheme) return cockpitTheme;
+        if (initialProject?.theme) return initialProject.theme;
         const stored = localStorage.getItem('spectreasy-theme') || localStorage.getItem('spectreasy_theme');
         if (stored === 'light' || stored === 'dark') return stored;
         return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     });
     const [guiStateLoaded, setGuiStateLoaded] = useState(false);
-    const [sidebarWidth, setSidebarWidth] = useState(214);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarWidth, setSidebarWidth] = useState(initialProject?.sidebarWidth ?? 214);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(initialProject?.sidebarCollapsed ?? false);
+    const [plotScale, setPlotScale] = useState(initialProject?.plotScale ?? DEFAULT_PLOT_SCALE);
     const [showPdfConfirm, setShowPdfConfirm] = useState(false);
     const [bootAttempt, setBootAttempt] = useState(0);
 
@@ -102,22 +120,33 @@ const PanelBuilder = ({
         localStorage.setItem('spectreasy_markers', JSON.stringify(markers));
     }, [markers]);
 
+    const projectState = useMemo<ProjectState>(() => ({
+        cytometer: getCytometerName(cytometer),
+        configuration: getCytometerName(configuration),
+        theme,
+        slots,
+        markers,
+        tab,
+        sidebarWidth,
+        sidebarCollapsed,
+        plotScale,
+    }), [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale]);
+
+    const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
+        if (projectId) {
+            await savePanelProject(projectId, panelName, state);
+            return;
+        }
+        await saveActiveProject(state);
+    }, [panelName, projectId, projectState]);
+
     useEffect(() => {
         if (!guiStateLoaded) return;
         const timer = window.setTimeout(() => {
-            void saveActiveProject({
-                cytometer: getCytometerName(cytometer),
-                configuration: getCytometerName(configuration),
-                theme,
-                slots,
-                markers,
-                tab,
-                sidebarWidth,
-                sidebarCollapsed,
-            }).catch(() => null);
+            void persistProjectState().catch(() => null);
         }, 500);
         return () => window.clearTimeout(timer);
-    }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, guiStateLoaded]);
+    }, [guiStateLoaded, persistProjectState]);
 
     const selected = useMemo(() => slots.filter(Boolean), [slots]);
 
@@ -244,7 +273,7 @@ const PanelBuilder = ({
                 const initial = await requestPanel(
                     bootSelectionRef.current.cytometer,
                     bootSelectionRef.current.configuration,
-                    [],
+                    bootSelectionRef.current.slots.filter(Boolean),
                 );
                 setPayload(initial);
                 setCytometer(getCytometerName(initial.cytometer));
@@ -514,16 +543,7 @@ const PanelBuilder = ({
         if (file) await importPanelCsv(file);
     };
 
-    const currentProjectState = (): ProjectState => ({
-        cytometer,
-        configuration,
-        slots,
-        markers,
-        tab,
-        theme,
-        sidebarWidth,
-        sidebarCollapsed,
-    });
+    const currentProjectState = (): ProjectState => projectState;
 
     const exportProject = async () => {
         await saveBlob(new Blob([serializeProject(currentProjectState())], { type: 'application/json' }), {
@@ -560,7 +580,8 @@ const PanelBuilder = ({
             setTheme(state.theme);
             setSidebarWidth(state.sidebarWidth);
             setSidebarCollapsed(state.sidebarCollapsed);
-            await saveActiveProject({ ...state, slots: nextSlots, markers: nextMarkers });
+            setPlotScale(state.plotScale);
+            await persistProjectState({ ...state, slots: nextSlots, markers: nextMarkers });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not import this OpenPanel project.');
         } finally {
@@ -576,6 +597,11 @@ const PanelBuilder = ({
             extensions: ['.openpanel.json', '.json'],
         }, projectInputRef.current);
         if (file) await importProject(file);
+    };
+
+    const exitToPanelLibrary = async () => {
+        await persistProjectState();
+        await onRequestExit?.();
     };
 
     if (loading) {
@@ -603,19 +629,54 @@ const PanelBuilder = ({
                         <button
                             type="button"
                             className="panel-back-button"
-                            onClick={onRequestExit}
-                            aria-label="Return to instrument selection"
-                            title="New panel"
+                            onClick={() => void exitToPanelLibrary()}
+                            aria-label="Open panel library"
+                            title="Panel library"
                         >
                             <ArrowLeft size={17} />
                         </button>
                     )}
                     <div>
-                    <h1>Spectral Panel Builder</h1>
-                    <p>{selected.length} fluorophores selected{selectedConfigurationLabel ? ` / ${selectedConfigurationLabel}` : ''}</p>
+                        <div className="panel-heading-row">
+                            {!embedded && projectId && (
+                                <input
+                                    className="panel-name-input"
+                                    value={panelName}
+                                    onChange={(event) => setPanelName(event.target.value)}
+                                    onBlur={() => {
+                                        if (!panelName.trim()) setPanelName('Untitled panel');
+                                    }}
+                                    aria-label="Panel name"
+                                    spellCheck={false}
+                                />
+                            )}
+                        </div>
+                        <p>{selected.length} {selected.length === 1 ? 'fluorophore' : 'fluorophores'} selected{selectedConfigurationLabel ? ` / ${selectedConfigurationLabel}` : ''}</p>
                     </div>
                 </div>
                 <div className="panel-actions">
+                    <div className="plot-size-controls" role="group" aria-label="Plot size">
+                        <button
+                            type="button"
+                            className="export-button icon-only"
+                            onClick={() => setPlotScale((current) => Math.max(MIN_PLOT_SCALE, current - 10))}
+                            disabled={plotScale <= MIN_PLOT_SCALE}
+                            aria-label="Decrease plot size"
+                            title="Decrease plot size"
+                        >
+                            <Minus size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            className="export-button icon-only"
+                            onClick={() => setPlotScale((current) => Math.min(MAX_PLOT_SCALE, current + 10))}
+                            disabled={plotScale >= MAX_PLOT_SCALE}
+                            aria-label="Increase plot size"
+                            title="Increase plot size"
+                        >
+                            <Plus size={16} />
+                        </button>
+                    </div>
                     {!embedded && <button
                         type="button"
                         className="export-button"
@@ -697,28 +758,29 @@ const PanelBuilder = ({
                         {sidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
                     </button>
                     <div className="panel-sidebar-head">
-                        <select
-                            className="instrument-select"
+                        <UiSelect
+                            className="panel-sidebar-select"
+                            label="Cytometer"
+                            hideLabel
                             value={cytometer}
-                            onChange={event => void changeCytometer(event.target.value)}
-                        >
-                            {payload.libraries.map(lib => (
-                                <option key={lib.id} value={lib.id}>{lib.label}</option>
-                            ))}
-                        </select>
+                            options={payload.libraries.map((library) => ({
+                                value: library.id,
+                                label: library.label,
+                            }))}
+                            onChange={(value) => void changeCytometer(value)}
+                        />
                         {payload.configurations.length > 1 && (
-                            <select
-                                className="configuration-select"
+                            <UiSelect
+                                className="panel-sidebar-select configuration-sidebar-select"
+                                label="Detector configuration"
+                                hideLabel
                                 value={configuration}
-                                onChange={event => void changeConfiguration(event.target.value)}
-                                aria-label="Detector configuration"
-                            >
-                                {payload.configurations.map(config => (
-                                    <option key={config.id} value={config.id}>
-                                        {config.label}
-                                    </option>
-                                ))}
-                            </select>
+                                options={payload.configurations.map((config) => ({
+                                    value: config.id,
+                                    label: config.label,
+                                }))}
+                                onChange={(value) => void changeConfiguration(value)}
+                            />
                         )}
                     </div>
                     <div className="selector-list">
@@ -809,6 +871,7 @@ const PanelBuilder = ({
                     setHoveredFluor={setHoveredFluor}
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
                     error={error}
+                    plotScale={plotScale}
                 />
             </div>
             {showPdfConfirm && (

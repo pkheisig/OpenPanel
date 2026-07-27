@@ -16,6 +16,7 @@ const project: ProjectState = {
   theme: 'dark',
   sidebarWidth: 276,
   sidebarCollapsed: false,
+  plotScale: 90,
 }
 
 describe('OpenPanel project files', () => {
@@ -51,6 +52,7 @@ describe('OpenPanel project files', () => {
       theme: 'light',
       sidebarWidth: 440,
       sidebarCollapsed: true,
+      plotScale: 80,
     })
   })
 
