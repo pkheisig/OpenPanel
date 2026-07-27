@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
-import { FileDown, FolderOpen, Moon, PanelLeftClose, PanelLeftOpen, Plus, Save, Sun, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, FileDown, FolderOpen, Moon, PanelLeftClose, PanelLeftOpen, Plus, Save, Sun, Trash2, Upload, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ModuleLoadingState } from './ModuleLoadingState';
 import { PanelVisualizations } from './PanelVisualizations';
 import { openTextFile, saveBlob } from './browserFiles';
 import { buildPanelPayload } from './spectralEngine';
 import {
-    loadActiveProject,
     parseProject,
     saveActiveProject,
     serializeProject,
@@ -22,7 +21,6 @@ import {
     getCytometerName,
     laserOrder,
     mapDetectorToEmission,
-    normalizeMarkers,
     unique,
 } from './panelBuilderShared';
 import { createRefreshSequence } from './refreshSequence';
@@ -38,37 +36,27 @@ type PanelBuilderProps = {
     cockpitTheme?: 'light' | 'dark' | null;
     projectPath?: string;
     projectRevision?: string;
+    initialCytometer?: string;
+    initialConfiguration?: string;
     onRequestExit?: () => void;
 };
 
-const PanelBuilder = ({ embedded = false, cockpitTheme = null, onRequestExit }: PanelBuilderProps) => {
+const PanelBuilder = ({
+    embedded = false,
+    cockpitTheme = null,
+    initialCytometer = 'aurora',
+    initialConfiguration = '5l_uv_v_b_yg_r',
+    onRequestExit,
+}: PanelBuilderProps) => {
     const [payload, setPayload] = useState<PanelPayload | null>(null);
-    const [cytometer, setCytometer] = useState(() => getCytometerName(localStorage.getItem('spectreasy_cytometer') || 'aurora'));
-    const [configuration, setConfiguration] = useState(() => getCytometerName(localStorage.getItem('spectreasy_configuration') || '5l_uv_v_b_yg_r'));
-    const [slots, setSlots] = useState<string[]>(() => {
-        try {
-            const stored = localStorage.getItem('spectreasy_slots');
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                if (Array.isArray(parsed)) return parsed;
-            }
-        } catch {
-            return Array(emptySlots).fill('');
-        }
-        return Array(emptySlots).fill('');
-    });
+    const [cytometer, setCytometer] = useState(() => getCytometerName(initialCytometer));
+    const [configuration, setConfiguration] = useState(() => getCytometerName(initialConfiguration));
+    const [slots, setSlots] = useState<string[]>(() => Array(emptySlots).fill(''));
     const slotsRef = useRef<string[]>(slots);
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const projectInputRef = useRef<HTMLInputElement | null>(null);
-    const [markers, setMarkers] = useState<Record<number, string>>(() => {
-        try {
-            const stored = localStorage.getItem('spectreasy_markers');
-            return stored ? normalizeMarkers(JSON.parse(stored)) : {};
-        } catch {
-            return {};
-        }
-    });
-    const bootDefaultsRef = useRef({ cytometer, configuration, slots, markers });
+    const [markers, setMarkers] = useState<Record<number, string>>({});
+    const bootSelectionRef = useRef({ cytometer, configuration });
     const bootPromiseRef = useRef<Promise<void> | null>(null);
     const panelRequestSequenceRef = useRef(createRefreshSequence());
     const [queries, setQueries] = useState<Record<number, string>>({});
@@ -253,22 +241,11 @@ const PanelBuilder = ({ embedded = false, cockpitTheme = null, onRequestExit }: 
     useEffect(() => {
         const boot = async () => {
             try {
-                const saved = await loadActiveProject();
-                const defaults = bootDefaultsRef.current;
-                const savedCytometer = saved?.cytometer ?? defaults.cytometer;
-                const savedConfiguration = saved?.configuration ?? defaults.configuration;
-                const savedSlots = saved?.slots ?? defaults.slots;
-                const savedMarkers = saved?.markers ?? defaults.markers;
-                if (!embedded && saved?.theme) setTheme(saved.theme);
-                if (saved?.tab) setTab(saved.tab);
-                if (saved?.sidebarWidth !== undefined) {
-                    setSidebarWidth(saved.sidebarWidth);
-                }
-                if (saved?.sidebarCollapsed !== undefined) setSidebarCollapsed(saved.sidebarCollapsed);
-                setSlots(savedSlots);
-                slotsRef.current = savedSlots;
-                setMarkers(savedMarkers);
-                const initial = await requestPanel(savedCytometer, savedConfiguration, savedSlots.filter(Boolean));
+                const initial = await requestPanel(
+                    bootSelectionRef.current.cytometer,
+                    bootSelectionRef.current.configuration,
+                    [],
+                );
                 setPayload(initial);
                 setCytometer(getCytometerName(initial.cytometer));
                 setConfiguration(getCytometerName(initial.configuration));
@@ -281,7 +258,7 @@ const PanelBuilder = ({ embedded = false, cockpitTheme = null, onRequestExit }: 
         };
         if (!bootPromiseRef.current) bootPromiseRef.current = boot();
         void bootPromiseRef.current;
-    }, [bootAttempt, embedded, requestPanel]);
+    }, [bootAttempt, requestPanel]);
 
     const retryBoot = () => {
         bootPromiseRef.current = null;
@@ -621,9 +598,22 @@ const PanelBuilder = ({ embedded = false, cockpitTheme = null, onRequestExit }: 
     return (
         <div className={`panel-builder ${embedded && cockpitTheme ? cockpitTheme : theme}`}>
             <header className="panel-topbar">
-                <div>
+                <div className="panel-title-group">
+                    {!embedded && onRequestExit && (
+                        <button
+                            type="button"
+                            className="panel-back-button"
+                            onClick={onRequestExit}
+                            aria-label="Return to instrument selection"
+                            title="New panel"
+                        >
+                            <ArrowLeft size={17} />
+                        </button>
+                    )}
+                    <div>
                     <h1>Spectral Panel Builder</h1>
                     <p>{selected.length} fluorophores selected{selectedConfigurationLabel ? ` / ${selectedConfigurationLabel}` : ''}</p>
+                    </div>
                 </div>
                 <div className="panel-actions">
                     {!embedded && <button

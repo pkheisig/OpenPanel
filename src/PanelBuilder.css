@@ -94,6 +94,33 @@
   color: var(--text-primary);
 }
 
+.panel-title-group {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.panel-back-button {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--button-border);
+  border-radius: 8px;
+  color: var(--button-text);
+  background: var(--button-bg);
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.panel-back-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateX(-1px);
+}
+
 .panel-builder.dark .panel-topbar h1 {
   color: var(--text-primary);
 }

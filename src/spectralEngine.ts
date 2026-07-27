@@ -71,6 +71,14 @@ const CONFIGURATIONS: Record<CytometerId, ConfigurationInfo[]> = {
   ],
 }
 
+export function getSpectralPanelLibraries(): LibraryInfo[] {
+  return LIBRARIES.map((library) => ({ ...library }))
+}
+
+export function getSpectralPanelConfigurations(cytometer: unknown = 'aurora'): ConfigurationInfo[] {
+  return CONFIGURATIONS[resolveCytometer(cytometer)].map((configuration) => ({ ...configuration }))
+}
+
 const CONFIGURATION_ALIASES: Record<string, string> = {
   full: 'full',
   discovers8: 'discover_s8',

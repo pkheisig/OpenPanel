@@ -8,11 +8,33 @@ async function selectFluorophore(page: import('@playwright/test').Page, slot: nu
   await input.press('Enter')
 }
 
+async function openEmptyPanel(page: import('@playwright/test').Page) {
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByRole('heading', { name: 'Spectral Panel Builder' })).toBeVisible()
+  await expect(page.locator('.panel-topbar p')).toContainText('0 fluorophores selected')
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined })
     Object.defineProperty(window, 'showOpenFilePicker', { configurable: true, value: undefined })
+    localStorage.setItem('spectreasy_slots', JSON.stringify(['APC', 'PE', 'FITC', 'BV421']))
+    localStorage.setItem('spectreasy_markers', JSON.stringify({ 0: 'TCR', 1: 'TCR' }))
   })
+})
+
+test('selects the instrument and configuration before opening a clean workspace', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await page.getByLabel('Cytometer').selectOption('id7000')
+  await expect(page.getByLabel('Detector configuration')).toHaveValue('id7000_5l')
+  await page.getByLabel('Detector configuration').selectOption('id7000_4l')
+  await openEmptyPanel(page)
+  await expect(page.locator('.panel-topbar p')).toContainText('ID7000 4L: V/B/YG/R')
+  await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(18)
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('')
+  await page.getByTitle('New panel').click()
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
 })
 
 test('runs representative panel, import, export, and project round-trip workflows locally', async ({ page }) => {
@@ -24,7 +46,9 @@ test('runs representative panel, import, export, and project round-trip workflow
 
   await page.goto(APP_PATH)
   await expect(page).toHaveTitle(/OpenPanel/)
-  await expect(page.getByRole('heading', { name: 'Spectral Panel Builder' })).toBeVisible()
+  await expect(page.getByLabel('Cytometer')).toHaveValue('aurora')
+  await expect(page.getByLabel('Detector configuration')).toHaveValue('5l_uv_v_b_yg_r')
+  await openEmptyPanel(page)
 
   await selectFluorophore(page, 0, 'Alexa Fluor 488')
   await selectFluorophore(page, 1, 'Alexa Fluor 647')
@@ -87,7 +111,7 @@ test('runs representative panel, import, export, and project round-trip workflow
 
 test('reopens the complete application offline after the first load', async ({ page, context }) => {
   await page.goto(APP_PATH)
-  await expect(page.getByRole('heading', { name: 'Spectral Panel Builder' })).toBeVisible()
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready
     if (!navigator.serviceWorker.controller) {
@@ -100,7 +124,8 @@ test('reopens the complete application offline after the first load', async ({ p
   await context.setOffline(true)
   try {
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: 'Spectral Panel Builder' })).toBeVisible()
+    await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+    await openEmptyPanel(page)
     await expect(page.getByPlaceholder('Select fluorophore').first()).toBeVisible()
   } finally {
     await context.setOffline(false)
