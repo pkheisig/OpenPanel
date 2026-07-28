@@ -7,7 +7,6 @@ export type DetectorAxisEntry = {
   emission?: number
 }
 
-export const DETECTOR_AXIS_FOOTER_HEIGHT = 132
 export const DETECTOR_LABEL_ROTATION = -90
 export const detectorAxisChartWidth = (detectorCount: number) => Math.min(1800, Math.max(1040, detectorCount * 27))
 
@@ -182,4 +181,12 @@ export function detectorSpectralColors(detectors: DetectorAxisInput[]): string[]
 
 export function compactDetectorLabel(label: string): string {
   return label.trim().replace(/-A$/i, '')
+}
+
+export function detectorAxisFooterHeight(detectors: DetectorAxisInput[]): number {
+  const longestLabel = detectors.reduce((longest, detector) => {
+    const entry = typeof detector === 'string' ? { detector } : detector
+    return Math.max(longest, compactDetectorLabel(entry.label || entry.detector).length)
+  }, 0)
+  return Math.min(140, Math.max(64, Math.ceil(32 + longestLabel * 5.8)))
 }

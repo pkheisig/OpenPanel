@@ -18,7 +18,7 @@ import {
     savePanelProject,
     serializeProject,
 } from './projectStore';
-import type { ProjectState } from './projectStore';
+import type { CytometerPanelState, ProjectState } from './projectStore';
 import type { WizardProjectState } from './panelWizardEngine';
 import {
     PdfIcon,
@@ -101,6 +101,9 @@ const PanelBuilder = ({
     const [showPdfConfirm, setShowPdfConfirm] = useState(false);
     const [showPanelWizard, setShowPanelWizard] = useState(false);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
+    const [cytometerPanels, setCytometerPanels] = useState<Record<string, CytometerPanelState>>(
+        () => initialProject?.cytometerPanels ?? {},
+    );
     const [fileMenu, setFileMenu] = useState<'import' | 'export' | null>(null);
     const [bootAttempt, setBootAttempt] = useState(0);
 
@@ -127,19 +130,32 @@ const PanelBuilder = ({
         localStorage.setItem('spectreasy_markers', JSON.stringify(markers));
     }, [markers]);
 
-    const projectState = useMemo<ProjectState>(() => ({
-        cytometer: getCytometerName(cytometer),
-        configuration: getCytometerName(configuration),
-        theme,
-        slots,
-        markers,
-        tab,
-        sidebarWidth,
-        sidebarCollapsed,
-        plotScale,
-        plotScaleMode: 'fit-width',
-        wizard: wizardState,
-    }), [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState]);
+    const projectState = useMemo<ProjectState>(() => {
+        const activeCytometer = getCytometerName(cytometer);
+        const activePanel: CytometerPanelState = {
+            configuration: getCytometerName(configuration),
+            slots,
+            markers,
+            wizard: wizardState,
+        };
+        return {
+            cytometer: activeCytometer,
+            configuration: activePanel.configuration,
+            theme,
+            slots,
+            markers,
+            tab,
+            sidebarWidth,
+            sidebarCollapsed,
+            plotScale,
+            plotScaleMode: 'fit-width',
+            wizard: wizardState,
+            cytometerPanels: {
+                ...cytometerPanels,
+                [activeCytometer]: activePanel,
+            },
+        };
+    }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
         if (projectId) {
@@ -406,25 +422,35 @@ const PanelBuilder = ({
 
     const changeCytometer = async (nextCytometer: string) => {
         try {
-            const activeSlots = slotsRef.current;
-            const nextPayload = await fetchPanel(nextCytometer, configuration, activeSlots.filter(Boolean), true);
+            const savedPanels = projectState.cytometerPanels;
+            const savedPanel = savedPanels[nextCytometer];
+            const requestedSlots = savedPanel ? [...savedPanel.slots] : Array(emptySlots).fill('');
+            const requestedMarkers = savedPanel ? { ...savedPanel.markers } : {};
+            const requestedWizard = savedPanel?.wizard ?? null;
+            const nextPayload = await fetchPanel(
+                nextCytometer,
+                savedPanel?.configuration || '',
+                requestedSlots.filter(Boolean),
+                true,
+            );
             if (!nextPayload) return;
             const availableSet = new Set(nextPayload.fluorophores.map(f => f.fluorophore));
-            const nextSlots = activeSlots.map(fluor => (availableSet.has(fluor) ? fluor : ''));
+            const nextSlots = requestedSlots.map(fluor => (availableSet.has(fluor) ? fluor : ''));
             const nextMarkers: Record<number, string> = {};
-            Object.entries(markers).forEach(([key, val]) => {
+            Object.entries(requestedMarkers).forEach(([key, val]) => {
                 const idx = parseInt(key, 10);
-                if (nextSlots[idx]) {
-                    nextMarkers[idx] = val;
-                }
+                if (nextSlots[idx]) nextMarkers[idx] = val;
             });
             slotsRef.current = nextSlots;
             setSlots(nextSlots);
             setMarkers(nextMarkers);
+            setCytometerPanels(savedPanels);
             localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
             localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
             setPayload(nextPayload);
-            setWizardState(null);
+            setWizardState(requestedWizard);
+            setQueries({});
+            setActiveSlot(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not switch cytometer.');
         }
@@ -649,7 +675,23 @@ const PanelBuilder = ({
             setSidebarCollapsed(state.sidebarCollapsed);
             setPlotScale(state.plotScale);
             setWizardState(state.wizard);
-            await persistProjectState({ ...state, slots: nextSlots, markers: nextMarkers });
+            const nextCytometerPanels = {
+                ...state.cytometerPanels,
+                [state.cytometer]: {
+                    configuration: getCytometerName(nextPayload.configuration),
+                    slots: nextSlots,
+                    markers: nextMarkers,
+                    wizard: state.wizard,
+                },
+            };
+            setCytometerPanels(nextCytometerPanels);
+            await persistProjectState({
+                ...state,
+                configuration: getCytometerName(nextPayload.configuration),
+                slots: nextSlots,
+                markers: nextMarkers,
+                cytometerPanels: nextCytometerPanels,
+            });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not import this OpenPanel project.');
         } finally {

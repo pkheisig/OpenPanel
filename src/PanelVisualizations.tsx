@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction } from 'react';
 import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
-import { DETECTOR_AXIS_FOOTER_HEIGHT, detectorAxisChartWidth } from './detectorAxis';
+import { detectorAxisChartWidth, detectorAxisFooterHeight } from './detectorAxis';
 import { DEFAULT_PLOT_SCALE } from './projectStore';
 import {
     bandColor,
@@ -68,7 +68,7 @@ export function PanelVisualizations({
     const tabContentRef = useRef<HTMLElement>(null);
     const chartWidth = detectorAxisChartWidth(payload.detectors.length);
     const chartHeight = 230;
-    const spectrumHeight = chartHeight + DETECTOR_AXIS_FOOTER_HEIGHT;
+    const spectrumHeight = chartHeight + detectorAxisFooterHeight(payload.detectors);
     const plotZoom = `${(plotScale / DEFAULT_PLOT_SCALE) * 100}%`;
     const spectrumLeft = 42;
     const spectrumRight = chartWidth - 8;

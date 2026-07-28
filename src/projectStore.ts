@@ -13,6 +13,13 @@ export const DEFAULT_PLOT_SCALE = 80
 export const MIN_PLOT_SCALE = 40
 export const MAX_PLOT_SCALE = 180
 
+export type CytometerPanelState = {
+  configuration: string
+  slots: string[]
+  markers: Record<number, string>
+  wizard: WizardProjectState | null
+}
+
 export type OpenPanelProject = {
   kind: typeof PROJECT_FILE_KIND
   version: typeof PROJECT_FILE_VERSION
@@ -28,6 +35,7 @@ export type OpenPanelProject = {
   plotScale: number
   plotScaleMode: 'fit-width'
   wizard: WizardProjectState | null
+  cytometerPanels: Record<string, CytometerPanelState>
 }
 
 export type ProjectState = Omit<OpenPanelProject, 'kind' | 'version' | 'savedAt'>
@@ -134,6 +142,35 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
   }
 }
 
+function normalizeSlots(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((slot) => String(scalar(slot) ?? ''))
+    : Array(18).fill('')
+}
+
+function normalizeMarkers(value: unknown): Record<number, string> {
+  const rawMarkers = isRecord(value) ? value : {}
+  return Object.fromEntries(
+    Object.entries(rawMarkers).map(([key, marker]) => [Number(key), String(scalar(marker) ?? '')]),
+  )
+}
+
+function normalizeCytometerPanel(
+  value: unknown,
+  fallbackConfiguration: string,
+): CytometerPanelState | null {
+  if (!isRecord(value)) return null
+  const configuration = scalar(value.configuration)
+  return {
+    configuration: typeof configuration === 'string' && configuration
+      ? configuration
+      : fallbackConfiguration,
+    slots: normalizeSlots(value.slots),
+    markers: normalizeMarkers(value.markers),
+    wizard: normalizeWizardState(value.wizard),
+  }
+}
+
 export function serializeProject(state: ProjectState): string {
   const project: OpenPanelProject = {
     kind: PROJECT_FILE_KIND,
@@ -149,11 +186,27 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
   const theme = scalar(value.theme) === 'dark' ? 'dark' : 'light'
-  const rawMarkers = value.markers && typeof value.markers === 'object' && !Array.isArray(value.markers)
-    ? value.markers as Record<string, unknown>
-    : {}
   const savedCytometer = scalar(value.cytometer)
   const savedConfiguration = scalar(value.configuration)
+  const cytometer = typeof savedCytometer === 'string' ? savedCytometer : 'aurora'
+  const configuration = typeof savedConfiguration === 'string' ? savedConfiguration : '5l_uv_v_b_yg_r'
+  const legacyPanel: CytometerPanelState = {
+    configuration,
+    slots: normalizeSlots(value.slots),
+    markers: normalizeMarkers(value.markers),
+    wizard: normalizeWizardState(value.wizard),
+  }
+  const rawCytometerPanels = isRecord(value.cytometerPanels) ? value.cytometerPanels : {}
+  const cytometerPanels = Object.fromEntries(
+    Object.entries(rawCytometerPanels)
+      .map(([key, panel]) => [
+        key,
+        normalizeCytometerPanel(panel, key === cytometer ? configuration : ''),
+      ] as const)
+      .filter((entry): entry is [string, CytometerPanelState] => entry[1] !== null),
+  )
+  cytometerPanels[cytometer] = legacyPanel
+  const activePanel = cytometerPanels[cytometer]
   const savedSidebarWidth = Number(scalar(value.sidebarWidth))
   const savedPlotScale = Number(scalar(value.plotScale))
   const legacyPlotHeight = Number(scalar(value.plotHeight))
@@ -163,10 +216,10 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
       ? (legacyPlotHeight / 230) * 100
       : DEFAULT_PLOT_SCALE
   return {
-    cytometer: typeof savedCytometer === 'string' ? savedCytometer : 'aurora',
-    configuration: typeof savedConfiguration === 'string' ? savedConfiguration : '5l_uv_v_b_yg_r',
-    slots: Array.isArray(value.slots) ? value.slots.map((slot) => String(scalar(slot) ?? '')) : Array(18).fill(''),
-    markers: Object.fromEntries(Object.entries(rawMarkers).map(([key, marker]) => [Number(key), String(scalar(marker) ?? '')])),
+    cytometer,
+    configuration: activePanel.configuration || configuration,
+    slots: activePanel.slots,
+    markers: activePanel.markers,
     tab,
     theme,
     sidebarWidth: Number.isFinite(savedSidebarWidth)
@@ -177,7 +230,8 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
       ? Math.min(MAX_PLOT_SCALE, Math.max(MIN_PLOT_SCALE, Math.round(normalizedPlotScale)))
       : DEFAULT_PLOT_SCALE,
     plotScaleMode: 'fit-width',
-    wizard: normalizeWizardState(value.wizard),
+    wizard: activePanel.wizard,
+    cytometerPanels,
   }
 }
 

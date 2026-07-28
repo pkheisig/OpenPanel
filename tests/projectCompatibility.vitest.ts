@@ -56,6 +56,14 @@ const project: ProjectState = {
   plotScale: 90,
   plotScaleMode: 'fit-width',
   wizard,
+  cytometerPanels: {
+    aurora: {
+      configuration: '5l_uv_v_b_yg_r',
+      slots: ['Alexa Fluor 488', 'Alexa Fluor 647', ''],
+      markers: { 0: 'CD3', 1: 'CD19' },
+      wizard,
+    },
+  },
 }
 
 describe('OpenPanel project files', () => {
@@ -95,6 +103,14 @@ describe('OpenPanel project files', () => {
       plotScale: 80,
       plotScaleMode: 'fit-width',
       wizard: null,
+      cytometerPanels: {
+        discover: {
+          configuration: 'discover_s8',
+          slots: ['Alexa Fluor 488', '', ''],
+          markers: { 0: 'CD4' },
+          wizard: null,
+        },
+      },
     })
   })
 

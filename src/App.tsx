@@ -30,6 +30,14 @@ function emptyProject(selection: PanelLaunchSelection): ProjectState {
     plotScale: DEFAULT_PLOT_SCALE,
     plotScaleMode: 'fit-width',
     wizard: null,
+    cytometerPanels: {
+      [selection.cytometer]: {
+        configuration: selection.configuration,
+        slots: Array(18).fill(''),
+        markers: {},
+        wizard: null,
+      },
+    },
   }
 }
 

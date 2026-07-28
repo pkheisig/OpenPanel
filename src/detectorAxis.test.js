@@ -4,6 +4,7 @@ import {
   DETECTOR_LABEL_ROTATION,
   compactDetectorLabel,
   detectorAxisChartWidth,
+  detectorAxisFooterHeight,
   detectorLaserKey,
   detectorLaserMeta,
   detectorLaserSegments,
@@ -102,6 +103,8 @@ test('accepts legacy scalar array wrappers for cytometer names', () => {
 test('detector fallbacks and wavelength parsing cover nonstandard panels', () => {
   assert.equal(detectorAxisChartWidth(1), 1040)
   assert.equal(detectorAxisChartWidth(100), 1800)
+  assert.equal(detectorAxisFooterHeight([{ detector: 'UV1-A' }]), 64)
+  assert.equal(detectorAxisFooterHeight([{ detector: 'FL16-A', label: '405nm - 420/10-A' }]), 114)
   assert.equal(detectorLaserKey('unknown'), 'Other')
   assert.equal(detectorLaserKey({ detector: 'FL1-A', label: '488CH4' }), 'B')
   assert.equal(detectorLaserKey('DUV1-A'), 'DeepUV')

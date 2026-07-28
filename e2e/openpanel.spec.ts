@@ -118,6 +118,9 @@ test('selects the instrument and configuration before opening a clean workspace'
   expect((await page.locator('.tabs-bar').boundingBox())!.y).toBeCloseTo(anchoredTabsY, 0)
   await page.getByRole('button', { name: 'Increase plot size' }).click()
   await page.waitForTimeout(220)
+  const signatureAfterZoomBox = await signature.boundingBox()
+  expect(signatureAfterZoomBox!.width).toBeCloseTo(signatureBox!.width, 0)
+  expect(signatureAfterZoomBox!.height).toBeCloseTo(signatureBox!.height, 0)
   await page.getByRole('button', { name: 'Open panel library' }).click()
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
   const savedPanel = page.getByRole('button', { name: 'Open T-cell panel' })
@@ -192,6 +195,43 @@ test('migrates the previous single active autosave into the named panel library'
   await expect(page.getByRole('button', { name: 'Open Recovered panel' })).toContainText('1 color')
 })
 
+test('keeps independent panel workspaces for each cytometer', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+
+  await selectFluorophore(page, 0, 'PE')
+  await page.locator('.matrix-marker-input').first().fill('CD3')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+
+  await chooseOption(page, 'Cytometer', 'Sony ID7000')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('')
+
+  await selectFluorophore(page, 0, 'APC')
+  await page.locator('.matrix-marker-input').first().fill('CD19')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+
+  await chooseOption(page, 'Cytometer', 'Cytek Aurora')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('PE')
+  await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD3')
+  await expect(page.getByRole('combobox', { name: 'Detector configuration' })).toContainText('Aurora 5L')
+
+  await chooseOption(page, 'Cytometer', 'Sony ID7000')
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('APC')
+  await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD19')
+  await page.waitForTimeout(650)
+
+  await page.reload()
+  await expect(page.getByRole('combobox', { name: 'Cytometer' })).toContainText('Sony ID7000')
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('APC')
+  await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD19')
+
+  await chooseOption(page, 'Cytometer', 'Cytek Aurora')
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('PE')
+  await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD3')
+})
+
 test('runs representative panel, import, export, and project round-trip workflows locally', async ({ page }) => {
   const remoteRequests: string[] = []
   page.on('request', (request) => {
@@ -239,10 +279,17 @@ test('runs representative panel, import, export, and project round-trip workflow
   const projectStream = await downloadedProject.createReadStream()
   let projectText = ''
   for await (const chunk of projectStream) projectText += chunk.toString()
-  const project = JSON.parse(projectText) as { kind: string; slots: string[]; markers: Record<string, string> }
+  const project = JSON.parse(projectText) as {
+    kind: string
+    slots: string[]
+    markers: Record<string, string>
+    cytometerPanels: Record<string, { slots: string[]; markers: Record<string, string> }>
+  }
   expect(project.kind).toBe('OpenPanel project')
   expect(project.slots.slice(0, 2)).toEqual(['Alexa Fluor 488', 'Alexa Fluor 647'])
   expect(project.markers['0']).toBe('CD3')
+  expect(project.cytometerPanels.aurora.slots.slice(0, 2)).toEqual(['Alexa Fluor 488', 'Alexa Fluor 647'])
+  expect(project.cytometerPanels.aurora.markers['0']).toBe('CD3')
 
   await page.getByTitle('Clear selection').click()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')

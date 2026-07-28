@@ -52,7 +52,7 @@ npm run test:e2e
 
 Panel CSV import accepts comma-, tab-, and semicolon-delimited files. It detects marker/target and fluorophore/dye columns even when columns are reordered, and preserves the existing `Marker,Fluorophore` export format.
 
-OpenPanel projects use versioned `.openpanel.json` files. The importer also accepts the prior panel-builder `gui_state` JSON envelope. A project contains the cytometer, detector configuration, selected fluorophores, markers, active view, theme, sidebar settings, and the complete Panel Wizard workspace. Wizard persistence includes marker frequencies, assigned colors, co-expression settings, desired panel size, completion state, calculated rankings, ranking mode, and sorting.
+OpenPanel projects use versioned `.openpanel.json` files. The importer also accepts the prior panel-builder `gui_state` JSON envelope. Each project keeps an independent workspace for every cytometer used in that project, including its last detector configuration, selected fluorophores, markers, and complete Panel Wizard state. Switching to a cytometer without a saved workspace starts with an empty panel; switching back restores that cytometer's panel. Project-level state also includes the active view, theme, sidebar settings, and plot scale. Wizard persistence includes marker frequencies, assigned colors, co-expression settings, desired panel size, completion state, calculated rankings, ranking mode, and sorting.
 
 The editor provides one Import menu and one Export menu. Each menu offers a compact panel CSV exchange or a complete OpenPanel project JSON exchange.
 
