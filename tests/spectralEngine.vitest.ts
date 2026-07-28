@@ -18,7 +18,7 @@ describe('browser spectral engine parity', () => {
       configuration: '5l_uv_v_b_yg_r',
       selected: ['Alexa Fluor 488', 'Alexa Fluor 647'],
       detectorCount: 64,
-      fluorophoreCount: 92,
+      fluorophoreCount: 370,
       complexity: 1.02,
       peaks: ['B2-A', 'R2-A'],
       similarity: 0.000416241590217311,

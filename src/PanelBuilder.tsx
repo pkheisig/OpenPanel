@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, FileDown, FolderOpen, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Save, Sun, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Sun, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ModuleLoadingState } from './ModuleLoadingState';
+import { PanelWizard } from './PanelWizard';
+import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
 import { UiSelect } from './UiSelect';
 import { openTextFile, saveBlob } from './browserFiles';
@@ -17,6 +19,7 @@ import {
     serializeProject,
 } from './projectStore';
 import type { ProjectState } from './projectStore';
+import type { WizardProjectState } from './panelWizardEngine';
 import {
     PdfIcon,
     binEmission,
@@ -63,13 +66,12 @@ const PanelBuilder = ({
     const [cytometer, setCytometer] = useState(() => getCytometerName(initialProject?.cytometer ?? initialCytometer));
     const [configuration, setConfiguration] = useState(() => getCytometerName(initialProject?.configuration ?? initialConfiguration));
     const [slots, setSlots] = useState<string[]>(() => {
-        const restored = initialProject?.slots.slice(0, emptySlots) ?? [];
-        while (restored.length < emptySlots) restored.push('');
-        return restored;
+        return initialProject ? [...initialProject.slots] : Array(emptySlots).fill('');
     });
     const slotsRef = useRef<string[]>(slots);
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const projectInputRef = useRef<HTMLInputElement | null>(null);
+    const fileActionsRef = useRef<HTMLDivElement | null>(null);
     const [markers, setMarkers] = useState<Record<number, string>>(() => initialProject?.markers ?? {});
     const [panelName, setPanelName] = useState(projectName);
     const bootSelectionRef = useRef({ cytometer, configuration, slots });
@@ -93,8 +95,13 @@ const PanelBuilder = ({
     const [guiStateLoaded, setGuiStateLoaded] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(initialProject?.sidebarWidth ?? 214);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(initialProject?.sidebarCollapsed ?? false);
-    const [plotScale, setPlotScale] = useState(initialProject?.plotScale ?? DEFAULT_PLOT_SCALE);
+    const [plotScale, setPlotScale] = useState(
+        initialProject?.plotScaleMode === 'fit-width' ? initialProject.plotScale : DEFAULT_PLOT_SCALE,
+    );
     const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+    const [showPanelWizard, setShowPanelWizard] = useState(false);
+    const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
+    const [fileMenu, setFileMenu] = useState<'import' | 'export' | null>(null);
     const [bootAttempt, setBootAttempt] = useState(0);
 
     useEffect(() => {
@@ -130,7 +137,9 @@ const PanelBuilder = ({
         sidebarWidth,
         sidebarCollapsed,
         plotScale,
-    }), [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale]);
+        plotScaleMode: 'fit-width',
+        wizard: wizardState,
+    }), [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
         if (projectId) {
@@ -304,10 +313,18 @@ const PanelBuilder = ({
                 if (!target.closest('.selector-row') && !target.closest('.clear-slot')) {
                     setActiveSlot(null);
                 }
+                if (!fileActionsRef.current?.contains(target)) setFileMenu(null);
             }
         };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setFileMenu(null);
+        };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
     }, []);
 
     const updateSlot = async (index: number, fluor: string) => {
@@ -324,21 +341,68 @@ const PanelBuilder = ({
         });
     };
 
-    const clearSlot = async (index: number) => {
-        await updateSlot(index, '');
-        setMarkers(prev => {
-            const next = { ...prev };
-            delete next[index];
-            localStorage.setItem('spectreasy_markers', JSON.stringify(next));
-            return next;
+    const removeSlot = async (index: number) => {
+        const nextSlots = slotsRef.current.filter((_, slotIndex) => slotIndex !== index);
+        const nextMarkers = Object.fromEntries(
+            Object.entries(markers)
+                .map(([key, value]) => [Number(key), value] as const)
+                .filter(([slotIndex]) => slotIndex !== index)
+                .map(([slotIndex, value]) => [slotIndex > index ? slotIndex - 1 : slotIndex, value]),
+        );
+        slotsRef.current = nextSlots;
+        setSlots(nextSlots);
+        setMarkers(nextMarkers);
+        setQueries((current) => Object.fromEntries(
+            Object.entries(current)
+                .map(([key, value]) => [Number(key), value] as const)
+                .filter(([slotIndex]) => slotIndex !== index)
+                .map(([slotIndex, value]) => [slotIndex > index ? slotIndex - 1 : slotIndex, value]),
+        ));
+        setActiveSlot(null);
+        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+        await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
+            setError(err instanceof Error ? err.message : 'Could not update panel.');
         });
+        await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
     };
 
     const addSlot = () => setSlots(prev => {
         const next = [...prev, ''];
+        slotsRef.current = next;
         localStorage.setItem('spectreasy_slots', JSON.stringify(next));
         return next;
     });
+
+    const applyWizardRecommendations = async ({
+        markers: wizardMarkers,
+        recommendations,
+        desiredSize,
+    }: WizardApplication) => {
+        const recommendationByMarker = new Map(
+            recommendations.map(recommendation => [recommendation.markerId, recommendation.fluorophore]),
+        );
+        const appliedMarkers = wizardMarkers.slice(0, desiredSize);
+        const nextSlots = appliedMarkers.map(marker => (
+            marker.currentFluorophore || recommendationByMarker.get(marker.id) || ''
+        ));
+        while (nextSlots.length < desiredSize) nextSlots.push('');
+
+        const nextMarkers: Record<number, string> = {};
+        appliedMarkers.forEach((marker, index) => {
+            const name = marker.name.trim();
+            if (name) nextMarkers[index] = name;
+        });
+        slotsRef.current = nextSlots;
+        setSlots(nextSlots);
+        setMarkers(nextMarkers);
+        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+        await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((wizardError) => {
+            throw wizardError instanceof Error ? wizardError : new Error('Could not apply the panel recommendations.');
+        });
+        await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
+    };
 
     const changeCytometer = async (nextCytometer: string) => {
         try {
@@ -360,6 +424,7 @@ const PanelBuilder = ({
             localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
             localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
             setPayload(nextPayload);
+            setWizardState(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not switch cytometer.');
         }
@@ -386,6 +451,7 @@ const PanelBuilder = ({
             const nextPayload = await fetchPanel(cytometer, nextConfiguration, slotsRef.current.filter(Boolean), true);
             if (!nextPayload) return;
             applyPayloadAvailability(nextPayload);
+            setWizardState(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not switch Aurora configuration.');
         }
@@ -397,6 +463,7 @@ const PanelBuilder = ({
         slotsRef.current = emptySlotsArray;
         setSlots(emptySlotsArray);
         setMarkers({});
+        setWizardState(null);
         localStorage.setItem('spectreasy_slots', JSON.stringify(emptySlotsArray));
         localStorage.setItem('spectreasy_markers', JSON.stringify({}));
         setQueries({});
@@ -521,6 +588,7 @@ const PanelBuilder = ({
                 if (row.marker) nextMarkers[index] = row.marker;
             });
             setMarkers(nextMarkers);
+            setWizardState(null);
             localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
             localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
             setQueries({});
@@ -569,7 +637,6 @@ const PanelBuilder = ({
             if (!nextPayload) return;
             const available = new Set(nextPayload.fluorophores.map((item) => item.fluorophore));
             const nextSlots = state.slots.map((fluorophore) => available.has(fluorophore) ? fluorophore : '');
-            while (nextSlots.length < emptySlots) nextSlots.push('');
             const nextMarkers = Object.fromEntries(
                 Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
             ) as Record<number, string>;
@@ -581,6 +648,7 @@ const PanelBuilder = ({
             setSidebarWidth(state.sidebarWidth);
             setSidebarCollapsed(state.sidebarCollapsed);
             setPlotScale(state.plotScale);
+            setWizardState(state.wizard);
             await persistProjectState({ ...state, slots: nextSlots, markers: nextMarkers });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not import this OpenPanel project.');
@@ -651,9 +719,17 @@ const PanelBuilder = ({
                                 />
                             )}
                         </div>
-                        <p>{selected.length} {selected.length === 1 ? 'fluorophore' : 'fluorophores'} selected{selectedConfigurationLabel ? ` / ${selectedConfigurationLabel}` : ''}</p>
                     </div>
                 </div>
+                <button
+                    type="button"
+                    className="export-button wizard-launch-button panel-wizard-header-action"
+                    onClick={() => setShowPanelWizard(true)}
+                    aria-label="Open panel wizard"
+                >
+                    <WandSparkles size={17} aria-hidden="true" />
+                    <span>Panel wizard</span>
+                </button>
                 <div className="panel-actions">
                     <div className="plot-size-controls" role="group" aria-label="Plot size">
                         <button
@@ -711,18 +787,73 @@ const PanelBuilder = ({
                         className="hidden-file-input"
                         onChange={event => void importProject(event.target.files?.[0] || null)}
                     />
-                    <button type="button" className="export-button icon-only" onClick={() => void chooseProject()} disabled={importing} aria-label="Open OpenPanel project" title="Open project">
-                        <FolderOpen size={16} />
-                    </button>
-                    <button type="button" className="export-button icon-only" onClick={() => void exportProject()} aria-label="Save OpenPanel project" title="Save project">
-                        <FileDown size={16} />
-                    </button>
-                    <button type="button" className="export-button icon-only" onClick={() => void choosePanelCsv()} disabled={importing} aria-label={importing ? 'Importing panel CSV' : 'Import panel CSV'} title={importing ? 'Importing…' : 'Import panel CSV'}>
-                        <Upload size={16} />
-                    </button>
-                    <button type="button" className="export-button icon-only" onClick={() => void exportPanelCsv()} aria-label="Export panel CSV" title="Export panel CSV">
-                        <Save size={16} />
-                    </button>
+                    <div className="file-action-groups" ref={fileActionsRef}>
+                        <div className="file-action-menu">
+                            <button
+                                type="button"
+                                className={`export-button file-action-trigger${fileMenu === 'import' ? ' is-open' : ''}`}
+                                onClick={() => setFileMenu(current => current === 'import' ? null : 'import')}
+                                disabled={importing}
+                                aria-label={importing ? 'Importing file' : 'Import'}
+                                aria-haspopup="menu"
+                                aria-expanded={fileMenu === 'import'}
+                                title={importing ? 'Importing…' : 'Import'}
+                            >
+                                <Upload size={16} />
+                                <ChevronDown size={12} />
+                            </button>
+                            {fileMenu === 'import' && (
+                                <div className="file-action-popout" role="menu" aria-label="Import options">
+                                    <button type="button" role="menuitem" onClick={() => {
+                                        setFileMenu(null);
+                                        void choosePanelCsv();
+                                    }}>
+                                        <FileSpreadsheet size={17} />
+                                        <span><strong>Import panel</strong><small>CSV file</small></span>
+                                    </button>
+                                    <button type="button" role="menuitem" onClick={() => {
+                                        setFileMenu(null);
+                                        void chooseProject();
+                                    }}>
+                                        <FileJson2 size={17} />
+                                        <span><strong>Import project</strong><small>OpenPanel JSON</small></span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="file-action-menu">
+                            <button
+                                type="button"
+                                className={`export-button file-action-trigger${fileMenu === 'export' ? ' is-open' : ''}`}
+                                onClick={() => setFileMenu(current => current === 'export' ? null : 'export')}
+                                aria-label="Export"
+                                aria-haspopup="menu"
+                                aria-expanded={fileMenu === 'export'}
+                                title="Export"
+                            >
+                                <Download size={16} />
+                                <ChevronDown size={12} />
+                            </button>
+                            {fileMenu === 'export' && (
+                                <div className="file-action-popout" role="menu" aria-label="Export options">
+                                    <button type="button" role="menuitem" onClick={() => {
+                                        setFileMenu(null);
+                                        void exportPanelCsv();
+                                    }}>
+                                        <FileSpreadsheet size={17} />
+                                        <span><strong>Export panel</strong><small>CSV file</small></span>
+                                    </button>
+                                    <button type="button" role="menuitem" onClick={() => {
+                                        setFileMenu(null);
+                                        void exportProject();
+                                    }}>
+                                        <FileJson2 size={17} />
+                                        <span><strong>Export project</strong><small>OpenPanel JSON</small></span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                     <button type="button" className="export-button primary icon-only" onClick={() => {
                         if (selectedRows.length === 0) {
                             void exportPanelOverview();
@@ -768,6 +899,8 @@ const PanelBuilder = ({
                                 label: library.label,
                             }))}
                             onChange={(value) => void changeCytometer(value)}
+                            portalMenu
+                            menuClassName="panel-sidebar-select-menu"
                         />
                         {payload.configurations.length > 1 && (
                             <UiSelect
@@ -780,6 +913,8 @@ const PanelBuilder = ({
                                     label: config.label,
                                 }))}
                                 onChange={(value) => void changeConfiguration(value)}
+                                portalMenu
+                                menuClassName="panel-sidebar-select-menu"
                             />
                         )}
                     </div>
@@ -833,8 +968,8 @@ const PanelBuilder = ({
                                             </div>
                                         )}
                                     </div>
-                                    <button className="clear-slot" type="button" onClick={() => void clearSlot(index)} aria-label="Clear fluorophore">
-                                        {fluor ? 'x' : ''}
+                                    <button className="clear-slot" type="button" onClick={() => void removeSlot(index)} aria-label="Remove fluorophore row">
+                                        <X size={13} />
                                     </button>
                                 </div>
                             );
@@ -842,6 +977,9 @@ const PanelBuilder = ({
                         <button type="button" className="fluor-option" onClick={addSlot}>
                             <span><Plus size={16} /> Add fluorophore row</span>
                         </button>
+                    </div>
+                    <div className="panel-sidebar-color-count" aria-live="polite">
+                        ({selected.length} {selected.length === 1 ? 'color' : 'colors'})
                     </div>
                 </aside>
 
@@ -874,6 +1012,25 @@ const PanelBuilder = ({
                     plotScale={plotScale}
                 />
             </div>
+            {showPanelWizard && (
+                <PanelWizard
+                    cytometer={cytometer}
+                    configuration={configuration}
+                    configurationLabel={selectedConfigurationLabel}
+                    availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
+                    maxPanelSize={Math.max(
+                        selected.length,
+                        Math.min(payload.fluorophores.length, payload.detectors.length),
+                    )}
+                    slots={slots}
+                    markerNames={markers}
+                    theme={embedded && cockpitTheme ? cockpitTheme : theme}
+                    initialState={wizardState}
+                    onStateChange={setWizardState}
+                    onClose={() => setShowPanelWizard(false)}
+                    onApply={applyWizardRecommendations}
+                />
+            )}
             {showPdfConfirm && (
                 <div className="panel-confirm-overlay" onMouseDown={() => setShowPdfConfirm(false)}>
                     <div className="panel-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="panel-pdf-confirm-title" onMouseDown={event => event.stopPropagation()}>

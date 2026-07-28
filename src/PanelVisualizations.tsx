@@ -1,6 +1,8 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useEffect, useRef } from 'react';
+import type { CSSProperties, Dispatch, SetStateAction } from 'react';
 import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
 import { DETECTOR_AXIS_FOOTER_HEIGHT, detectorAxisChartWidth } from './detectorAxis';
+import { DEFAULT_PLOT_SCALE } from './projectStore';
 import {
     bandColor,
     detectorColumnCenterX,
@@ -63,12 +65,11 @@ export function PanelVisualizations({
     error,
     plotScale,
 }: PanelVisualizationsProps) {
-    const scale = plotScale / 100;
+    const tabContentRef = useRef<HTMLElement>(null);
     const chartWidth = detectorAxisChartWidth(payload.detectors.length);
     const chartHeight = 230;
     const spectrumHeight = chartHeight + DETECTOR_AXIS_FOOTER_HEIGHT;
-    const renderedSpectrumWidth = Math.round(chartWidth * scale);
-    const renderedSpectrumHeight = Math.round(spectrumHeight * scale);
+    const plotZoom = `${(plotScale / DEFAULT_PLOT_SCALE) * 100}%`;
     const spectrumLeft = 42;
     const spectrumRight = chartWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
@@ -80,10 +81,14 @@ export function PanelVisualizations({
     const signaturePlotWidth = chartWidth - signatureLeft - 18;
     const signatureColumnWidth = signaturePlotWidth / Math.max(1, payload.detectors.length);
 
+    useEffect(() => {
+        tabContentRef.current?.scrollTo({ top: 0, left: 0 });
+    }, [tab]);
+
     return (
-<main className="main-panel">
+<main className="main-panel" style={{ '--plot-zoom': plotZoom } as CSSProperties}>
     <div className="top-spectrum">
-        <svg className="spectrum-svg" width={renderedSpectrumWidth} height={renderedSpectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label="Combined spectral signatures">
+        <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label="Combined spectral signatures">
             {[0, 25, 50, 75, 100].map(tick => {
                 const y = chartHeight - (tick / 100) * (chartHeight - 32) - 24;
                 return (
@@ -158,7 +163,7 @@ export function PanelVisualizations({
 
     {error && <div className="error-state">{error}</div>}
 
-    <section className="tab-content">
+    <section className="tab-content" ref={tabContentRef}>
         {tab === 'panel' && (
             <div className="panel-matrix-wrap">
                 <table className="panel-matrix">

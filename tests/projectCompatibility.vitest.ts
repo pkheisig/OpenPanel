@@ -6,6 +6,43 @@ import {
   serializeProject,
 } from '../src/projectStore'
 import type { ProjectState } from '../src/projectStore'
+import type { WizardProjectState } from '../src/panelWizardEngine'
+
+const wizard: WizardProjectState = {
+  desiredSize: 2,
+  markers: [
+    { id: 'marker-0', slotIndex: 0, name: 'CD3', cellType: 'T cells', frequency: 'high', currentFluorophore: 'Alexa Fluor 488' },
+    { id: 'marker-1', slotIndex: 1, name: 'CD19', cellType: 'B cells', frequency: 'low', currentFluorophore: 'Alexa Fluor 647' },
+  ],
+  coexpression: { 'marker-0::marker-1': 2 },
+  coexpressionVisited: true,
+  coexpressionCompleted: true,
+  activeTab: 'recommendations',
+  results: {
+    recommended: {
+      kind: 'recommended',
+      rows: [],
+      alternatives: [],
+      complexity: 1.02,
+      previousComplexity: 1,
+      maxSimilarity: 0.01,
+      spectralRisk: 2,
+      averageAvailability: 88,
+    },
+    bestFit: {
+      kind: 'best-fit',
+      rows: [],
+      alternatives: [],
+      complexity: 1.01,
+      previousComplexity: 1,
+      maxSimilarity: 0.005,
+      spectralRisk: 1,
+      averageAvailability: 72,
+    },
+  },
+  resultMode: 'bestFit',
+  resultSort: 'availability',
+}
 
 const project: ProjectState = {
   cytometer: 'aurora',
@@ -17,6 +54,8 @@ const project: ProjectState = {
   sidebarWidth: 276,
   sidebarCollapsed: false,
   plotScale: 90,
+  plotScaleMode: 'fit-width',
+  wizard,
 }
 
 describe('OpenPanel project files', () => {
@@ -26,6 +65,7 @@ describe('OpenPanel project files', () => {
     expect(file.kind).toBe(PROJECT_FILE_KIND)
     expect(file.version).toBe(PROJECT_FILE_VERSION)
     expect(file.savedAt).toEqual(expect.any(String))
+    expect(file.wizard).toEqual(wizard)
     expect(parseProject(serialized)).toEqual(project)
   })
 
@@ -53,7 +93,17 @@ describe('OpenPanel project files', () => {
       sidebarWidth: 440,
       sidebarCollapsed: true,
       plotScale: 80,
+      plotScaleMode: 'fit-width',
+      wizard: null,
     })
+  })
+
+  test('migrates pre-fit plot scales to the fitted default', () => {
+    const legacyScale = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    delete legacyScale.plotScaleMode
+    legacyScale.plotScale = 40
+    expect(parseProject(JSON.stringify(legacyScale)).plotScale).toBe(80)
+    expect(parseProject(JSON.stringify(legacyScale)).plotScaleMode).toBe('fit-width')
   })
 
   test('rejects unrelated and future project formats', () => {

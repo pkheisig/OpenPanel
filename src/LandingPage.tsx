@@ -121,6 +121,8 @@ export function LandingPage({ panels, onStart, onOpen }: LandingPageProps) {
               setCytometer(nextCytometer)
               setConfiguration(getSpectralPanelConfigurations(nextCytometer)[0].id)
             }}
+            portalMenu
+            menuClassName="launch-select-menu"
           />
 
           {cytometer !== 'xenith' && (
@@ -133,6 +135,8 @@ export function LandingPage({ panels, onStart, onOpen }: LandingPageProps) {
                   label: candidate.label,
                 }))}
                 onChange={setConfiguration}
+                portalMenu
+                menuClassName="launch-select-menu"
               />
 
               <div className="launch-configuration-note">

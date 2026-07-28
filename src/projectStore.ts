@@ -1,5 +1,11 @@
 import { openDB } from 'idb'
 import type { TabId } from './panelBuilderShared'
+import type {
+  MarkerFrequency,
+  WizardPanelResult,
+  WizardProjectState,
+  WizardResults,
+} from './panelWizardEngine'
 
 export const PROJECT_FILE_KIND = 'OpenPanel project'
 export const PROJECT_FILE_VERSION = 1
@@ -20,6 +26,8 @@ export type OpenPanelProject = {
   sidebarWidth: number
   sidebarCollapsed: boolean
   plotScale: number
+  plotScaleMode: 'fit-width'
+  wizard: WizardProjectState | null
 }
 
 export type ProjectState = Omit<OpenPanelProject, 'kind' | 'version' | 'savedAt'>
@@ -53,6 +61,77 @@ function scalar(value: unknown): unknown {
   let current = value
   while (Array.isArray(current) && current.length === 1) current = current[0]
   return current
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isMarkerFrequency(value: unknown): value is MarkerFrequency {
+  return value === 'low' || value === 'medium' || value === 'high'
+}
+
+function isWizardPanelResult(value: unknown): value is WizardPanelResult {
+  if (!isRecord(value)) return false
+  if (value.kind !== 'recommended' && value.kind !== 'best-fit') return false
+  if (!Array.isArray(value.rows) || !Array.isArray(value.alternatives)) return false
+  return value.rows.every((row) => (
+    isRecord(row)
+    && typeof row.markerId === 'string'
+    && typeof row.markerName === 'string'
+    && typeof row.slotIndex === 'number'
+    && isMarkerFrequency(row.frequency)
+    && typeof row.fluorophore === 'string'
+  )) && value.alternatives.every((row) => (
+    isRecord(row) && typeof row.fluorophore === 'string'
+  ))
+}
+
+function normalizeWizardState(value: unknown): WizardProjectState | null {
+  if (!isRecord(value) || !Array.isArray(value.markers)) return null
+  const markers = value.markers
+    .filter(isRecord)
+    .map((marker, index) => ({
+      id: typeof marker.id === 'string' && marker.id ? marker.id : `marker-${index}`,
+      slotIndex: Number.isFinite(Number(marker.slotIndex)) ? Math.max(0, Math.round(Number(marker.slotIndex))) : index,
+      name: typeof marker.name === 'string' ? marker.name : '',
+      cellType: typeof marker.cellType === 'string' ? marker.cellType : '',
+      frequency: isMarkerFrequency(marker.frequency) ? marker.frequency : 'medium',
+      currentFluorophore: typeof marker.currentFluorophore === 'string' ? marker.currentFluorophore : '',
+    }))
+  if (markers.length === 0) return null
+
+  const rawCoexpression = isRecord(value.coexpression) ? value.coexpression : {}
+  const coexpression = Object.fromEntries(
+    Object.entries(rawCoexpression)
+      .map(([key, level]) => [key, Number(level)] as const)
+      .filter(([, level]) => level === 0 || level === 1 || level === 2),
+  ) as WizardProjectState['coexpression']
+  const rawResults = isRecord(value.results)
+    && isWizardPanelResult(value.results.recommended)
+    && isWizardPanelResult(value.results.bestFit)
+    ? value.results as unknown as WizardResults
+    : null
+  const activeTab = value.activeTab === 'coexpression' || value.activeTab === 'recommendations'
+    ? value.activeTab
+    : 'frequency'
+  const resultMode = value.resultMode === 'bestFit' ? 'bestFit' : 'recommended'
+  const allowedSorts = new Set(['recommended', 'spectral', 'availability', 'similarity', 'complexity', 'marker'])
+  const resultSort = typeof value.resultSort === 'string' && allowedSorts.has(value.resultSort)
+    ? value.resultSort as WizardProjectState['resultSort']
+    : 'recommended'
+
+  return {
+    desiredSize: Math.max(1, Math.round(Number(value.desiredSize) || markers.length)),
+    markers,
+    coexpression,
+    coexpressionVisited: value.coexpressionVisited === true,
+    coexpressionCompleted: value.coexpressionCompleted === true,
+    activeTab,
+    results: rawResults,
+    resultMode,
+    resultSort,
+  }
 }
 
 export function serializeProject(state: ProjectState): string {
@@ -94,7 +173,11 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
       ? Math.min(440, Math.max(180, savedSidebarWidth))
       : 214,
     sidebarCollapsed: scalar(value.sidebarCollapsed) === true,
-    plotScale: Math.min(MAX_PLOT_SCALE, Math.max(MIN_PLOT_SCALE, Math.round(normalizedPlotScale))),
+    plotScale: scalar(value.plotScaleMode) === 'fit-width'
+      ? Math.min(MAX_PLOT_SCALE, Math.max(MIN_PLOT_SCALE, Math.round(normalizedPlotScale)))
+      : DEFAULT_PLOT_SCALE,
+    plotScaleMode: 'fit-width',
+    wizard: normalizeWizardState(value.wizard),
   }
 }
 

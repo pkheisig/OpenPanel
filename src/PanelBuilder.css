@@ -29,7 +29,10 @@
   --shadow: 0 4px 12px rgba(23, 32, 29, 0.07);
   --shadow-dropdown: 0 12px 30px rgba(23, 32, 29, 0.12);
 
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   background: var(--bg-app);
   background-image: var(--bg-gradient);
   background-size: 22px 22px;
@@ -75,9 +78,9 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
   min-height: 70px;
   padding: 10px 24px;
@@ -98,6 +101,8 @@
   display: flex;
   align-items: center;
   gap: 13px;
+  min-width: 0;
+  justify-self: start;
 }
 
 .panel-heading-row {
@@ -167,6 +172,115 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  justify-self: end;
+}
+
+.file-action-groups {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.file-action-menu {
+  position: relative;
+}
+
+.file-action-groups .file-action-trigger {
+  width: 44px;
+  height: 40px;
+  padding: 0 6px;
+  gap: 3px;
+}
+
+.file-action-trigger > svg {
+  flex: 0 0 auto;
+}
+
+.file-action-trigger > svg:last-child {
+  color: var(--text-muted);
+  transition: transform 160ms ease;
+}
+
+.file-action-trigger.is-open {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.file-action-trigger.is-open > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.file-action-popout {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 220px;
+  padding: 6px;
+  border: 1px solid var(--button-border);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--bg-card) 96%, transparent);
+  box-shadow: var(--shadow-dropdown);
+  backdrop-filter: blur(18px);
+  animation: file-action-popout-in 150ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.file-action-popout button {
+  width: 100%;
+  min-height: 48px;
+  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+
+.file-action-popout button:hover,
+.file-action-popout button:focus-visible {
+  color: var(--accent);
+  background: var(--accent-soft);
+  outline: 0;
+  transform: translateX(2px);
+}
+
+.file-action-popout button > svg {
+  justify-self: center;
+}
+
+.file-action-popout button span {
+  display: grid;
+  gap: 2px;
+}
+
+.file-action-popout strong {
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.file-action-popout small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+@keyframes file-action-popout-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .plot-size-controls {
@@ -184,6 +298,35 @@
   height: 32px;
   border: 0;
   box-shadow: none;
+}
+
+.wizard-launch-button {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--button-border));
+  background: var(--accent-soft);
+}
+
+.panel-wizard-header-action {
+  min-width: 142px;
+  padding-inline: 17px;
+  justify-self: center;
+  white-space: nowrap;
+}
+
+.panel-wizard-header-action > svg {
+  flex: 0 0 auto;
+}
+
+.wizard-launch-button:hover,
+.wizard-launch-button:focus-visible {
+  color: var(--bg-card);
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.panel-builder.dark .wizard-launch-button:hover,
+.panel-builder.dark .wizard-launch-button:focus-visible {
+  color: #10211d;
 }
 
 .panel-actions .applet-close-button {
@@ -252,11 +395,14 @@
 .panel-shell {
   display: flex;
   align-items: stretch;
-  min-height: calc(100vh - 70px);
+  height: calc(100vh - 70px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panel-sidebar.is-collapsed .panel-sidebar-head,
-.panel-sidebar.is-collapsed .selector-list {
+.panel-sidebar.is-collapsed .selector-list,
+.panel-sidebar.is-collapsed .panel-sidebar-color-count {
   opacity: 0;
   visibility: hidden;
   transform: translateX(-6px);
@@ -273,10 +419,11 @@
 .panel-sidebar {
   flex: 0 0 var(--panel-sidebar-width, 214px);
   width: var(--panel-sidebar-width, 214px);
-  position: sticky;
-  top: 70px;
-  height: calc(100vh - 70px);
-  overflow: auto;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--border-color);
   background: var(--bg-sidebar);
   backdrop-filter: blur(10px);
@@ -385,7 +532,7 @@
   border-radius: 8px;
   color: var(--text-primary);
   background: var(--input-bg);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.25;
 }
@@ -405,7 +552,8 @@
   color: var(--accent);
 }
 
-.panel-sidebar-select .ui-select-options {
+.panel-sidebar-select .ui-select-options,
+.panel-sidebar-select-menu {
   top: calc(100% + 5px);
   z-index: 50;
   padding: 4px;
@@ -416,34 +564,54 @@
   backdrop-filter: none;
 }
 
-.panel-sidebar-select .ui-select-option {
+.panel-sidebar-select .ui-select-option,
+.panel-sidebar-select-menu .ui-select-option {
   min-height: 34px;
   padding: 7px 8px;
   border-radius: 6px;
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .panel-sidebar-select .ui-select-option:hover,
-.panel-sidebar-select .ui-select-option:focus-visible {
+.panel-sidebar-select .ui-select-option:focus-visible,
+.panel-sidebar-select-menu .ui-select-option:hover,
+.panel-sidebar-select-menu .ui-select-option:focus-visible {
   background: var(--accent-soft);
 }
 
-.panel-sidebar-select .ui-select-option.is-selected {
+.panel-sidebar-select .ui-select-option.is-selected,
+.panel-sidebar-select-menu .ui-select-option.is-selected {
   color: #fff;
   background: var(--accent);
 }
 
-.panel-builder.dark .panel-sidebar-select .ui-select-option.is-selected {
+.panel-builder.dark .panel-sidebar-select .ui-select-option.is-selected,
+.panel-builder.dark .panel-sidebar-select-menu .ui-select-option.is-selected {
   color: #111714;
 }
 
 .selector-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.panel-sidebar-color-count {
+  flex: 0 0 auto;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border-color-soft);
+  color: var(--text-muted);
+  background: var(--bg-sidebar);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
 }
 
 .selector-row {
@@ -547,6 +715,7 @@
   color: var(--text-muted);
   cursor: pointer;
   font-size: 14px;
+  opacity: 0.58;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -556,6 +725,12 @@
 .clear-slot:hover {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
+  opacity: 1;
+}
+
+.selector-row:hover .clear-slot,
+.selector-row:focus-within .clear-slot {
+  opacity: 1;
 }
 
 .fluor-dropdown {
@@ -624,12 +799,14 @@
 .main-panel {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .top-spectrum {
+  flex: 0 0 auto;
   background: var(--bg-spectrum);
   border-bottom: 1px solid var(--border-color);
   padding: 20px 24px;
@@ -638,8 +815,11 @@
 
 .spectrum-svg {
   display: block;
+  width: var(--plot-zoom, 100%);
+  height: auto;
   max-width: none;
   filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.05));
+  transition: width 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .panel-builder.dark .spectrum-svg {
@@ -647,8 +827,8 @@
 }
 
 .tabs-bar {
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex: 0 0 auto;
   z-index: 10;
   display: grid;
   grid-template-columns: repeat(3, max-content) 1fr max-content;
@@ -710,7 +890,10 @@
 
 .tab-content {
   padding: 24px;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .panel-matrix-wrap,
@@ -880,7 +1063,10 @@
 
 .signature-band-svg {
   display: block;
+  width: var(--plot-zoom, 100%);
+  height: auto;
   max-width: none;
+  transition: width 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .empty-state {
@@ -995,7 +1181,9 @@
 @media (prefers-reduced-motion: reduce) {
   .panel-sidebar,
   .panel-sidebar-head,
-  .selector-list {
+  .selector-list,
+  .file-action-popout {
+    animation: none;
     transition: none;
   }
 }
@@ -1068,8 +1256,13 @@
   .panel-topbar {
     position: relative;
     align-items: flex-start;
+    display: flex;
     flex-direction: column;
     padding: 16px;
+  }
+
+  .panel-wizard-header-action {
+    align-self: center;
   }
 
   .panel-actions {

@@ -28,6 +28,8 @@ function emptyProject(selection: PanelLaunchSelection): ProjectState {
     sidebarWidth: 214,
     sidebarCollapsed: false,
     plotScale: DEFAULT_PLOT_SCALE,
+    plotScaleMode: 'fit-width',
+    wizard: null,
   }
 }
 

@@ -12,7 +12,7 @@ async function openEmptyPanel(page: import('@playwright/test').Page) {
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
   await page.getByRole('button', { name: 'Build panel' }).click()
   await expect(page.getByLabel('Panel name')).toBeVisible()
-  await expect(page.locator('.panel-topbar p')).toContainText('0 fluorophores selected')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
 }
 
 async function chooseOption(
@@ -51,17 +51,18 @@ test('selects the instrument and configuration before opening a clean workspace'
   await chooseOption(page, 'DETECTOR CONFIGURATION', 'ID7000 4L: V/B/YG/R')
   await openEmptyPanel(page)
   await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
-  await expect(page.locator('.panel-topbar p')).toContainText('ID7000 4L: V/B/YG/R')
+  await expect(page.locator('.configuration-sidebar-select .ui-select-trigger')).toContainText('ID7000 4L: V/B/YG/R')
   await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(18)
   await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('')
   await expect(page.getByLabel('Panel name')).toHaveValue('T-cell panel')
   const editorCytometer = page.getByRole('combobox', { name: 'Cytometer' })
   await expect(editorCytometer).toBeVisible()
   await expect(page.locator('.panel-sidebar-head select')).toHaveCount(0)
-  expect(await editorCytometer.evaluate((element) => getComputedStyle(element).fontSize)).toBe('10px')
+  expect(await editorCytometer.evaluate((element) => getComputedStyle(element).fontSize)).toBe('14px')
   expect(await editorCytometer.evaluate((element) => getComputedStyle(element).borderTopStyle)).toBe('solid')
   expect(await editorCytometer.evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('1px')
   const editorConfiguration = page.getByRole('combobox', { name: 'Detector configuration' })
+  expect(await editorConfiguration.evaluate((element) => getComputedStyle(element).fontSize)).toBe('14px')
   expect(await editorConfiguration.evaluate((element) => getComputedStyle(element).borderTopStyle)).toBe('solid')
   expect(await editorConfiguration.evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('1px')
   expect(await page.getByRole('button', { name: 'PANEL MATRIX' }).evaluate((element) => getComputedStyle(element).fontSize)).toBe('12px')
@@ -70,25 +71,53 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByRole('option', { name: 'Sony ID7000' })).toBeVisible()
   await page.keyboard.press('Escape')
   const spectrum = page.getByRole('img', { name: 'Combined spectral signatures' })
-  const baseWidth = Number(await spectrum.getAttribute('width'))
-  const baseHeight = Number(await spectrum.getAttribute('height'))
   const baseViewBox = await spectrum.getAttribute('viewBox')
   const [, , viewBoxWidth, viewBoxHeight] = String(baseViewBox).split(' ').map(Number)
-  expect(baseWidth).toBe(Math.round(viewBoxWidth * 0.8))
-  expect(baseHeight).toBe(Math.round(viewBoxHeight * 0.8))
+  await expect(spectrum).toHaveAttribute('width', String(viewBoxWidth))
+  await expect(spectrum).toHaveAttribute('height', String(viewBoxHeight))
+  const spectrumContainerWidth = await page.locator('.top-spectrum').evaluate((element) => {
+    const style = getComputedStyle(element)
+    return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
+  })
+  const baseBox = await spectrum.boundingBox()
+  expect(baseBox).not.toBeNull()
+  expect(baseBox!.width).toBeCloseTo(spectrumContainerWidth, 0)
+  expect(baseBox!.height).toBeCloseTo(baseBox!.width * viewBoxHeight / viewBoxWidth, 0)
   await page.getByRole('button', { name: 'Decrease plot size' }).click()
-  await expect(spectrum).toHaveAttribute('width', String(Math.round(viewBoxWidth * 0.7)))
-  await expect(spectrum).toHaveAttribute('height', String(Math.round(viewBoxHeight * 0.7)))
+  await page.waitForTimeout(220)
+  const reducedBox = await spectrum.boundingBox()
+  expect(reducedBox!.width).toBeCloseTo(baseBox!.width * 0.875, 0)
+  expect(reducedBox!.height).toBeCloseTo(reducedBox!.width * viewBoxHeight / viewBoxWidth, 0)
   await expect(spectrum).toHaveAttribute('viewBox', String(baseViewBox))
   await page.getByRole('button', { name: 'Increase plot size' }).click()
   await page.getByRole('button', { name: 'Increase plot size' }).click()
-  const expandedWidth = Math.round(viewBoxWidth * 0.9)
-  const expandedHeight = Math.round(viewBoxHeight * 0.9)
-  await expect(spectrum).toHaveAttribute('width', String(expandedWidth))
-  await expect(spectrum).toHaveAttribute('height', String(expandedHeight))
+  await page.waitForTimeout(220)
+  const expandedBox = await spectrum.boundingBox()
+  expect(expandedBox!.width).toBeCloseTo(baseBox!.width * 1.125, 0)
+  expect(expandedBox!.height).toBeCloseTo(expandedBox!.width * viewBoxHeight / viewBoxWidth, 0)
   await expect(spectrum).toHaveAttribute('viewBox', String(baseViewBox))
   await selectFluorophore(page, 0, 'Alexa Fluor 488')
   await page.waitForTimeout(650)
+  await page.getByRole('button', { name: 'Decrease plot size' }).click()
+  await page.getByRole('button', { name: 'SIGNATURES' }).click()
+  const signature = page.getByRole('img', { name: 'Alexa Fluor 488 signature' })
+  await expect(signature).toBeVisible()
+  await page.waitForTimeout(220)
+  const signatureBox = await signature.boundingBox()
+  const signatureContentWidth = await page.locator('.signature-card').evaluate((element) => {
+    const style = getComputedStyle(element)
+    return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
+  })
+  expect(signatureBox!.width).toBeCloseTo(signatureContentWidth, 0)
+  const anchoredTabsY = (await page.locator('.tabs-bar').boundingBox())!.y
+  await page.getByRole('button', { name: 'SIMILARITY MATRIX' }).click()
+  expect((await page.locator('.tabs-bar').boundingBox())!.y).toBeCloseTo(anchoredTabsY, 0)
+  await page.getByRole('button', { name: 'PANEL MATRIX' }).click()
+  expect((await page.locator('.tabs-bar').boundingBox())!.y).toBeCloseTo(anchoredTabsY, 0)
+  await page.getByRole('button', { name: 'SIGNATURES' }).click()
+  expect((await page.locator('.tabs-bar').boundingBox())!.y).toBeCloseTo(anchoredTabsY, 0)
+  await page.getByRole('button', { name: 'Increase plot size' }).click()
+  await page.waitForTimeout(220)
   await page.getByRole('button', { name: 'Open panel library' }).click()
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
   const savedPanel = page.getByRole('button', { name: 'Open T-cell panel' })
@@ -101,15 +130,19 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByRole('button', { name: 'Open B-cell panel' })).toContainText('0 colors')
   await expect(page.getByRole('button', { name: 'Open T-cell panel' })).toBeVisible()
   await savedPanel.click()
-  await expect(page.locator('.panel-topbar p')).toContainText('1 fluorophore selected')
-  await expect(page.getByRole('img', { name: 'Combined spectral signatures' })).toHaveAttribute('width', String(expandedWidth))
-  await expect(page.getByRole('img', { name: 'Combined spectral signatures' })).toHaveAttribute('height', String(expandedHeight))
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+  await page.waitForTimeout(220)
+  const reopenedSpectrumBox = await page.getByRole('img', { name: 'Combined spectral signatures' }).boundingBox()
+  expect(reopenedSpectrumBox!.width).toBeCloseTo(expandedBox!.width, 0)
+  expect(reopenedSpectrumBox!.height).toBeCloseTo(expandedBox!.height, 0)
   await page.reload()
   await expect(page.getByLabel('Panel name')).toBeVisible()
   await expect(page.getByLabel('Panel name')).toHaveValue('T-cell panel')
-  await expect(page.locator('.panel-topbar p')).toContainText('1 fluorophore selected')
-  await expect(page.getByRole('img', { name: 'Combined spectral signatures' })).toHaveAttribute('width', String(expandedWidth))
-  await expect(page.getByRole('img', { name: 'Combined spectral signatures' })).toHaveAttribute('height', String(expandedHeight))
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+  await page.waitForTimeout(220)
+  const reloadedSpectrumBox = await page.getByRole('img', { name: 'Combined spectral signatures' }).boundingBox()
+  expect(reloadedSpectrumBox!.width).toBeCloseTo(expandedBox!.width, 0)
+  expect(reloadedSpectrumBox!.height).toBeCloseTo(expandedBox!.height, 0)
 })
 
 test('migrates the previous single active autosave into the named panel library', async ({ page }) => {
@@ -136,6 +169,7 @@ test('migrates the previous single active autosave into the named panel library'
         theme: 'dark',
         sidebarWidth: 260,
         sidebarCollapsed: false,
+        plotScale: 40,
       }, 'active')
       transaction.oncomplete = () => resolve()
       transaction.onerror = () => reject(transaction.error)
@@ -146,8 +180,14 @@ test('migrates the previous single active autosave into the named panel library'
   await page.reload()
   await expect(page.getByLabel('Panel name')).toBeVisible()
   await expect(page.getByLabel('Panel name')).toHaveValue('Recovered panel')
-  await expect(page.locator('.panel-topbar p')).toContainText('1 fluorophore selected')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
   await expect(page.getByRole('button', { name: 'SIMILARITY MATRIX' })).toHaveClass(/active/)
+  const migratedSpectrumWidth = (await page.getByRole('img', { name: 'Combined spectral signatures' }).boundingBox())!.width
+  const migratedSpectrumContainerWidth = await page.locator('.top-spectrum').evaluate((element) => {
+    const style = getComputedStyle(element)
+    return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
+  })
+  expect(migratedSpectrumWidth).toBeCloseTo(migratedSpectrumContainerWidth, 0)
   await page.getByRole('button', { name: 'Open panel library' }).click()
   await expect(page.getByRole('button', { name: 'Open Recovered panel' })).toContainText('1 color')
 })
@@ -167,16 +207,23 @@ test('runs representative panel, import, export, and project round-trip workflow
 
   await selectFluorophore(page, 0, 'Alexa Fluor 488')
   await selectFluorophore(page, 1, 'Alexa Fluor 647')
-  await expect(page.locator('.panel-topbar p')).toContainText('2 fluorophores selected')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(2 colors)')
   await expect(page.locator('.complexity-badge')).toContainText('1.02')
 
   await page.locator('.matrix-marker-input').first().fill('CD3')
   await page.getByRole('button', { name: 'SIMILARITY MATRIX' }).click()
   await expect(page.locator('.similarity-table')).toContainText('Alexa Fluor 488')
   await expect(page.locator('.similarity-table')).toContainText('Alexa Fluor 647')
+  expect(Math.round(await page.locator('.file-action-trigger svg').first().evaluate((icon) => (
+    icon.getBoundingClientRect().width
+  )))).toBe(16)
+  await expect(page.locator('.file-action-groups')).toHaveCSS('border-top-width', '0px')
 
   const csvDownload = page.waitForEvent('download')
-  await page.getByTitle('Export panel CSV').click()
+  await page.getByRole('button', { name: 'Export', exact: true }).click()
+  await expect(page.getByRole('menu', { name: 'Export options' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /Export project/ })).toBeVisible()
+  await page.getByRole('menuitem', { name: /Export panel/ }).click()
   const downloadedCsv = await csvDownload
   expect(downloadedCsv.suggestedFilename()).toBe('spectreasy_aurora_5l_uv_v_b_yg_r_panel.csv')
   const csvStream = await downloadedCsv.createReadStream()
@@ -186,7 +233,8 @@ test('runs representative panel, import, export, and project round-trip workflow
   expect(csv).toContain('"CD3","Alexa Fluor 488"')
 
   const projectDownload = page.waitForEvent('download')
-  await page.getByTitle('Save project').click()
+  await page.getByRole('button', { name: 'Export', exact: true }).click()
+  await page.getByRole('menuitem', { name: /Export project/ }).click()
   const downloadedProject = await projectDownload
   const projectStream = await downloadedProject.createReadStream()
   let projectText = ''
@@ -197,13 +245,17 @@ test('runs representative panel, import, export, and project round-trip workflow
   expect(project.markers['0']).toBe('CD3')
 
   await page.getByTitle('Clear selection').click()
-  await expect(page.locator('.panel-topbar p')).toContainText('0 fluorophores selected')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: /Import panel/ })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /Import project/ })).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.locator('input[accept*=".openpanel.json"]').setInputFiles({
     name: 'roundtrip.openpanel.json',
     mimeType: 'application/json',
     buffer: Buffer.from(projectText),
   })
-  await expect(page.locator('.panel-topbar p')).toContainText('2 fluorophores selected')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(2 colors)')
   await page.getByRole('button', { name: 'PANEL MATRIX' }).click()
   await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD3')
 
@@ -212,7 +264,7 @@ test('runs representative panel, import, export, and project round-trip workflow
     mimeType: 'text/csv',
     buffer: Buffer.from('Marker,Fluorophore\nCD4,Alexa Fluor 488\nCD8,Alexa Fluor 532\n'),
   })
-  await expect(page.locator('.panel-topbar p')).toContainText('2 fluorophores selected')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(2 colors)')
   await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD4')
 
   const pdfDownload = page.waitForEvent('download')
@@ -222,6 +274,243 @@ test('runs representative panel, import, export, and project round-trip workflow
   expect(downloadedPdf.suggestedFilename()).toMatch(/panel_overview\.pdf$/)
 
   expect(remoteRequests).toEqual([])
+})
+
+test('completes a panel through the staged marker wizard', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+
+  await selectFluorophore(page, 0, 'Alexa Fluor 488')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+  await page.getByRole('button', { name: 'Remove fluorophore row' }).nth(1).click()
+  await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(17)
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+  await page.getByRole('button', { name: 'Remove fluorophore row' }).nth(1).click()
+  await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(16)
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard).toBeVisible()
+  await expect(wizard.locator('.wizard-title p')).toHaveText('Aurora · 5L-UV-V-B-YG-R')
+  const panelSizeInput = page.getByRole('spinbutton', { name: 'Panel size', exact: true })
+  await expect(panelSizeInput).toHaveValue('16')
+  await expect(page.getByText('Desired panel size', { exact: true })).toHaveCount(0)
+  await expect(wizard.getByText('colors', { exact: true })).toHaveCount(0)
+  const decreasePanelSize = page.getByRole('button', { name: 'Decrease panel size' })
+  const increasePanelSize = page.getByRole('button', { name: 'Increase panel size' })
+  await expect(decreasePanelSize).toBeVisible()
+  await expect(increasePanelSize).toBeVisible()
+  await decreasePanelSize.click()
+  await expect(panelSizeInput).toHaveValue('15')
+  await increasePanelSize.click()
+  await expect(panelSizeInput).toHaveValue('16')
+  await expect(page.getByLabel('Marker 1 name')).toHaveValue('')
+  const recommendationsTab = page.getByRole('button', { name: /Recommendations/ })
+  await expect(recommendationsTab).toBeDisabled()
+  await expect(page.getByLabel('Marker setup complete')).toHaveCount(0)
+
+  await panelSizeInput.fill('6')
+  for (const [index, name] of ['CD3', 'CD4', 'CD8', 'CD19', 'CD25', 'Live/Dead'].entries()) {
+    await page.getByLabel(`Marker ${index + 1} name`).fill(name)
+  }
+  await page.getByRole('combobox', { name: 'Cell type for marker 1' }).click()
+  const cellTypeSearch = page.getByRole('searchbox', { name: 'Search or enter cell type' })
+  await cellTypeSearch.fill('t')
+  const rankedCellTypes = await page.getByRole('option').allTextContents()
+  expect(rankedCellTypes.slice(0, 2).map((label) => label.trim())).toEqual([
+    'T cells',
+    'Tumor cells',
+  ])
+  await cellTypeSearch.fill('T cells')
+  await page.getByRole('option', { name: 'T cells', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Cell type for marker 2' }).click()
+  await page.getByRole('searchbox', { name: 'Search or enter cell type' }).fill('Activated lymphocytes')
+  await page.getByRole('option', { name: 'Use “Activated lymphocytes”', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: 'Cell type for marker 2' })).toContainText('Activated lymphocytes')
+  const originalViewport = page.viewportSize()!
+  await page.setViewportSize({ ...originalViewport, height: 600 })
+  const wizardTopBeforeFrequencyMenu = await wizard.evaluate((dialog) => dialog.getBoundingClientRect().top)
+  const bottomFrequencyTrigger = page.getByRole('combobox', { name: 'Expected positive frequency for marker 6' })
+  const bottomFrequencyTriggerBox = await bottomFrequencyTrigger.boundingBox()
+  await bottomFrequencyTrigger.click()
+  const frequencyMenu = page.locator('.wizard-frequency-select-menu.is-portal')
+  await expect(frequencyMenu).toBeVisible()
+  const frequencyMenuBox = await frequencyMenu.boundingBox()
+  expect(frequencyMenuBox).not.toBeNull()
+  expect(frequencyMenuBox!.y).toBeGreaterThanOrEqual(0)
+  expect(frequencyMenuBox!.y + frequencyMenuBox!.height).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerHeight),
+  )
+  expect(frequencyMenuBox!.y + frequencyMenuBox!.height).toBeLessThanOrEqual(bottomFrequencyTriggerBox!.y)
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+  expect(Math.abs(await wizard.evaluate((dialog) => (
+    dialog.getBoundingClientRect().top
+  )) - wizardTopBeforeFrequencyMenu)).toBeLessThan(1)
+  await page.getByRole('option', { name: 'Medium', exact: true }).click()
+  await page.setViewportSize(originalViewport)
+  await chooseOption(page, 'Expected positive frequency for marker 1', 'High')
+  const wizardTopBeforeColorMenu = await wizard.evaluate((dialog) => dialog.getBoundingClientRect().top)
+  await page.getByRole('combobox', { name: 'Color for marker 2' }).click()
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+  expect(Math.abs(await wizard.evaluate((dialog) => (
+    dialog.getBoundingClientRect().top
+  )) - wizardTopBeforeColorMenu)).toBeLessThan(1)
+  const portalMenu = page.locator('.wizard-color-select-menu.is-portal')
+  await expect(portalMenu).toBeVisible()
+  expect(await portalMenu.evaluate((menu) => menu.parentElement?.classList.contains('panel-builder'))).toBe(true)
+  await page.getByRole('searchbox', { name: 'Search colors' }).fill('egfp')
+  await expect(page.getByRole('option', { name: 'EGFP', exact: true })).toHaveCount(0)
+  await page.getByRole('searchbox', { name: 'Search colors' }).fill('live dead nir')
+  await expect(page.getByRole('option', { name: 'LIVE/DEAD Fixable Near-IR', exact: true })).toHaveCount(0)
+  await page.getByRole('searchbox', { name: 'Search colors' }).fill('zombie')
+  await expect(page.getByRole('option', { name: /^Zombie / })).toHaveCount(0)
+  await page.getByRole('searchbox', { name: 'Search colors' }).fill('fit')
+  await expect(page.getByRole('option', { name: 'Alexa Fluor 488', exact: true })).toHaveCount(0)
+  await page.getByRole('option', { name: 'FITC', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Color for marker 6' }).click()
+  await page.getByRole('searchbox', { name: 'Search colors' }).fill('fitc')
+  await expect(page.getByRole('option', { name: 'FITC', exact: true })).toHaveCount(0)
+  await page.getByRole('searchbox', { name: 'Search colors' }).fill('pe')
+  await expect(page.getByRole('option', { name: 'PE', exact: true })).toHaveCount(0)
+  await page.getByRole('searchbox', { name: 'Search colors' }).fill('zombie')
+  await expect(page.getByRole('option', { name: 'Zombie NIR', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: /^Zombie / })).toHaveCount(7)
+  await page.getByRole('combobox', { name: 'Color for marker 6' }).click()
+  await expect(page.getByLabel('Marker setup complete')).toBeVisible()
+  await expect(page.locator('.frequency-table thead th')).toHaveCount(4)
+  expect(await page.locator('.frequency-table').evaluate((table) => table.getBoundingClientRect().width)).toBeLessThan(1100)
+  expect(await page.getByRole('button', { name: /Marker setup/ }).evaluate((button) => (
+    getComputedStyle(button).transitionDuration
+  ))).not.toBe('0s')
+  await expect(page.getByRole('button', { name: /Finalize/ })).toHaveCount(0)
+
+  await page.getByRole('button', { name: /Co-expression/ }).click()
+  await expect(page.getByLabel('Co-expression complete')).toHaveCount(0)
+  await expect(page.locator('.coexpression-cell')).toHaveCount(15)
+  expect(Math.round(await page.locator('.coexpression-matrix thead th').first().evaluate((cell) => (
+    cell.getBoundingClientRect().width
+  )))).toBe(87)
+  expect(Math.round(await page.locator('.coexpression-matrix td').first().evaluate((cell) => (
+    cell.getBoundingClientRect().width
+  )))).toBe(46)
+  expect(Math.round(await page.locator('.coexpression-matrix tbody tr').first().evaluate((row) => (
+    row.getBoundingClientRect().height
+  )))).toBe(44)
+  await expect(page.locator('.coexpression-matrix tbody th').first()).toHaveText('CD3')
+  const noneLegend = wizard.locator('.coexpression-legend .level-0')
+  expect(Math.round(await noneLegend.evaluate((swatch) => swatch.getBoundingClientRect().width))).toBe(16)
+  await expect(noneLegend).toHaveCSS('background-color', 'rgb(204, 213, 209)')
+  await page.getByRole('button', { name: 'Toggle theme' }).evaluate((button) => (button as HTMLButtonElement).click())
+  await expect(noneLegend).toHaveCSS('background-color', 'rgb(89, 102, 96)')
+  await page.getByRole('button', { name: 'Toggle theme' }).evaluate((button) => (button as HTMLButtonElement).click())
+  await page.getByRole('button', { name: 'CD3 and CD4 co-expression: Possible' }).click()
+  await expect(page.getByRole('button', { name: 'CD3 and CD4 co-expression: Strong' })).toBeVisible()
+  await expect(recommendationsTab).toBeEnabled()
+  await recommendationsTab.click()
+  await expect(page.getByLabel('Co-expression complete')).toBeVisible()
+  await expect(page.getByLabel('Recommendations complete')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Calculate recommendations' }).click()
+  const primaryRecommendations = page.locator('.primary-recommendation-table')
+  await expect(primaryRecommendations.locator('tbody tr')).toHaveCount(6, { timeout: 60_000 })
+  await expect(primaryRecommendations.getByRole('columnheader', { name: '#' })).toHaveCount(0)
+  await expect(primaryRecommendations.getByRole('columnheader', { name: 'Brightness' })).toBeVisible()
+  const existingRow = primaryRecommendations.locator('tbody tr').first()
+  await expect(existingRow).toHaveClass(/is-existing/)
+  await expect(existingRow.locator('.marker-color-pair')).toContainText('CD3')
+  await expect(existingRow.locator('.marker-color-pair')).toContainText('Alexa Fluor 488')
+  await expect(existingRow.getByRole('img', { name: 'Brightness 3 of 5' })).toBeVisible()
+  await expect(existingRow.locator('.brightness-dot.is-filled')).toHaveCount(3)
+  await expect(page.getByLabel('Recommendations complete')).toBeVisible()
+  await expect(primaryRecommendations.getByRole('columnheader', { name: 'Spectral fit' })).toHaveCount(0)
+  await expect(primaryRecommendations.locator('tbody tr').first().locator('.score-pill')).toHaveCount(0)
+  await expect(primaryRecommendations.locator('tbody tr').first().locator('.availability-tier')).toHaveCount(0)
+  await expect(primaryRecommendations.locator('tbody tr').first().locator('.marker-color-pair strong')).toHaveCount(2)
+  await expect(primaryRecommendations.locator('tbody tr').first().locator('.conflict-pair')).toContainText(/\d\.\d{2}/)
+  await expect(primaryRecommendations.locator('tbody tr').first()).not.toContainText(/frequency|\/100|Curated|Estimated/)
+  await page.getByRole('button', { name: 'How recommendation score is calculated' }).focus()
+  await expect(page.getByRole('tooltip').filter({ hasText: 'availability is weighted most strongly' })).toBeVisible()
+  expect(await page.getByRole('tooltip').filter({ hasText: 'availability is weighted most strongly' }).evaluate((tooltip) => (
+    Number.parseFloat(getComputedStyle(tooltip).fontSize)
+  ))).toBeGreaterThanOrEqual(16)
+  await page.getByRole('button', { name: 'About panel wizard calculations' }).focus()
+  await expect(page.getByRole('tooltip').filter({ hasText: 'prioritize co-expressed' })).toBeVisible()
+  await expect(page.locator('.wizard-alternatives')).toContainText('Other fluorophores')
+  await page.locator('.wizard-alternatives summary').click()
+  const primaryHeaders = await primaryRecommendations.locator('thead th').allTextContents()
+  const alternativeHeaders = await page.locator('.alternative-table thead th').allTextContents()
+  expect(alternativeHeaders.map((value) => value.trim())).toEqual(primaryHeaders.map((value) => value.trim()))
+  await expect(page.locator('.alternative-table tbody tr').first()).not.toContainText('Unassigned')
+  await expect(page.locator('.alternative-table').getByRole('img', { name: 'Brightness unavailable' }).first()).toBeVisible()
+  await chooseOption(page, 'Sort ranked colors', 'Availability')
+  await expect(primaryRecommendations.locator('tbody tr').first()).toHaveClass(/is-existing/)
+  await expect(primaryRecommendations.locator('tbody tr').first()).toContainText('Alexa Fluor 488')
+  await page.getByRole('button', { name: 'Best spectral fit' }).click()
+  await expect(page.locator('.result-mode button.active')).toHaveText('Best spectral fit')
+
+  await page.getByRole('button', { name: 'Close panel wizard' }).click()
+  const wizardProjectDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Export', exact: true }).click()
+  await page.getByRole('menuitem', { name: /Export project/ }).click()
+  const wizardProjectFile = await wizardProjectDownload
+  const wizardProjectStream = await wizardProjectFile.createReadStream()
+  let wizardProjectText = ''
+  for await (const chunk of wizardProjectStream) wizardProjectText += chunk.toString()
+  const wizardProject = JSON.parse(wizardProjectText) as {
+    wizard: {
+      desiredSize: number
+      markers: Array<{ name: string; cellType: string; frequency: string; currentFluorophore: string }>
+      coexpression: Record<string, number>
+      coexpressionVisited: boolean
+      coexpressionCompleted: boolean
+      activeTab: string
+      results: unknown
+      resultMode: string
+      resultSort: string
+    }
+  }
+  expect(wizardProject.wizard.desiredSize).toBe(6)
+  expect(wizardProject.wizard.markers[0]).toMatchObject({
+    name: 'CD3',
+    cellType: 'T cells',
+    frequency: 'high',
+    currentFluorophore: 'Alexa Fluor 488',
+  })
+  expect(wizardProject.wizard.markers[1]).toMatchObject({
+    cellType: 'Activated lymphocytes',
+    currentFluorophore: 'FITC',
+  })
+  expect(wizardProject.wizard.coexpression['marker-0::marker-1']).toBe(2)
+  expect(wizardProject.wizard.coexpressionVisited).toBe(true)
+  expect(wizardProject.wizard.coexpressionCompleted).toBe(true)
+  expect(wizardProject.wizard.activeTab).toBe('recommendations')
+  expect(wizardProject.wizard.results).not.toBeNull()
+  expect(wizardProject.wizard.resultMode).toBe('bestFit')
+  expect(wizardProject.wizard.resultSort).toBe('availability')
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  await expect(page.locator('.wizard-tabs button.active')).toContainText('Recommendations')
+  await expect(page.locator('.primary-recommendation-table tbody tr')).toHaveCount(6)
+  await page.getByRole('button', { name: 'Apply 6-color panel' }).click()
+  await expect(wizard).toHaveCount(0)
+  await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(6)
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('Alexa Fluor 488')
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(6 colors)')
+  expect(await page.locator('.matrix-marker-input').evaluateAll((inputs) => (
+    inputs.some((input) => (input as HTMLInputElement).value === 'CD3')
+  ))).toBe(true)
+  await page.waitForTimeout(650)
+  await page.reload()
+  await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(6)
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(6 colors)')
+  expect(await page.locator('.matrix-marker-input').evaluateAll((inputs) => (
+    inputs.some((input) => (input as HTMLInputElement).value === 'CD3')
+  ))).toBe(true)
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  await expect(page.locator('.wizard-tabs button.active')).toContainText('Recommendations')
+  await expect(page.locator('.primary-recommendation-table tbody tr')).toHaveCount(6)
+  await page.getByRole('button', { name: 'Close panel wizard' }).click()
 })
 
 test('reopens the complete application offline after the first load', async ({ page, context }) => {
@@ -241,7 +530,7 @@ test('reopens the complete application offline after the first load', async ({ p
   try {
     await page.reload({ waitUntil: 'domcontentloaded' })
     await expect(page.getByLabel('Panel name')).toBeVisible()
-    await expect(page.locator('.panel-topbar p')).toContainText('0 fluorophores selected')
+    await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
     await expect(page.getByPlaceholder('Select fluorophore').first()).toBeVisible()
   } finally {
     await context.setOffline(false)

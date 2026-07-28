@@ -101,7 +101,7 @@ test('accepts legacy scalar array wrappers for cytometer names', () => {
 
 test('detector fallbacks and wavelength parsing cover nonstandard panels', () => {
   assert.equal(detectorAxisChartWidth(1), 1040)
-  assert.equal(detectorAxisChartWidth(100), 2700)
+  assert.equal(detectorAxisChartWidth(100), 1800)
   assert.equal(detectorLaserKey('unknown'), 'Other')
   assert.equal(detectorLaserKey({ detector: 'FL1-A', label: '488CH4' }), 'B')
   assert.equal(detectorLaserKey('DUV1-A'), 'DeepUV')

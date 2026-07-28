@@ -9,7 +9,7 @@ export type DetectorAxisEntry = {
 
 export const DETECTOR_AXIS_FOOTER_HEIGHT = 132
 export const DETECTOR_LABEL_ROTATION = -90
-export const detectorAxisChartWidth = (detectorCount: number) => Math.max(1040, detectorCount * 27)
+export const detectorAxisChartWidth = (detectorCount: number) => Math.min(1800, Math.max(1040, detectorCount * 27))
 
 type DetectorAxisInput = string | DetectorAxisEntry
 

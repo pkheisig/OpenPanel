@@ -1,6 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { Check, ChevronDown, Search } from 'lucide-react'
+import { normalizeSearchValue, rankUiSelectOptions } from './uiSelectSearch'
 
 export type UiSelectOption = {
   value: string
@@ -14,6 +16,11 @@ type UiSelectProps = {
   onChange: (value: string) => void
   className?: string
   hideLabel?: boolean
+  searchable?: boolean
+  searchPlaceholder?: string
+  portalMenu?: boolean
+  menuClassName?: string
+  allowCustomValue?: boolean
 }
 
 export function UiSelect({
@@ -23,50 +30,127 @@ export function UiSelect({
   onChange,
   className = '',
   hideLabel = false,
+  searchable = false,
+  searchPlaceholder = 'Search options',
+  portalMenu = false,
+  menuClassName = '',
+  allowCustomValue = false,
 }: UiSelectProps) {
   const id = useId()
   const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value))
+  const matchedIndex = options.findIndex((option) => option.value === value)
+  const selectedIndex = Math.max(0, matchedIndex)
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
+  const [query, setQuery] = useState('')
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>()
+  const [portalTarget, setPortalTarget] = useState<Element | null>(null)
+  const visibleOptions = rankUiSelectOptions(options, query)
+  const customValue = query.trim()
+  const customOption = allowCustomValue
+    && customValue
+    && !options.some((option) => normalizeSearchValue(option.value) === normalizeSearchValue(customValue))
+    ? { value: customValue, label: `Use “${customValue}”` }
+    : null
+  const displayedOptions = customOption ? [...visibleOptions, customOption] : visibleOptions
 
   useEffect(() => {
     if (!open) return
 
     const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false)
     }
 
     document.addEventListener('pointerdown', closeOnOutsidePointer)
     return () => document.removeEventListener('pointerdown', closeOnOutsidePointer)
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
-    optionRefs.current[activeIndex]?.focus()
-  }, [activeIndex, open])
+  useLayoutEffect(() => {
+    if (!open || !portalMenu) return
 
-  const choose = (index: number) => {
-    const option = options[index]
-    if (!option) return
+    const positionMenu = () => {
+      const trigger = rootRef.current?.querySelector<HTMLElement>('.ui-select-trigger')
+      if (!trigger) return
+      const rect = trigger.getBoundingClientRect()
+      const estimatedHeight = Math.min(menuRef.current?.offsetHeight ?? 260, 260)
+      const roomBelow = window.innerHeight - rect.bottom
+      const openUpward = roomBelow < estimatedHeight + 12 && rect.top > roomBelow
+      const width = rect.width
+      setMenuStyle({
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+        width,
+        ...(openUpward
+          ? { top: 'auto', bottom: window.innerHeight - rect.top + 5 }
+          : { top: rect.bottom + 5, bottom: 'auto' }),
+      })
+    }
+
+    positionMenu()
+    window.addEventListener('resize', positionMenu)
+    window.addEventListener('scroll', positionMenu, true)
+    return () => {
+      window.removeEventListener('resize', positionMenu)
+      window.removeEventListener('scroll', positionMenu, true)
+    }
+  }, [open, portalMenu, query])
+
+  useEffect(() => {
+    if (open && searchable) searchRef.current?.focus({ preventScroll: true })
+  }, [open, searchable])
+
+  useEffect(() => {
+    if (open && !searchable) optionRefs.current[activeIndex]?.focus({ preventScroll: true })
+  }, [activeIndex, open, searchable])
+
+  const choose = (option: UiSelectOption) => {
     onChange(option.value)
-    setActiveIndex(index)
     setOpen(false)
+    setQuery('')
   }
 
   const move = (index: number) => {
-    if (options.length === 0) return
-    setActiveIndex((index + options.length) % options.length)
+    if (displayedOptions.length === 0) return
+    const nextIndex = (index + displayedOptions.length) % displayedOptions.length
+    setActiveIndex(nextIndex)
+    window.requestAnimationFrame(() => optionRefs.current[nextIndex]?.focus({ preventScroll: true }))
   }
 
   const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      setActiveIndex(event.key === 'ArrowDown'
-        ? (selectedIndex + 1) % options.length
-        : (selectedIndex - 1 + options.length) % options.length)
+      setQuery('')
+      setActiveIndex(searchable
+        ? 0
+        : event.key === 'ArrowDown'
+          ? (selectedIndex + 1) % options.length
+          : (selectedIndex - 1 + options.length) % options.length)
+      if (portalMenu) {
+        setPortalTarget(event.currentTarget.closest('.panel-builder, .launch-screen') ?? document.body)
+      }
       setOpen(true)
+    }
+  }
+
+  const closeAndRestoreFocus = () => {
+    setOpen(false)
+    setQuery('')
+    rootRef.current?.querySelector<HTMLButtonElement>('[role="combobox"]')?.focus({ preventScroll: true })
+  }
+
+  const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      move(0)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      move(displayedOptions.length - 1)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      closeAndRestoreFocus()
     }
   }
 
@@ -88,15 +172,73 @@ export function UiSelect({
       move(options.length - 1)
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      choose(index)
+      const option = displayedOptions[index]
+      if (option) choose(option)
     } else if (event.key === 'Escape') {
       event.preventDefault()
-      setOpen(false)
-      rootRef.current?.querySelector<HTMLButtonElement>('[role="combobox"]')?.focus()
+      closeAndRestoreFocus()
     }
   }
 
-  const selectedOption = options[selectedIndex]
+  const selectedOption = matchedIndex >= 0 ? options[matchedIndex] : null
+  const menu = open && (
+    <div
+      ref={menuRef}
+      className={`ui-select-options${portalMenu ? ' is-portal' : ''}${menuClassName ? ` ${menuClassName}` : ''}`}
+      style={portalMenu ? menuStyle : undefined}
+    >
+      {searchable && (
+        <div className="ui-select-search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            ref={searchRef}
+            type="search"
+            value={query}
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setActiveIndex(0)
+            }}
+            onKeyDown={handleSearchKeyDown}
+          />
+        </div>
+      )}
+      <div
+        className="ui-select-listbox"
+        id={`${id}-listbox`}
+        role="listbox"
+        aria-labelledby={`${id}-label`}
+      >
+        {displayedOptions.map((option, index) => {
+          const selected = option.value === value
+          return (
+            <button
+              key={option.value}
+              ref={(node) => {
+                optionRefs.current[index] = node
+              }}
+              type="button"
+              className={`ui-select-option${selected ? ' is-selected' : ''}`}
+              role="option"
+              aria-selected={selected}
+              tabIndex={index === activeIndex ? 0 : -1}
+              onClick={() => choose(option)}
+              onKeyDown={(event) => handleOptionKeyDown(event, index)}
+            >
+              <span className="ui-select-check">
+                {selected && <Check size={15} aria-hidden="true" />}
+              </span>
+              <span>{option.label}</span>
+            </button>
+          )
+        })}
+        {displayedOptions.length === 0 && (
+          <p className="ui-select-empty">No matching options</p>
+        )}
+      </div>
+    </div>
+  )
 
   return (
     <div className={`launch-field ${className}${open ? ' is-select-open' : ''}`.trim()} ref={rootRef}>
@@ -107,51 +249,28 @@ export function UiSelect({
           className="ui-select-trigger"
           role="combobox"
           aria-labelledby={`${id}-label`}
-          aria-controls={`${id}-options`}
+          aria-controls={`${id}-listbox`}
           aria-expanded={open}
           aria-haspopup="listbox"
-          onClick={() => {
-            setActiveIndex(selectedIndex)
+          onClick={(event) => {
+            if (!open) {
+              setQuery('')
+              setActiveIndex(searchable ? 0 : selectedIndex)
+              if (portalMenu) {
+                setPortalTarget(event.currentTarget.closest('.panel-builder, .launch-screen') ?? document.body)
+              }
+            }
             setOpen((current) => !current)
           }}
           onKeyDown={handleTriggerKeyDown}
         >
-          <span>{selectedOption?.label}</span>
+          <span>{selectedOption?.label ?? value}</span>
           <ChevronDown size={17} aria-hidden="true" />
         </button>
 
-        {open && (
-          <div
-            className="ui-select-options"
-            id={`${id}-options`}
-            role="listbox"
-            aria-labelledby={`${id}-label`}
-          >
-            {options.map((option, index) => {
-              const selected = option.value === value
-              return (
-                <button
-                  key={option.value}
-                  ref={(node) => {
-                    optionRefs.current[index] = node
-                  }}
-                  type="button"
-                  className={`ui-select-option${selected ? ' is-selected' : ''}`}
-                  role="option"
-                  aria-selected={selected}
-                  tabIndex={index === activeIndex ? 0 : -1}
-                  onClick={() => choose(index)}
-                  onKeyDown={(event) => handleOptionKeyDown(event, index)}
-                >
-                  <span className="ui-select-check">
-                    {selected && <Check size={15} aria-hidden="true" />}
-                  </span>
-                  <span>{option.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
+        {portalMenu
+          ? menu && portalTarget && createPortal(menu, portalTarget)
+          : menu}
       </div>
     </div>
   )
