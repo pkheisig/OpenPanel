@@ -27,12 +27,12 @@ describe('searchable select ranking', () => {
   test('keeps exact and normalized multi-token matches at the top', () => {
     const fluorophores = [
       { value: 'BV750', label: 'BV750' },
-      { value: 'LIVE/DEAD Fixable Near-IR', label: 'LIVE/DEAD Fixable Near-IR' },
+      { value: 'LIVE DEAD NIR', label: 'LIVE DEAD NIR' },
       { value: 'Zombie NIR', label: 'Zombie NIR' },
     ]
 
     expect(rankUiSelectOptions(fluorophores, 'live dead nir')[0]?.label)
-      .toBe('LIVE/DEAD Fixable Near-IR')
+      .toBe('LIVE DEAD NIR')
     expect(rankUiSelectOptions(cellTypes, 'T cells')[0]?.label).toBe('T cells')
   })
 })

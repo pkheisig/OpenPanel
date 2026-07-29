@@ -156,7 +156,7 @@
 "Live-Dead Blue","Live Dead Blue;LiveDead Blue;LDBlue","UV","450","TRUE"
 "LIVE/DEAD Aqua","LIVEDEAD Aqua;L/D Aqua;LD Aqua;Live Dead Aqua","Violet","517","TRUE"
 "LIVE/DEAD Blue","LIVEDEAD Blue;L/D Blue;LD Blue;Live Dead Blue","UV","450","TRUE"
-"LIVE/DEAD Fixable Near-IR","LIVEDEAD NIR;L/D NIR;LD NIR;Live Dead NIR","Red","775","TRUE"
+"LIVE DEAD NIR","LIVE/DEAD Fixable Near-IR;LIVEDEAD NIR;L/D NIR;LD NIR;Live Dead Near IR;L34975;L10119;L34976","Red","775","TRUE"
 "LIVE/DEAD Fixable Near-IR 876","LIVEDEAD NIR 876;L/D 876;LD 876;Live Dead 876","Red","876","TRUE"
 "mCherry","Cherry","YellowGreen","610",
 "mCitrine","mCitrine FP;Citrine","Blue","529",

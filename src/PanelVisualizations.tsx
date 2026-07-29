@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import type { CSSProperties, Dispatch, SetStateAction } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, Dispatch, PointerEvent as ReactPointerEvent, SetStateAction } from 'react';
 import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
 import { detectorAxisChartWidth, detectorAxisFooterHeight } from './detectorAxis';
 import { DEFAULT_PLOT_SCALE } from './projectStore';
@@ -41,7 +41,6 @@ interface PanelVisualizationsProps {
     similarityByName: Map<string, NumericRow>;
     colorByFluor: Map<string, string>;
     hoveredFluor: string | null;
-    setHoveredFluor: Dispatch<SetStateAction<string | null>>;
     theme: 'light' | 'dark';
     error: string;
     plotScale: number;
@@ -60,12 +59,15 @@ export function PanelVisualizations({
     similarityByName,
     colorByFluor,
     hoveredFluor,
-    setHoveredFluor,
     theme,
     error,
     plotScale,
 }: PanelVisualizationsProps) {
     const tabContentRef = useRef<HTMLElement>(null);
+    const spectrumContainerRef = useRef<HTMLDivElement>(null);
+    const spectrumTooltipRef = useRef<HTMLDivElement>(null);
+    const spectrumPointerRef = useRef({ clientX: 0, clientY: 0 });
+    const [spectrumHover, setSpectrumHover] = useState<{ fluor: string; color: string } | null>(null);
     const chartWidth = detectorAxisChartWidth(payload.detectors.length);
     const chartHeight = 230;
     const spectrumHeight = chartHeight + detectorAxisFooterHeight(payload.detectors);
@@ -85,9 +87,46 @@ export function PanelVisualizations({
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });
     }, [tab]);
 
+    const positionSpectrumTooltip = (clientX: number, clientY: number) => {
+        const container = spectrumContainerRef.current;
+        const tooltip = spectrumTooltipRef.current;
+        if (!container || !tooltip) return;
+        const bounds = container.getBoundingClientRect();
+        const visibleX = Math.max(0, Math.min(bounds.width, clientX - bounds.left));
+        const visibleY = Math.max(0, Math.min(bounds.height, clientY - bounds.top));
+        const x = visibleX + container.scrollLeft;
+        const y = visibleY + container.scrollTop;
+        tooltip.style.left = `${x}px`;
+        tooltip.style.top = `${y}px`;
+        tooltip.classList.toggle('opens-left', visibleX > bounds.width - 190);
+    };
+
+    const showSpectrumTooltip = (
+        fluor: string,
+        color: string,
+        event: ReactPointerEvent<SVGPathElement>,
+    ) => {
+        spectrumPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
+        setSpectrumHover({ fluor, color });
+        window.requestAnimationFrame(() => positionSpectrumTooltip(event.clientX, event.clientY));
+    };
+
+    const moveSpectrumTooltip = (event: ReactPointerEvent<SVGPathElement>) => {
+        spectrumPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
+        positionSpectrumTooltip(event.clientX, event.clientY);
+    };
+
+    useEffect(() => {
+        if (!spectrumHover) return;
+        positionSpectrumTooltip(
+            spectrumPointerRef.current.clientX,
+            spectrumPointerRef.current.clientY,
+        );
+    }, [spectrumHover]);
+
     return (
 <main className="main-panel" style={{ '--plot-zoom': plotZoom } as CSSProperties}>
-    <div className="top-spectrum">
+    <div className="top-spectrum" ref={spectrumContainerRef}>
         <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label="Combined spectral signatures">
             {[0, 25, 50, 75, 100].map(tick => {
                 const y = chartHeight - (tick / 100) * (chartHeight - 32) - 24;
@@ -114,15 +153,19 @@ export function PanelVisualizations({
             {selected.map(fluor => {
                 const row = spectraByName.get(fluor);
                 if (!row) return null;
-                const isHovered = hoveredFluor === fluor;
-                const hasHoverActive = hoveredFluor !== null;
+                const effectiveHoveredFluor = spectrumHover?.fluor ?? hoveredFluor;
+                const isHovered = effectiveHoveredFluor === fluor;
+                const hasHoverActive = effectiveHoveredFluor !== null;
+                const fluorColor = colorByFluor.get(fluor) || '#2688e8';
                 const pathData = linePath(row, payload.detectors, spectrumPlotWidth, chartHeight, spectrumLeft);
                 return (
                     <g key={fluor}>
                         <path
+                            className="spectrum-visible-line"
+                            data-fluorophore={fluor}
                             d={pathData}
                             fill="none"
-                            stroke={colorByFluor.get(fluor) || '#2688e8'}
+                            stroke={fluorColor}
                             strokeWidth={isHovered ? 4.2 : 2.4}
                             strokeLinejoin="round"
                             strokeLinecap="round"
@@ -130,18 +173,21 @@ export function PanelVisualizations({
                             style={{
                                 transition: 'all 0.15s ease-in-out',
                                 pointerEvents: 'none',
-                                filter: isHovered ? `drop-shadow(0 0 5px ${colorByFluor.get(fluor) || '#2688e8'})` : 'none'
+                                filter: isHovered ? `drop-shadow(0 0 5px ${fluorColor})` : 'none'
                             }}
                         />
                         <path
+                            className="spectrum-hit-target"
+                            data-fluorophore={fluor}
                             d={pathData}
                             fill="none"
                             stroke="transparent"
                             strokeWidth={22}
                             strokeLinejoin="round"
                             strokeLinecap="round"
-                            onMouseEnter={() => setHoveredFluor(fluor)}
-                            onMouseLeave={() => setHoveredFluor(null)}
+                            onPointerEnter={(event) => showSpectrumTooltip(fluor, fluorColor, event)}
+                            onPointerMove={moveSpectrumTooltip}
+                            onPointerLeave={() => setSpectrumHover(null)}
                             style={{
                                 cursor: 'pointer',
                                 pointerEvents: 'stroke'
@@ -151,6 +197,19 @@ export function PanelVisualizations({
                 );
             })}
         </svg>
+        {spectrumHover && (
+            <div
+                ref={spectrumTooltipRef}
+                className="spectrum-cursor-tooltip"
+                role="tooltip"
+            >
+                <span
+                    className="spectrum-cursor-tooltip-swatch"
+                    style={{ background: spectrumHover.color }}
+                />
+                {spectrumHover.fluor}
+            </div>
+        )}
     </div>
 
     <div className="tabs-bar">

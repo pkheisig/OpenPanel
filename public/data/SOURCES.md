@@ -12,8 +12,9 @@ For rows added from the Cytek export:
 - detector names were mapped directly from `UV1`–`UV16`, `V1`–`V16`,
   `B1`–`B14`, `YG1`–`YG10`, and `R1`–`R8` to the app's corresponding `-A`
   detector labels; and
-- `LIVE DEAD NIR` was assigned the app's canonical name
-  `LIVE/DEAD Fixable Near-IR`.
+- Thermo Fisher's `LIVE/DEAD Fixable Near-IR` and the Cytek export's
+  `LIVE DEAD NIR` are displayed under the concise canonical name
+  `LIVE DEAD NIR`; the manufacturer name and catalog numbers remain aliases.
 
 Existing higher-precision Aurora rows were retained unchanged. No spectrum is
 interpolated from a different dye or cytometer.

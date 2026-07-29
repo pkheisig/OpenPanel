@@ -1,4 +1,5 @@
 import { openDB } from 'idb'
+import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import type { TabId } from './panelBuilderShared'
 import type {
   MarkerFrequency,
@@ -105,7 +106,9 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
       name: typeof marker.name === 'string' ? marker.name : '',
       cellType: typeof marker.cellType === 'string' ? marker.cellType : '',
       frequency: isMarkerFrequency(marker.frequency) ? marker.frequency : 'medium',
-      currentFluorophore: typeof marker.currentFluorophore === 'string' ? marker.currentFluorophore : '',
+      currentFluorophore: typeof marker.currentFluorophore === 'string'
+        ? canonicalizeFluorophoreName(marker.currentFluorophore)
+        : '',
     }))
   if (markers.length === 0) return null
 
@@ -144,7 +147,7 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
 
 function normalizeSlots(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.map((slot) => String(scalar(slot) ?? ''))
+    ? value.map((slot) => canonicalizeFluorophoreName(String(scalar(slot) ?? '')))
     : Array(18).fill('')
 }
 

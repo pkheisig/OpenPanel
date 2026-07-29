@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Sun, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ModuleLoadingState } from './ModuleLoadingState';
@@ -7,7 +7,8 @@ import { PanelWizard } from './PanelWizard';
 import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
 import { UiSelect } from './UiSelect';
-import { openTextFile, saveBlob } from './browserFiles';
+import { rankUiSelectOptions } from './uiSelectSearch';
+import { openTextFile, projectJsonFilename, saveBlob } from './browserFiles';
 import { buildPanelPayload } from './spectralEngine';
 import {
     parseProject,
@@ -52,6 +53,10 @@ type PanelBuilderProps = {
     onRequestExit?: () => void | Promise<void>;
 };
 
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 440;
+const SIDEBAR_KEYBOARD_STEP = 12;
+
 const PanelBuilder = ({
     embedded = false,
     cockpitTheme = null,
@@ -72,6 +77,8 @@ const PanelBuilder = ({
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const projectInputRef = useRef<HTMLInputElement | null>(null);
     const fileActionsRef = useRef<HTMLDivElement | null>(null);
+    const sidebarRef = useRef<HTMLElement | null>(null);
+    const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
     const [markers, setMarkers] = useState<Record<number, string>>(() => initialProject?.markers ?? {});
     const [panelName, setPanelName] = useState(projectName);
     const bootSelectionRef = useRef({ cytometer, configuration, slots });
@@ -106,6 +113,8 @@ const PanelBuilder = ({
     );
     const [fileMenu, setFileMenu] = useState<'import' | 'export' | null>(null);
     const [bootAttempt, setBootAttempt] = useState(0);
+
+    useEffect(() => () => sidebarResizeCleanupRef.current?.(), []);
 
     useEffect(() => {
         localStorage.setItem('spectreasy_cytometer', getCytometerName(cytometer));
@@ -503,32 +512,19 @@ const PanelBuilder = ({
 
     const filteredOptions = (slotIndex: number) => {
         if (!payload) return [];
-        const query = (queries[slotIndex] ?? '').trim().toLowerCase();
+        const query = queries[slotIndex] ?? '';
         const baseOptions = payload.fluorophores
             .filter(f => !selectedSet.has(f.fluorophore) || slots[slotIndex] === f.fluorophore);
 
-        if (!query) {
-            return baseOptions.slice(0, 80);
-        }
-
-        const score = (name: string): number => {
-            const lower = name.toLowerCase();
-            if (lower === query) return 1000;
-            if (lower.startsWith(query)) {
-                return 800 - lower.length;
-            }
-            if (lower.includes(' ' + query) || lower.includes('-' + query)) {
-                return 600 - lower.length;
-            }
-            if (lower.includes(query)) {
-                return 100 - lower.length;
-            }
-            return 0;
-        };
-
-        return baseOptions
-            .filter(f => score(f.fluorophore) > 0)
-            .sort((a, b) => score(b.fluorophore) - score(a.fluorophore))
+        return rankUiSelectOptions(
+            baseOptions.map(option => ({
+                value: option.fluorophore,
+                label: option.fluorophore,
+                option,
+            })),
+            query,
+        )
+            .map(({ option }) => option)
             .slice(0, 80);
     };
 
@@ -576,26 +572,78 @@ const PanelBuilder = ({
     const beginSidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
         if (sidebarCollapsed) return;
         event.preventDefault();
+        sidebarResizeCleanupRef.current?.();
+
+        const sidebar = sidebarRef.current;
+        const handle = event.currentTarget;
+        if (!sidebar) return;
+
         const startX = event.clientX;
         const startWidth = sidebarWidth;
+        const pointerId = event.pointerId;
         const previousCursor = document.body.style.cursor;
         const previousUserSelect = document.body.style.userSelect;
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
+        let nextWidth = startWidth;
+        let animationFrame = 0;
 
-        const move = (moveEvent: PointerEvent) => {
-            setSidebarWidth(Math.min(440, Math.max(180, startWidth + moveEvent.clientX - startX)));
+        const applyWidth = () => {
+            animationFrame = 0;
+            sidebar.style.setProperty('--panel-sidebar-width', `${nextWidth}px`);
         };
-        const finish = () => {
-            window.removeEventListener('pointermove', move);
-            window.removeEventListener('pointerup', finish);
-            window.removeEventListener('pointercancel', finish);
+        const queueWidth = () => {
+            if (!animationFrame) animationFrame = window.requestAnimationFrame(applyWidth);
+        };
+        const move = (moveEvent: PointerEvent) => {
+            nextWidth = Math.min(
+                MAX_SIDEBAR_WIDTH,
+                Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX),
+            );
+            queueWidth();
+        };
+        const cleanup = () => {
+            handle.removeEventListener('pointermove', move);
+            handle.removeEventListener('pointerup', finish);
+            handle.removeEventListener('pointercancel', finish);
+            if (animationFrame) {
+                window.cancelAnimationFrame(animationFrame);
+                applyWidth();
+            }
+            if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+            sidebar.classList.remove('is-resizing');
+            handle.classList.remove('is-resizing');
             document.body.style.cursor = previousCursor;
             document.body.style.userSelect = previousUserSelect;
+            sidebarResizeCleanupRef.current = null;
         };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', finish);
-        window.addEventListener('pointercancel', finish);
+        const finish = () => {
+            cleanup();
+            setSidebarWidth(nextWidth);
+        };
+
+        sidebar.classList.add('is-resizing');
+        handle.classList.add('is-resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        handle.setPointerCapture(pointerId);
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', finish);
+        handle.addEventListener('pointercancel', finish);
+        sidebarResizeCleanupRef.current = cleanup;
+    };
+
+    const resizeSidebarByKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const direction = event.key === 'ArrowLeft'
+            ? -SIDEBAR_KEYBOARD_STEP
+            : event.key === 'ArrowRight'
+                ? SIDEBAR_KEYBOARD_STEP
+                : 0;
+        if (!direction && event.key !== 'Home' && event.key !== 'End') return;
+        event.preventDefault();
+        setSidebarWidth(current => {
+            if (event.key === 'Home') return MIN_SIDEBAR_WIDTH;
+            if (event.key === 'End') return MAX_SIDEBAR_WIDTH;
+            return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, current + direction));
+        });
     };
 
     const importPanelCsv = async (file: File | null) => {
@@ -641,10 +689,10 @@ const PanelBuilder = ({
 
     const exportProject = async () => {
         await saveBlob(new Blob([serializeProject(currentProjectState())], { type: 'application/json' }), {
-            suggestedName: `openpanel_${cytometer}_${configuration}.openpanel.json`,
+            suggestedName: projectJsonFilename(panelName),
             description: 'OpenPanel project',
             mimeType: 'application/json',
-            extensions: ['.openpanel.json', '.json'],
+            extensions: ['.json'],
         });
     };
 
@@ -918,6 +966,7 @@ const PanelBuilder = ({
             </header>
             <div className="panel-shell">
                 <aside
+                    ref={sidebarRef}
                     className={`panel-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''}`}
                     style={{ '--panel-sidebar-width': `${sidebarWidth}px` } as CSSProperties}
                 >
@@ -1031,7 +1080,12 @@ const PanelBuilder = ({
                         role="separator"
                         aria-label="Resize fluorophore sidebar"
                         aria-orientation="vertical"
+                        aria-valuemin={MIN_SIDEBAR_WIDTH}
+                        aria-valuemax={MAX_SIDEBAR_WIDTH}
+                        aria-valuenow={Math.round(sidebarWidth)}
+                        tabIndex={0}
                         onPointerDown={beginSidebarResize}
+                        onKeyDown={resizeSidebarByKeyboard}
                     />
                 )}
 
@@ -1048,7 +1102,6 @@ const PanelBuilder = ({
                     similarityByName={similarityByName}
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
-                    setHoveredFluor={setHoveredFluor}
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
                     error={error}
                     plotScale={plotScale}

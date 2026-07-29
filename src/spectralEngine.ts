@@ -1,4 +1,5 @@
 import { Matrix, SingularValueDecomposition } from 'ml-matrix'
+import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import type {
   ConfigurationInfo,
   DetectorInfo,
@@ -205,7 +206,7 @@ function parseLibrary(rows: string[][]): SpectralLibrary {
   const values: number[][] = []
 
   rows.slice(1).forEach((row) => {
-    const fluorophore = (row[0] ?? '').trim()
+    const fluorophore = canonicalizeFluorophoreName((row[0] ?? '').trim())
     if (!fluorophore || seen.has(fluorophore)) return
     seen.add(fluorophore)
     fluorophores.push(fluorophore)

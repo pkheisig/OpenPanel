@@ -13,7 +13,7 @@ describe('bundled spectral data', () => {
 
     expect(rows[0]).toHaveLength(65)
     expect(uniqueNames.size).toBe(names.length)
-    expect(names).toContain('LIVE/DEAD Fixable Near-IR')
+    expect(names).toContain('LIVE DEAD NIR')
     expect(names.filter((name) => name.startsWith('Zombie ')).sort()).toEqual([
       'Zombie Aqua',
       'Zombie Green',

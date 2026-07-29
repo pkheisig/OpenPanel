@@ -122,6 +122,23 @@ describe('OpenPanel project files', () => {
     expect(parseProject(JSON.stringify(legacyScale)).plotScaleMode).toBe('fit-width')
   })
 
+  test('migrates former LIVE/DEAD Near-IR names to LIVE DEAD NIR', () => {
+    const legacyName = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    legacyName.slots = ['LIVE/DEAD Fixable Near-IR', '', '']
+    legacyName.wizard = {
+      ...wizard,
+      markers: [{
+        ...wizard.markers[0],
+        currentFluorophore: 'Live Dead Near IR',
+      }],
+    }
+    delete legacyName.cytometerPanels
+
+    const migrated = parseProject(JSON.stringify(legacyName))
+    expect(migrated.slots[0]).toBe('LIVE DEAD NIR')
+    expect(migrated.wizard?.markers[0].currentFluorophore).toBe('LIVE DEAD NIR')
+  })
+
   test('rejects unrelated and future project formats', () => {
     expect(() => parseProject('{"kind":"Elsewhere","version":1}')).toThrow('different application')
     expect(() => parseProject(`{"kind":"${PROJECT_FILE_KIND}","version":99}`)).toThrow('not supported')

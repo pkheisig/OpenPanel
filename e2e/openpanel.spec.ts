@@ -34,6 +34,91 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
+test('finds fluorophores through punctuation-insensitive sidebar search', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+
+  const input = page.getByPlaceholder('Select fluorophore').first()
+  const nearIrOption = page.locator('.fluor-dropdown').getByRole('button', {
+    name: 'LIVE DEAD NIR',
+    exact: true,
+  })
+
+  await input.fill('LIVE DEAD')
+  await expect(nearIrOption).toBeVisible()
+
+  await input.fill('live dead nir')
+  await expect(nearIrOption).toBeVisible()
+  await nearIrOption.click()
+  await expect(input).toHaveValue('LIVE DEAD NIR')
+})
+
+test('resizes the sidebar fluidly and persists the final width', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+
+  const sidebar = page.locator('.panel-sidebar')
+  const resizer = page.getByRole('separator', { name: 'Resize fluorophore sidebar' })
+  const initialWidth = (await sidebar.boundingBox())!.width
+  const handleBox = await resizer.boundingBox()
+  expect(handleBox).not.toBeNull()
+
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + 100)
+  await page.mouse.down()
+  await expect(sidebar).toHaveClass(/is-resizing/)
+  expect(await sidebar.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe('0s')
+
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2 + 72, handleBox!.y + 100, { steps: 6 })
+  await page.waitForTimeout(50)
+  const draggedWidth = (await sidebar.boundingBox())!.width
+  expect(draggedWidth).toBeCloseTo(initialWidth + 72, 0)
+  await page.mouse.up()
+
+  await expect(sidebar).not.toHaveClass(/is-resizing/)
+  await expect(resizer).toHaveAttribute('aria-valuenow', String(Math.round(draggedWidth)))
+  await page.waitForTimeout(600)
+  await page.reload()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+  expect((await sidebar.boundingBox())!.width).toBeCloseTo(draggedWidth, 0)
+
+  await resizer.focus()
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForTimeout(220)
+  expect((await sidebar.boundingBox())!.width).toBeCloseTo(draggedWidth - 12, 0)
+})
+
+test('shows the fluorophore name beside the cursor when hovering a spectrum', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+  await selectFluorophore(page, 0, 'Alexa Fluor 488')
+
+  const hitTarget = page.locator('.spectrum-hit-target[data-fluorophore="Alexa Fluor 488"]')
+  const peak = await hitTarget.evaluate((path) => {
+    const svgPath = path as SVGPathElement
+    const transform = svgPath.getScreenCTM()
+    const length = svgPath.getTotalLength()
+    let best = { x: 0, y: Number.POSITIVE_INFINITY }
+    for (let index = 0; index <= 100; index += 1) {
+      const point = svgPath.getPointAtLength(length * index / 100)
+      const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(transform ?? undefined)
+      if (screenPoint.y < best.y) best = { x: screenPoint.x, y: screenPoint.y }
+    }
+    return best
+  })
+
+  await page.mouse.move(peak.x, peak.y)
+  const tooltip = page.getByRole('tooltip')
+  await expect(tooltip).toHaveText('Alexa Fluor 488')
+  const tooltipBox = await tooltip.boundingBox()
+  expect(tooltipBox).not.toBeNull()
+  expect(Math.abs(tooltipBox!.x - peak.x)).toBeLessThan(230)
+  expect(Math.abs(tooltipBox!.y - peak.y)).toBeLessThan(80)
+  await expect(page.locator('.selector-row').first()).not.toHaveClass(/is-fluor-hovered/)
+
+  await page.mouse.move(peak.x, (await page.locator('.tabs-bar').boundingBox())!.y + 20)
+  await expect(tooltip).toHaveCount(0)
+})
+
 test('selects the instrument and configuration before opening a clean workspace', async ({ page }) => {
   await page.goto(APP_PATH)
   await page.getByLabel('Panel name').fill('T-cell panel')
@@ -272,10 +357,12 @@ test('runs representative panel, import, export, and project round-trip workflow
   expect(csv).toContain('"Marker","Fluorophore"')
   expect(csv).toContain('"CD3","Alexa Fluor 488"')
 
+  await page.getByLabel('Panel name').fill('T cell panel')
   const projectDownload = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export', exact: true }).click()
   await page.getByRole('menuitem', { name: /Export project/ }).click()
   const downloadedProject = await projectDownload
+  expect(downloadedProject.suggestedFilename()).toBe('T cell panel_OpenPanel.json')
   const projectStream = await downloadedProject.createReadStream()
   let projectText = ''
   for await (const chunk of projectStream) projectText += chunk.toString()
@@ -409,7 +496,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await page.getByRole('searchbox', { name: 'Search colors' }).fill('egfp')
   await expect(page.getByRole('option', { name: 'EGFP', exact: true })).toHaveCount(0)
   await page.getByRole('searchbox', { name: 'Search colors' }).fill('live dead nir')
-  await expect(page.getByRole('option', { name: 'LIVE/DEAD Fixable Near-IR', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('option', { name: 'LIVE DEAD NIR', exact: true })).toHaveCount(0)
   await page.getByRole('searchbox', { name: 'Search colors' }).fill('zombie')
   await expect(page.getByRole('option', { name: /^Zombie / })).toHaveCount(0)
   await page.getByRole('searchbox', { name: 'Search colors' }).fill('fit')

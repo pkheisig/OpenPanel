@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- shared panel primitives intentionally colocate the PDF glyph with pure helpers */
 import { mapDetectorToEmission, wavelengthToColor } from './detectorAxis';
+import { canonicalizeFluorophoreName } from './fluorophoreNames';
 
 const unboxGuiState = (value: unknown): unknown => {
     if (Array.isArray(value)) {
@@ -298,7 +299,7 @@ const matchImportedFluor = (value: string, lookup: Map<string, string>) => {
         raw,
         raw.replace(/\s*\([^)]*\)/g, ''),
         raw.split(/[;,|]/)[0] || raw,
-    ].map(normalizeImportToken).filter(Boolean);
+    ].map(canonicalizeFluorophoreName).map(normalizeImportToken).filter(Boolean);
 
     for (const key of candidates) {
         const hit = lookup.get(key);

@@ -5,6 +5,16 @@ export type SaveFileOptions = {
   extensions: string[]
 }
 
+export function projectJsonFilename(projectName: string): string {
+  const withoutControlCharacters = Array.from(projectName.trim())
+    .filter((character) => (character.codePointAt(0) ?? 0) >= 32)
+    .join('')
+  const safeName = withoutControlCharacters
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/[.\s]+$/g, '')
+  return `${safeName || 'Untitled panel'}_OpenPanel.json`
+}
+
 type FilePickerWindow = Window & {
   showSaveFilePicker?: (options: {
     suggestedName: string
