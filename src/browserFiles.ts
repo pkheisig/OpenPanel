@@ -15,6 +15,14 @@ export function projectJsonFilename(projectName: string): string {
   return `${safeName || 'Untitled panel'}_OpenPanel.json`
 }
 
+export function projectNameFromFilename(filename: string): string {
+  return filename
+    .replace(/_OpenPanel\.json$/i, '')
+    .replace(/\.(?:json|op|openpanel)$/i, '')
+    .replace(/[_-]+/g, ' ')
+    .trim() || 'Imported panel'
+}
+
 type FilePickerWindow = Window & {
   showSaveFilePicker?: (options: {
     suggestedName: string

@@ -280,6 +280,61 @@ test('migrates the previous single active autosave into the named panel library'
   await expect(page.getByRole('button', { name: 'Open Recovered panel' })).toContainText('1 color')
 })
 
+test('manages saved panels from the OpenSketch-style project library and context menu', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await page.getByLabel('Panel name').fill('Archive me')
+  await openEmptyPanel(page)
+  await selectFluorophore(page, 0, 'PE')
+  await page.getByRole('button', { name: 'Open panel library' }).click()
+
+  const projectCard = page.locator('.panel-library-card').filter({
+    has: page.getByRole('button', { name: 'Open Archive me' }),
+  })
+  await projectCard.click({ button: 'right' })
+  await expect(page.getByRole('menu', { name: 'Archive me actions' })).toBeVisible()
+
+  page.once('dialog', (dialog) => dialog.accept('Renamed panel'))
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await expect(page.getByRole('button', { name: 'Open Renamed panel' })).toBeVisible()
+
+  const renamedCard = page.locator('.panel-library-card').filter({
+    has: page.getByRole('button', { name: 'Open Renamed panel' }),
+  })
+  await renamedCard.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Archive' }).click()
+  await expect(page.locator('.panel-library > .panel-library-list')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Archived' })).toContainText('1')
+
+  await page.reload()
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open Recovered panel' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Archived' }).click()
+  await expect(page.getByRole('button', { name: 'Open Renamed panel' })).toBeVisible()
+
+  const archivedCard = page.locator('.panel-library-card').filter({
+    has: page.getByRole('button', { name: 'Open Renamed panel' }),
+  })
+  await archivedCard.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Restore' }).click()
+  await expect(page.getByRole('button', { name: 'Open Renamed panel' })).toBeVisible()
+
+  const restoredCard = page.locator('.panel-library-card').filter({
+    has: page.getByRole('button', { name: 'Open Renamed panel' }),
+  })
+  await restoredCard.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Duplicate' }).click()
+  await expect(page.getByRole('button', { name: 'Open Renamed panel copy' })).toBeVisible()
+
+  const copiedCard = page.locator('.panel-library-card').filter({
+    has: page.getByRole('button', { name: 'Open Renamed panel copy' }),
+  })
+  await copiedCard.click({ button: 'right' })
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('menuitem', { name: 'Delete' }).click()
+  await expect(page.getByRole('button', { name: 'Open Renamed panel copy' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open Renamed panel' })).toBeVisible()
+})
+
 test('keeps independent panel workspaces for each cytometer', async ({ page }) => {
   await page.goto(APP_PATH)
   await openEmptyPanel(page)

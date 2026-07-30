@@ -46,6 +46,7 @@ export type StoredPanelProject = {
   name: string
   createdAt: string
   updatedAt: string
+  archivedAt?: string
   state: ProjectState
 }
 
@@ -300,6 +301,7 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
     name: normalizePanelName(record.name),
     createdAt,
     updatedAt,
+    archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
     state: normalizeState(record.state as Record<string, unknown>),
   }
 }
@@ -389,6 +391,7 @@ export async function savePanelProject(
     name: normalizePanelName(name),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
+    archivedAt: existing?.archivedAt,
     state: normalizeState(state as unknown as Record<string, unknown>),
   }
   try {
@@ -407,16 +410,101 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
   const activeId = localStorage.getItem(ACTIVE_PANEL_ID_STORAGE_KEY)
   if (activeId) {
     const active = await loadPanelProject(activeId)
-    if (active) return active
+    if (active && !active.archivedAt) return active
+    localStorage.removeItem(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
 
   const panels = await listPanelProjects()
-  if (panels[0]) {
-    setActivePanelProject(panels[0].id)
-    return panels[0]
+  const latestActivePanel = panels.find((panel) => !panel.archivedAt)
+  if (latestActivePanel) {
+    setActivePanelProject(latestActivePanel.id)
+    return latestActivePanel
   }
+
+  // A populated library is authoritative, even when every project is archived.
+  // Legacy single-state recovery must never resurrect an explicitly archived panel.
+  if (panels.length > 0) return null
 
   const legacy = await loadActiveProject()
   if (!legacy || !legacy.slots.some(Boolean)) return null
   return createPanelProject('Recovered panel', legacy)
+}
+
+async function writeStoredPanel(panel: StoredPanelProject): Promise<StoredPanelProject> {
+  try {
+    await (await database()).put(PROJECT_STORE, panel, `${PANEL_KEY_PREFIX}${panel.id}`)
+  } catch {
+    writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== panel.id)])
+  }
+  return panel
+}
+
+export async function renamePanelProject(
+  id: string,
+  name: string,
+): Promise<StoredPanelProject | null> {
+  const panel = await loadPanelProject(id)
+  if (!panel) return null
+  return writeStoredPanel({
+    ...panel,
+    name: normalizePanelName(name),
+    updatedAt: new Date().toISOString(),
+  })
+}
+
+export async function duplicatePanelProject(
+  id: string,
+): Promise<StoredPanelProject | null> {
+  const panel = await loadPanelProject(id)
+  if (!panel) return null
+  const now = new Date().toISOString()
+  const duplicate: StoredPanelProject = {
+    ...panel,
+    id: createPanelId(),
+    name: normalizePanelName(`${panel.name} copy`),
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: undefined,
+    state: normalizeState(panel.state as unknown as Record<string, unknown>),
+  }
+  return writeStoredPanel(duplicate)
+}
+
+export async function archivePanelProject(
+  id: string,
+): Promise<StoredPanelProject | null> {
+  const panel = await loadPanelProject(id)
+  if (!panel) return null
+  const archived = await writeStoredPanel({
+    ...panel,
+    archivedAt: new Date().toISOString(),
+  })
+  if (localStorage.getItem(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
+    localStorage.removeItem(ACTIVE_PANEL_ID_STORAGE_KEY)
+  }
+  return archived
+}
+
+export async function restorePanelProject(
+  id: string,
+): Promise<StoredPanelProject | null> {
+  const panel = await loadPanelProject(id)
+  if (!panel) return null
+  const restored = { ...panel }
+  delete restored.archivedAt
+  return writeStoredPanel({
+    ...restored,
+    updatedAt: new Date().toISOString(),
+  })
+}
+
+export async function deletePanelProject(id: string): Promise<void> {
+  try {
+    await (await database()).delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
+  } catch {
+    writeFallbackLibrary(fallbackLibrary().filter((panel) => panel.id !== id))
+  }
+  if (localStorage.getItem(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
+    localStorage.removeItem(ACTIVE_PANEL_ID_STORAGE_KEY)
+  }
 }
