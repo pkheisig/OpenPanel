@@ -9,7 +9,6 @@ import {
   MoreHorizontal,
   Moon,
   Pencil,
-  Plus,
   Sun,
   Trash2,
   Upload,
@@ -124,8 +123,6 @@ export function LandingPage({
     }
   }, [])
 
-  const selectedConfiguration = configurations.find((candidate) => candidate.id === configuration)
-
   const startPanel = async () => {
     localStorage.setItem('spectreasy_cytometer', cytometer)
     localStorage.setItem('spectreasy_configuration', configuration)
@@ -208,15 +205,7 @@ export function LandingPage({
       </header>
 
       <div className="launch-content">
-        <section className="new-panel-section" aria-labelledby="new-panel-title">
-          <div className="launch-section-heading">
-            <span className="launch-section-icon"><Plus size={18} /></span>
-            <div>
-              <h1 id="new-panel-title">New panel</h1>
-              <p>Choose the instrument and start with an empty panel.</p>
-            </div>
-          </div>
-
+        <section className="new-panel-section" aria-label="Create panel">
           <form
             className="launch-card"
             onSubmit={(event) => {
@@ -260,13 +249,6 @@ export function LandingPage({
                 portalMenu
                 menuClassName="launch-select-menu"
               />
-            )}
-
-            {cytometer !== 'xenith' && (
-              <div className="launch-configuration-note">
-                <span>Detector layout</span>
-                <strong>{selectedConfiguration?.description}</strong>
-              </div>
             )}
 
             <button className="launch-submit" type="submit" disabled={starting}>
