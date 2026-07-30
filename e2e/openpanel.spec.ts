@@ -208,6 +208,9 @@ test('selects the instrument and configuration before opening a clean workspace'
   expect(signatureAfterZoomBox!.height).toBeCloseTo(signatureBox!.height, 0)
   await page.getByRole('button', { name: 'Open panel library' }).click()
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+  await page.reload()
+  await expect(page.locator('.launch-screen')).toBeVisible()
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
   const savedPanel = page.getByRole('button', { name: 'Open T-cell panel' })
   await expect(savedPanel).toContainText('1 color')
   await expect(savedPanel).toContainText('Sony ID7000')
@@ -266,6 +269,8 @@ test('migrates the previous single active autosave into the named panel library'
   })
 
   await page.reload()
+  await expect(page.locator('.launch-screen')).toBeVisible()
+  await page.getByRole('button', { name: 'Open Recovered panel' }).click()
   await expect(page.getByLabel('Panel name')).toBeVisible()
   await expect(page.getByLabel('Panel name')).toHaveValue('Recovered panel')
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')

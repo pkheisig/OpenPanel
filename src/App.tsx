@@ -19,6 +19,25 @@ import {
 } from './projectStore'
 import type { ProjectState, StoredPanelProject } from './projectStore'
 
+const CURRENT_SURFACE_STORAGE_KEY = 'openpanel.current-surface'
+
+function storedSurface(): 'landing' | 'editor' | null {
+  try {
+    const value = localStorage.getItem(CURRENT_SURFACE_STORAGE_KEY)
+    return value === 'landing' || value === 'editor' ? value : null
+  } catch {
+    return null
+  }
+}
+
+function rememberSurface(surface: 'landing' | 'editor'): void {
+  try {
+    localStorage.setItem(CURRENT_SURFACE_STORAGE_KEY, surface)
+  } catch {
+    // Navigation remains functional for the current page when storage is unavailable.
+  }
+}
+
 function preferredTheme(): 'light' | 'dark' {
   const stored = localStorage.getItem('spectreasy-theme') || localStorage.getItem('spectreasy_theme')
   if (stored === 'light' || stored === 'dark') return stored
@@ -63,7 +82,9 @@ export default function App() {
       if (cancelled) return
       setActivePanel(restored)
       setPanels(storedPanels)
-      setShowLanding(restored === null)
+      const landing = storedSurface() === 'landing' || restored === null
+      setShowLanding(landing)
+      rememberSurface(landing ? 'landing' : 'editor')
       setLoading(false)
     }
     void restore()
@@ -85,6 +106,7 @@ export default function App() {
           const panel = await createPanelProject(selection.name, emptyProject(selection))
           setPanels(await listPanelProjects())
           setActivePanel(panel)
+          rememberSurface('editor')
           setShowLanding(false)
         }}
         onImport={async (file) => {
@@ -94,6 +116,7 @@ export default function App() {
           )
           await refreshPanels()
           setActivePanel(panel)
+          rememberSurface('editor')
           setShowLanding(false)
         }}
         onExport={async (panel) => {
@@ -130,6 +153,7 @@ export default function App() {
         onOpen={(panel) => {
           setActivePanelProject(panel.id)
           setActivePanel(panel)
+          rememberSurface('editor')
           setShowLanding(false)
         }}
       />
@@ -143,6 +167,7 @@ export default function App() {
       projectName={activePanel.name}
       initialProject={activePanel.state}
       onRequestExit={async () => {
+        rememberSurface('landing')
         setPanels(await listPanelProjects())
         setShowLanding(true)
       }}
