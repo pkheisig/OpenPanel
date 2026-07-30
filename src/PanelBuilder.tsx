@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Sun, Trash2, Upload, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Sun, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ModuleLoadingState } from './ModuleLoadingState';
 import { PanelWizard } from './PanelWizard';
@@ -492,24 +492,6 @@ const PanelBuilder = ({
         }
     };
 
-    const clearSelection = async () => {
-        setError('');
-        const emptySlotsArray = Array(emptySlots).fill('');
-        slotsRef.current = emptySlotsArray;
-        setSlots(emptySlotsArray);
-        setMarkers({});
-        setWizardState(null);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(emptySlotsArray));
-        localStorage.setItem('spectreasy_markers', JSON.stringify({}));
-        setQueries({});
-        setActiveSlot(null);
-        try {
-            await fetchPanel(cytometer, configuration, [], true);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not clear selection.');
-        }
-    };
-
     const filteredOptions = (slotIndex: number) => {
         if (!payload) return [];
         const query = queries[slotIndex] ?? '';
@@ -852,17 +834,6 @@ const PanelBuilder = ({
                     >
                         {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
                     </button>}
-                    <button
-                        type="button"
-                        className="export-button icon-only"
-                        onClick={clearSelection}
-                        disabled={selected.length === 0}
-                        aria-label="Clear selection"
-                        title="Clear selection"
-                        style={{ color: 'var(--accent-2)' }}
-                    >
-                        <Trash2 size={16} />
-                    </button>
                     <input
                         ref={importInputRef}
                         type="file"

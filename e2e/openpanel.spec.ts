@@ -433,7 +433,8 @@ test('runs representative panel, import, export, and project round-trip workflow
   expect(project.cytometerPanels.aurora.slots.slice(0, 2)).toEqual(['Alexa Fluor 488', 'Alexa Fluor 647'])
   expect(project.cytometerPanels.aurora.markers['0']).toBe('CD3')
 
-  await page.getByTitle('Clear selection').click()
+  await page.getByRole('button', { name: 'Remove fluorophore row' }).first().click()
+  await page.getByRole('button', { name: 'Remove fluorophore row' }).first().click()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await expect(page.getByRole('menuitem', { name: /Import panel/ })).toBeVisible()
