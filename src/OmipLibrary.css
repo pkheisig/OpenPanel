@@ -451,6 +451,74 @@
   opacity: 0.4;
 }
 
+.omip-compatibility-backdrop {
+  position: fixed;
+  z-index: 970;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(8 17 14 / 0.72);
+  backdrop-filter: blur(3px);
+  animation: omip-library-backdrop-in 140ms ease-out both;
+}
+
+.omip-compatibility-confirm {
+  width: min(440px, 100%);
+  padding: 23px;
+  border: 1px solid var(--omip-border);
+  border-radius: 13px;
+  color: var(--omip-text);
+  background: var(--omip-bg);
+  box-shadow: 0 24px 70px rgb(6 14 11 / 0.38);
+  animation: omip-library-window-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.omip-compatibility-confirm > svg {
+  margin-bottom: 12px;
+  color: #d17d22;
+}
+
+.omip-compatibility-confirm h3 {
+  margin: 0 0 9px;
+  font-size: 18px;
+}
+
+.omip-compatibility-confirm p {
+  margin: 0;
+  color: var(--omip-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.omip-compatibility-confirm > div {
+  margin-top: 21px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.omip-compatibility-confirm button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--omip-border);
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.omip-compatibility-cancel {
+  color: var(--omip-text);
+  background: var(--omip-surface);
+}
+
+.omip-compatibility-submit {
+  border-color: #b96318 !important;
+  color: #fff;
+  background: #b96318;
+}
+
 @keyframes omip-library-backdrop-in {
   from { opacity: 0; }
   to { opacity: 1; }

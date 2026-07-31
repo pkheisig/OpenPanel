@@ -7,7 +7,10 @@ import { ModuleLoadingState } from './ModuleLoadingState';
 import { OmipLibrary } from './OmipLibrary';
 import { PanelWizard } from './PanelWizard';
 import type { WizardApplication } from './PanelWizard';
-import { omipTemplateAssignmentsForPanel } from './panelWizardKnowledge';
+import {
+    omipTemplateAssignmentsForPanel,
+    omipTemplateAssignmentsForPanelBestEffort,
+} from './panelWizardKnowledge';
 import type { OmipTemplate } from './panelWizardKnowledge';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
@@ -604,15 +607,17 @@ const PanelBuilder = ({
             availableFluorophores,
             Math.min(payload?.fluorophores.length ?? 0, payload?.detectors.length ?? 0),
         );
-        if (!assignments) {
-            setError('This OMIP panel is not compatible with the current cytometer configuration.');
-            return;
-        }
+        const appliedAssignments = assignments ?? omipTemplateAssignmentsForPanelBestEffort(
+            template,
+            availableFluorophores,
+            Math.min(payload?.fluorophores.length ?? 0, payload?.detectors.length ?? 0),
+        );
+        if (appliedAssignments.length === 0) return;
 
         recordPanelEdit();
-        const nextSlots = assignments.map(assignment => assignment.fluorophore);
+        const nextSlots = appliedAssignments.map(assignment => assignment.fluorophore);
         const nextMarkers = Object.fromEntries(
-            assignments.map((assignment, index) => [index, assignment.marker]),
+            appliedAssignments.map((assignment, index) => [index, assignment.marker]),
         );
         slotsRef.current = nextSlots;
         markersRef.current = nextMarkers;
@@ -626,7 +631,7 @@ const PanelBuilder = ({
         localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
         localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
 
-        await fetchPanel(cytometer, configuration, nextSlots).catch((omipError) => {
+        await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((omipError) => {
             throw omipError instanceof Error ? omipError : new Error('Could not apply the OMIP panel.');
         });
         const activeCytometer = getCytometerName(cytometer);
@@ -1281,6 +1286,8 @@ const PanelBuilder = ({
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
                     availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
                     maxPanelSize={Math.min(payload.fluorophores.length, payload.detectors.length)}
+                    activeCytometerLabel={payload.libraries.find((item) => item.id === payload.cytometer)?.label ?? payload.cytometer}
+                    activeConfigurationLabel={selectedConfigurationLabel}
                     onClose={() => setShowOmipLibrary(false)}
                     onApplyTemplate={(template) => void applyOmipTemplate(template).catch((omipError) => {
                         setError(omipError instanceof Error ? omipError.message : 'Could not apply the OMIP panel.');

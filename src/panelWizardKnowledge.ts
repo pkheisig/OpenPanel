@@ -407,6 +407,30 @@ export function omipTemplateAssignmentsForPanel(
   return assignments
 }
 
+export function omipTemplateAssignmentsForPanelBestEffort(
+  template: OmipTemplate,
+  availableFluorophores: readonly string[],
+  maxPanelSize?: number,
+): { marker: string; fluorophore: string }[] {
+  const availableByName = new Map(
+    availableFluorophores.map((fluorophore) => [normalizeOmipFluorophore(fluorophore), fluorophore]),
+  )
+  const usedFluorophores = new Set<string>()
+  const markers = maxPanelSize === undefined
+    ? template.markers
+    : template.markers.slice(0, maxPanelSize)
+
+  return markers
+    .filter((marker) => marker.name.trim())
+    .map((marker) => {
+      const key = normalizeOmipFluorophore(marker.fluorophore ?? '')
+      const available = availableByName.get(key)
+      const fluorophore = available && !usedFluorophores.has(key) ? available : ''
+      if (fluorophore) usedFluorophores.add(key)
+      return { marker: marker.name.trim(), fluorophore }
+    })
+}
+
 export const OMIP_DATABASE_URL = 'https://isac-net.org/omip-and-flow-repository-database/'
 
 type LegacyOmipMetadata = Omit<OmipTemplate, 'markers'>

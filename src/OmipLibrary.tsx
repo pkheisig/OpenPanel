@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+  AlertTriangle,
   ArrowLeft,
   ChevronRight,
   ExternalLink,
@@ -25,6 +26,8 @@ type OmipLibraryProps = {
   availableFluorophores?: readonly string[]
   maxPanelSize?: number
   actionLabel?: string
+  activeCytometerLabel?: string
+  activeConfigurationLabel?: string
 }
 
 const SPECIES_OPTIONS = [
@@ -56,6 +59,23 @@ const SPECIES_LABELS: Record<OmipCatalogEntry['species'], string> = {
   other: 'Other',
 }
 
+function normalizedInstrumentFamily(value: string): string {
+  const normalized = value.toLocaleLowerCase()
+  if (normalized.includes('northern lights')) return 'northern-lights'
+  if (normalized.includes('aurora')) return 'aurora'
+  if (normalized.includes('id7000')) return 'id7000'
+  if (normalized.includes('facsdiscover')) return 'facsdiscover'
+  if (normalized.includes('facsymphony')) return 'facsymphony'
+  if (normalized.includes('xenith')) return 'xenith'
+  return normalized.replace(/[^a-z0-9]+/g, '-')
+}
+
+function reportedConfigurationMatches(value: string, activeConfigurationLabel: string): boolean {
+  const reportedLasers = value.match(/\b([34567])l\b/i)?.[1]
+  if (!reportedLasers) return true
+  return new RegExp(`\\b${reportedLasers}l\\b`, 'i').test(activeConfigurationLabel)
+}
+
 export function OmipLibrary({
   theme,
   onClose,
@@ -63,12 +83,15 @@ export function OmipLibrary({
   availableFluorophores,
   maxPanelSize,
   actionLabel = 'Apply to panel',
+  activeCytometerLabel,
+  activeConfigurationLabel = '',
 }: OmipLibraryProps) {
   const [preview, setPreview] = useState<OmipCatalogEntry | null>(null)
   const [query, setQuery] = useState('')
   const [species, setSpecies] = useState('all')
   const [year, setYear] = useState('all')
   const [cellType, setCellType] = useState('all')
+  const [pendingIncompatibleEntry, setPendingIncompatibleEntry] = useState<OmipCatalogEntry | null>(null)
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -123,6 +146,26 @@ export function OmipLibrary({
       maxPanelSize,
     )
   )
+  const designedForActiveCytometer = Boolean(
+    !activeCytometerLabel
+    || preview?.cytometers.some((reportedCytometer) => (
+      normalizedInstrumentFamily(reportedCytometer) === normalizedInstrumentFamily(activeCytometerLabel)
+      && reportedConfigurationMatches(reportedCytometer, activeConfigurationLabel)
+    ))
+  )
+  const requiresCompatibilityWarning = Boolean(
+    preview?.template
+    && (!designedForActiveCytometer || incompatibleWithWorkspace || exceedsWorkspace)
+  )
+
+  const applyPreview = () => {
+    if (!preview?.template || !onApplyTemplate) return
+    if (requiresCompatibilityWarning) {
+      setPendingIncompatibleEntry(preview)
+      return
+    }
+    onApplyTemplate(preview.template)
+  }
 
   return (
     <div
@@ -221,16 +264,17 @@ export function OmipLibrary({
               <span>
                 {exceedsWorkspace
                   ? `${preview.template?.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
-                  : incompatibleWithWorkspace
-                    ? 'This template cannot be mapped exactly to the active cytometer configuration'
+                  : !designedForActiveCytometer
+                    ? `Designed for ${preview.cytometers.join(' / ')}`
+                    : incompatibleWithWorkspace
+                      ? 'Some published colors are unavailable in the active configuration'
                     : `${preview.template?.markers.length ?? 0} markers`}
               </span>
               {onApplyTemplate && preview.template && (
                 <button
                   type="button"
                   className="omip-library-primary"
-                  disabled={exceedsWorkspace || incompatibleWithWorkspace}
-                  onClick={() => onApplyTemplate(preview.template as OmipTemplate)}
+                  onClick={applyPreview}
                 >
                   {actionLabel}
                 </button>
@@ -311,6 +355,50 @@ export function OmipLibrary({
               {visibleEntries.length === 0 && <p className="omip-library-empty">No matching OMIP panels.</p>}
             </div>
           </>
+        )}
+
+        {pendingIncompatibleEntry?.template && (
+          <div
+            className="omip-compatibility-backdrop"
+            role="presentation"
+            onPointerDown={(event) => {
+              if (event.target === event.currentTarget) setPendingIncompatibleEntry(null)
+            }}
+          >
+            <section
+              className="omip-compatibility-confirm"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="omip-compatibility-title"
+              aria-describedby="omip-compatibility-description"
+            >
+              <AlertTriangle size={24} aria-hidden="true" />
+              <h3 id="omip-compatibility-title">Apply this panel anyway?</h3>
+              <p id="omip-compatibility-description">
+                {pendingIncompatibleEntry.name} was designed for {pendingIncompatibleEntry.cytometers.join(' / ')}.
+                {activeCytometerLabel && (
+                  <> This project uses {activeCytometerLabel}{activeConfigurationLabel ? ` · ${activeConfigurationLabel}` : ''}.</>
+                )}
+                {' '}Its published marker–color assignments may not perform as intended. Unsupported colors will remain unassigned. Proceed at your own risk.
+              </p>
+              <div>
+                <button type="button" className="omip-compatibility-cancel" onClick={() => setPendingIncompatibleEntry(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="omip-compatibility-submit"
+                  onClick={() => {
+                    const template = pendingIncompatibleEntry.template
+                    setPendingIncompatibleEntry(null)
+                    if (template) onApplyTemplate?.(template)
+                  }}
+                >
+                  Apply anyway
+                </button>
+              </div>
+            </section>
+          </div>
         )}
       </section>
     </div>

@@ -19,6 +19,7 @@ import {
   markerOptionsForPanel,
   OMIP_CATALOG,
   omipTemplateAssignmentsForPanel,
+  omipTemplateAssignmentsForPanelBestEffort,
 } from '../src/panelWizardKnowledge'
 import type { CoexpressionLevel, WizardMarker } from '../src/panelWizardEngine'
 import { mockBundledData } from './helpers'
@@ -83,6 +84,16 @@ describe('panel wizard recommendation engine', () => {
         { name: 'Marker B', fluorophore: 'BV711' },
       ],
     }, auroraColors)).toBeNull()
+    expect(omipTemplateAssignmentsForPanelBestEffort({
+      ...omip97!,
+      markers: [
+        { name: 'Marker A', fluorophore: 'BV711' },
+        { name: 'Marker B', fluorophore: 'Unsupported dye' },
+      ],
+    }, auroraColors)).toEqual([
+      { marker: 'Marker A', fluorophore: 'BV711' },
+      { marker: 'Marker B', fluorophore: '' },
+    ])
   })
 
   test('distinguishes common dyes from estimated limited dyes', () => {
