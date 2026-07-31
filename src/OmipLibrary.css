@@ -258,7 +258,7 @@
   min-height: 76px;
   padding: 13px 14px;
   display: grid;
-  grid-template-columns: 105px 1fr auto;
+  grid-template-columns: 205px 1fr auto;
   gap: 14px;
   align-items: center;
   border: 1px solid var(--omip-border-soft);
@@ -290,6 +290,11 @@
   color: var(--omip-muted);
   font-size: 14px;
   line-height: 1.35;
+}
+
+.omip-library-entry-cytometer {
+  color: var(--omip-accent) !important;
+  font-weight: 750;
 }
 
 .omip-library-empty {
@@ -350,6 +355,10 @@
   border: 1px solid var(--omip-border-soft);
   border-radius: 9px;
   background: var(--omip-surface);
+}
+
+.omip-library-overview dl > .omip-library-cytometer-card {
+  grid-column: 1 / -1;
 }
 
 .omip-library-overview dt {

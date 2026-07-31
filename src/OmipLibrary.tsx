@@ -73,11 +73,7 @@ export function OmipLibrary({
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     return OMIP_CATALOG.filter((entry) => (
-      (!availableFluorophores || (
-        entry.template
-        && omipTemplateAssignmentsForPanel(entry.template, availableFluorophores, maxPanelSize)
-      ))
-      && (species === 'all' || entry.species === species)
+      (species === 'all' || entry.species === species)
       && (year === 'all' || entry.year === year)
       && (cellType === 'all' || entry.cellTypes.includes(cellType))
       && (
@@ -87,6 +83,7 @@ export function OmipLibrary({
           entry.summary,
           entry.year,
           entry.species,
+          ...entry.cytometers,
           ...entry.cellTypes,
           ...(entry.template?.markers.flatMap((marker) => [
             marker.name,
@@ -95,7 +92,7 @@ export function OmipLibrary({
         ].join(' ').toLocaleLowerCase().includes(normalizedQuery)
       )
     ))
-  }, [availableFluorophores, cellType, maxPanelSize, query, species, year])
+  }, [cellType, query, species, year])
 
   const filtersActive = Boolean(
     query.trim()
@@ -115,6 +112,16 @@ export function OmipLibrary({
     preview?.template
     && maxPanelSize !== undefined
     && preview.template.markers.length > maxPanelSize,
+  )
+  const incompatibleWithWorkspace = Boolean(
+    preview?.template
+    && availableFluorophores
+    && !exceedsWorkspace
+    && !omipTemplateAssignmentsForPanel(
+      preview.template,
+      availableFluorophores,
+      maxPanelSize,
+    )
   )
 
   return (
@@ -165,6 +172,10 @@ export function OmipLibrary({
                   </a>
                 </div>
                 <dl>
+                  <div className="omip-library-cytometer-card">
+                    <dt>Cytometer</dt>
+                    <dd title={preview.cytometers.join(' / ')}>{preview.cytometers.join(' / ')}</dd>
+                  </div>
                   <div>
                     <dt>Published</dt>
                     <dd>{preview.year}</dd>
@@ -210,13 +221,15 @@ export function OmipLibrary({
               <span>
                 {exceedsWorkspace
                   ? `${preview.template?.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
+                  : incompatibleWithWorkspace
+                    ? 'This template cannot be mapped exactly to the active cytometer configuration'
                     : `${preview.template?.markers.length ?? 0} markers`}
               </span>
               {onApplyTemplate && preview.template && (
                 <button
                   type="button"
                   className="omip-library-primary"
-                  disabled={exceedsWorkspace}
+                  disabled={exceedsWorkspace || incompatibleWithWorkspace}
                   onClick={() => onApplyTemplate(preview.template as OmipTemplate)}
                 >
                   {actionLabel}
@@ -289,6 +302,7 @@ export function OmipLibrary({
                   <span className="omip-library-entry-name">
                     <strong>{entry.name}</strong>
                     <small>{entry.year}</small>
+                    <small className="omip-library-entry-cytometer">{entry.cytometers.join(' / ')}</small>
                   </span>
                   <span>{entry.summary}</span>
                   <ChevronRight size={18} />

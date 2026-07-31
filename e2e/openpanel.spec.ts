@@ -148,7 +148,12 @@ test('selects the instrument and configuration before opening a clean workspace'
   await page.getByRole('button', { name: 'Import from OMIP' }).click()
   const projectOmipLibrary = page.getByRole('dialog', { name: 'OMIP Library' })
   await expect(projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-097' })).toBeVisible()
-  await expect(projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-111' })).toHaveCount(0)
+  const sonyOmip = projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-111' })
+  await expect(sonyOmip).toContainText('Sony ID7000')
+  await sonyOmip.click()
+  await expect(page.getByRole('dialog', { name: 'OMIP-111' }).getByText('Sony ID7000', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Apply to panel' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Back to OMIP Library' }).click()
   await projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-097' }).click()
   await page.getByRole('button', { name: 'Apply to panel' }).click()
   await expect(page.getByRole('dialog', { name: 'Panel wizard' })).toHaveCount(0)
@@ -568,8 +573,8 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'href',
     'https://isac-net.org/omip-and-flow-repository-database/',
   )
-  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(10)
-  await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-111' })).toHaveCount(0)
+  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(23)
+  await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-111' })).toContainText('Sony ID7000')
   await templateDialog.evaluate(async (dialog) => {
     await Promise.all(dialog.getAnimations().map((animation) => animation.finished))
   })

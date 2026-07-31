@@ -370,6 +370,7 @@ export type OmipCatalogEntry = {
   name: string
   summary: string
   year: string
+  cytometers: string[]
   species: 'human' | 'mouse' | 'non-human-primate' | 'other'
   cellTypes: string[]
   method: 'spectral' | 'mass' | 'imaging' | 'conventional'
@@ -536,6 +537,35 @@ const SPECTRAL_OMIP_NUMBERS = new Set([
   104, 102, 99, 97, 95, 94, 93, 86, 84, 83, 69,
 ])
 
+// Native acquisition systems reported by the OMIP publications. These labels
+// describe the validated source panel; import compatibility is checked
+// separately against the active OpenPanel detector configuration.
+const SPECTRAL_OMIP_CYTOMETERS: Record<number, string[]> = {
+  120: ['Cytek Aurora 4L (UV-V-B-R)'],
+  119: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  118: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  117: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  116: ['BD FACSymphony A5 SE'],
+  115: ['Sony ID7000'],
+  114: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  112: ['Sony ID7000 5L (UV-V-B-YG-R)'],
+  111: ['Sony ID7000'],
+  110: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  109: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  105: ['BD FACSymphony A5 SE'],
+  104: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  102: ['Sony ID7000 7L', 'BD FACSDiscover S8 5L'],
+  99: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  97: ['Cytek Northern Lights 3L (V-B-R)'],
+  95: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  94: ['Cytek Aurora 3L (V-B-R)'],
+  93: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  86: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  84: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+  83: ['Cytek Aurora 3L (V-B-R)'],
+  69: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
+}
+
 function spectralOmipContext(title: string): CoexpressionContext {
   const normalized = title.toLocaleLowerCase()
   const species: CoexpressionContext['species'] = /\b(mouse|mice|murine)\b/.test(normalized)
@@ -599,6 +629,7 @@ export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
         name: `OMIP-${paddedNumber}`,
         summary: template?.summary ?? title,
         year,
+        cytometers: SPECTRAL_OMIP_CYTOMETERS[number] ?? ['Not reported'],
         species: omipSpecies(title, template),
         cellTypes: inferOmipCellTypes(title),
         method: 'spectral',

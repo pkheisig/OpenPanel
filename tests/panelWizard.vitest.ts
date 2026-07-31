@@ -32,6 +32,7 @@ describe('panel wizard recommendation engine', () => {
     expect(OMIP_CATALOG[0]).toMatchObject({ name: 'OMIP-120', year: '2026' })
     expect(OMIP_CATALOG.at(-1)).toMatchObject({ name: 'OMIP-069', year: '2020' })
     expect(OMIP_CATALOG.every((entry) => entry.method === 'spectral')).toBe(true)
+    expect(OMIP_CATALOG.every((entry) => entry.cytometers.length > 0)).toBe(true)
     expect(OMIP_CATALOG.every((entry) => entry.template)).toBe(true)
     expect(OMIP_CATALOG.every((entry) => (
       entry.template?.markers.every((marker) => (
@@ -41,7 +42,15 @@ describe('panel wizard recommendation engine', () => {
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-120')).toMatchObject({
       species: 'mouse',
       method: 'spectral',
+      cytometers: ['Cytek Aurora 4L (UV-V-B-R)'],
     })
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-102')?.cytometers).toEqual([
+      'Sony ID7000 7L',
+      'BD FACSDiscover S8 5L',
+    ])
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-105')?.cytometers).toEqual([
+      'BD FACSymphony A5 SE',
+    ])
     expect(inferOmipCellTypes('T cells and dendritic cells')).toEqual([
       'T cells',
       'Dendritic cells',
