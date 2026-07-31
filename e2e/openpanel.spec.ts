@@ -119,6 +119,24 @@ test('shows the fluorophore name beside the cursor when hovering a spectrum', as
   await expect(tooltip).toHaveCount(0)
 })
 
+test('keeps panel wizard controls responsive without a render loop', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+
+  const markerTrigger = page.getByRole('combobox', { name: 'Marker 1 name' })
+  await markerTrigger.click()
+  await expect(page.getByRole('searchbox', { name: 'Search or enter marker' })).toBeVisible()
+  await page.waitForTimeout(150)
+
+  expect(consoleErrors.join('\n')).not.toContain('Maximum update depth exceeded')
+})
+
 test('selects the instrument and configuration before opening a clean workspace', async ({ page }) => {
   await page.goto(APP_PATH)
   await page.getByRole('button', { name: 'OMIP Library' }).click()

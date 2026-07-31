@@ -126,6 +126,10 @@ const PanelBuilder = ({
     const [showOmipLibrary, setShowOmipLibrary] = useState(false);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
     const wizardStateRef = useRef(wizardState);
+    const handleWizardStateChange = useCallback((state: WizardProjectState) => {
+        wizardStateRef.current = state;
+        setWizardState(state);
+    }, []);
     const panelHistoryRef = useRef<{ past: PanelEditSnapshot[]; future: PanelEditSnapshot[] }>({
         past: [],
         future: [],
@@ -1271,9 +1275,7 @@ const PanelBuilder = ({
                     markerNames={markers}
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
                     initialState={wizardState}
-                    onStateChange={(state) => {
-                        setWizardState(state);
-                    }}
+                    onStateChange={handleWizardStateChange}
                     onClearPanel={clearPanelContent}
                     onClose={() => {
                         setShowPanelWizard(false);
