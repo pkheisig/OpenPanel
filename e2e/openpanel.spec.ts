@@ -158,6 +158,31 @@ test('selects the instrument and configuration before opening a clean workspace'
   expect(await page.locator('.matrix-marker-input').evaluateAll((inputs) => (
     inputs.map((input) => (input as HTMLInputElement).value)
   ))).toContain('Platelet GPVI')
+  const plotControls = page.getByRole('group', { name: 'Plot size' })
+  const clearProjectPanel = page.getByRole('button', { name: 'Clear project panel' })
+  const themeButton = page.getByRole('button', { name: 'Toggle theme' })
+  const [plotControlsBox, clearButtonBox, themeButtonBox] = await Promise.all([
+    plotControls.boundingBox(),
+    clearProjectPanel.boundingBox(),
+    themeButton.boundingBox(),
+  ])
+  expect(plotControlsBox!.x + plotControlsBox!.width).toBeLessThan(clearButtonBox!.x)
+  expect(clearButtonBox!.x + clearButtonBox!.width).toBeLessThan(themeButtonBox!.x)
+  await page.mouse.move(0, 0)
+  await clearProjectPanel.evaluate((button) => (button as HTMLButtonElement).blur())
+  await expect(clearProjectPanel).toHaveCSS('color', 'rgb(255, 118, 95)')
+  await clearProjectPanel.click()
+  const editorClearConfirmation = page.getByRole('alertdialog', { name: 'Clear the panel?' })
+  await expect(editorClearConfirmation).toContainText(
+    'This clears every marker and color from the panel and sidebar. You can undo it from the editor header.',
+  )
+  await editorClearConfirmation.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(16 colors)')
+  await clearProjectPanel.click()
+  await editorClearConfirmation.getByRole('button', { name: 'Clear panel' }).click()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
+  await page.getByRole('button', { name: 'Undo last edit' }).click()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(16 colors)')
   await expect(page.getByLabel('Panel name')).toHaveValue('T-cell panel')
   await expect(page.getByRole('combobox', { name: 'Cytometer' })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Detector configuration' })).toHaveCount(0)

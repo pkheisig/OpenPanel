@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import './PanelWizard.css'
+import { ClearPanelConfirmation } from './ClearPanelConfirmation'
 import { UiSelect } from './UiSelect'
 import { buildPanelPayload } from './spectralEngine'
 import { loadPanelWizardReferences } from './panelWizardReferences'
@@ -1051,44 +1052,11 @@ export function PanelWizard({
         )}
 
         {showClearConfirmation && (
-          <div
-            className="wizard-confirm-backdrop"
-            role="presentation"
-            onPointerDown={(event) => {
-              if (event.target === event.currentTarget && !clearing) setShowClearConfirmation(false)
-            }}
-          >
-            <section
-              className="wizard-confirm"
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="wizard-clear-title"
-              aria-describedby="wizard-clear-description"
-            >
-              <h3 id="wizard-clear-title">Clear the panel?</h3>
-              <p id="wizard-clear-description">
-                This clears every marker and color from the wizard and sidebar. You can undo it from the editor header.
-              </p>
-              <div>
-                <button
-                  type="button"
-                  className="wizard-confirm-cancel"
-                  onClick={() => setShowClearConfirmation(false)}
-                  disabled={clearing}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="wizard-confirm-clear"
-                  onClick={() => void clearMarkerSetup()}
-                  disabled={clearing}
-                >
-                  {clearing ? 'Clearing…' : 'Clear panel'}
-                </button>
-              </div>
-            </section>
-          </div>
+          <ClearPanelConfirmation
+            busy={clearing}
+            onCancel={() => setShowClearConfirmation(false)}
+            onConfirm={clearMarkerSetup}
+          />
         )}
 
       </section>

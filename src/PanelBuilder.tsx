@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, BookOpen, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Undo2, Upload, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Trash2, Undo2, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
+import { ClearPanelConfirmation } from './ClearPanelConfirmation';
 import { ModuleLoadingState } from './ModuleLoadingState';
 import { OmipLibrary } from './OmipLibrary';
 import { PanelWizard } from './PanelWizard';
@@ -116,6 +117,8 @@ const PanelBuilder = ({
         initialProject?.plotScaleMode === 'fit-width' ? initialProject.plotScale : DEFAULT_PLOT_SCALE,
     );
     const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+    const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+    const [clearingPanel, setClearingPanel] = useState(false);
     const [showPanelWizard, setShowPanelWizard] = useState(false);
     const [showOmipLibrary, setShowOmipLibrary] = useState(false);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
@@ -215,6 +218,7 @@ const PanelBuilder = ({
     }, [slots]);
 
     const selectedSet = useMemo(() => new Set(selected), [selected]);
+    const panelHasContent = selected.length > 0 || Object.keys(markers).length > 0 || wizardState !== null;
 
     const colorByFluor = useMemo(() => {
         const map = new Map<string, string>();
@@ -533,6 +537,32 @@ const PanelBuilder = ({
         await fetchPanel(cytometer, configuration, []).catch((clearError) => {
             setError(clearError instanceof Error ? clearError.message : 'Could not clear the panel.');
         });
+        const activeCytometer = getCytometerName(cytometer);
+        await persistProjectState({
+            ...projectState,
+            slots: nextSlots,
+            markers: {},
+            wizard: null,
+            cytometerPanels: {
+                ...projectState.cytometerPanels,
+                [activeCytometer]: {
+                    configuration: getCytometerName(configuration),
+                    slots: nextSlots,
+                    markers: {},
+                    wizard: null,
+                },
+            },
+        });
+    };
+
+    const confirmClearPanel = async () => {
+        setClearingPanel(true);
+        try {
+            await clearPanelContent();
+            setShowClearConfirmation(false);
+        } finally {
+            setClearingPanel(false);
+        }
     };
 
     const applyWizardRecommendations = async ({
@@ -989,6 +1019,16 @@ const PanelBuilder = ({
                             <Plus size={16} />
                         </button>
                     </div>
+                    <button
+                        type="button"
+                        className="export-button icon-only panel-clear-button"
+                        onClick={() => setShowClearConfirmation(true)}
+                        disabled={!panelHasContent || clearingPanel}
+                        aria-label="Clear project panel"
+                        title="Clear panel"
+                    >
+                        <Trash2 size={16} />
+                    </button>
                     {!embedded && <button
                         type="button"
                         className="export-button"
@@ -1245,6 +1285,13 @@ const PanelBuilder = ({
                     onApplyTemplate={(template) => void applyOmipTemplate(template).catch((omipError) => {
                         setError(omipError instanceof Error ? omipError.message : 'Could not apply the OMIP panel.');
                     })}
+                />
+            )}
+            {showClearConfirmation && (
+                <ClearPanelConfirmation
+                    busy={clearingPanel}
+                    onCancel={() => setShowClearConfirmation(false)}
+                    onConfirm={confirmClearPanel}
                 />
             )}
             {showPdfConfirm && (

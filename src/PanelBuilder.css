@@ -302,6 +302,24 @@
   box-shadow: none;
 }
 
+.panel-builder .export-button.panel-clear-button {
+  color: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 50%, var(--button-border));
+}
+
+.panel-builder .export-button.panel-clear-button:not(:disabled):hover,
+.panel-builder .export-button.panel-clear-button:not(:disabled):focus-visible {
+  color: #fff;
+  border-color: var(--accent-2);
+  background: var(--accent-2);
+}
+
+.panel-builder .export-button.panel-clear-button:disabled {
+  color: color-mix(in srgb, var(--accent-2) 48%, var(--text-muted));
+  cursor: default;
+  opacity: 0.5;
+}
+
 .wizard-launch-button {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--button-border));
