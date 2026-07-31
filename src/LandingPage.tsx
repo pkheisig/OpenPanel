@@ -30,6 +30,7 @@ import type { OmipCatalogEntry, OmipTemplate } from './panelWizardKnowledge'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
 import { OmipLibrary } from './OmipLibrary'
+import { readThemePreference, saveThemePreference } from './themePreference'
 import './LandingPage.css'
 
 export type PanelLaunchSelection = {
@@ -57,12 +58,6 @@ type ProjectMenuState = {
   panel: StoredPanelProject
   x: number
   y: number
-}
-
-function storedTheme(): 'light' | 'dark' {
-  const value = localStorage.getItem('spectreasy-theme') || localStorage.getItem('spectreasy_theme')
-  if (value === 'light' || value === 'dark') return value
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 function storedCytometer(fallback: string): string {
@@ -136,7 +131,7 @@ export function LandingPage({
 }: LandingPageProps) {
   const libraries = useMemo(() => getSpectralPanelLibraries(), [])
   const importInput = useRef<HTMLInputElement>(null)
-  const [theme, setTheme] = useState<'light' | 'dark'>(storedTheme)
+  const [theme, setTheme] = useState<'light' | 'dark'>(readThemePreference)
   const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
   const [starting, setStarting] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
@@ -160,9 +155,7 @@ export function LandingPage({
   )
 
   useEffect(() => {
-    localStorage.setItem('spectreasy-theme', theme)
-    localStorage.removeItem('spectreasy_theme')
-    document.documentElement.dataset.theme = theme
+    saveThemePreference(theme)
   }, [theme])
 
   useEffect(() => {

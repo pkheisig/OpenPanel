@@ -18,6 +18,7 @@ import {
   setActivePanelProject,
 } from './projectStore'
 import type { ProjectState, StoredPanelProject } from './projectStore'
+import { readThemePreference } from './themePreference'
 
 const CURRENT_SURFACE_STORAGE_KEY = 'openpanel.current-surface'
 
@@ -38,12 +39,6 @@ function rememberSurface(surface: 'landing' | 'editor'): void {
   }
 }
 
-function preferredTheme(): 'light' | 'dark' {
-  const stored = localStorage.getItem('spectreasy-theme') || localStorage.getItem('spectreasy_theme')
-  if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
 function emptyProject(selection: PanelLaunchSelection): ProjectState {
   const slots = selection.slots ? [...selection.slots] : Array(18).fill('')
   const markers = selection.markers ? { ...selection.markers } : {}
@@ -53,7 +48,7 @@ function emptyProject(selection: PanelLaunchSelection): ProjectState {
     slots,
     markers,
     tab: 'panel',
-    theme: preferredTheme(),
+    theme: readThemePreference(),
     sidebarWidth: 214,
     sidebarCollapsed: false,
     plotScale: DEFAULT_PLOT_SCALE,

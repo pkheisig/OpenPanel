@@ -87,6 +87,29 @@ test('resizes the sidebar fluidly and persists the final width', async ({ page }
   expect((await sidebar.boundingBox())!.width).toBeCloseTo(draggedWidth - 12, 0)
 })
 
+test('shares light and dark mode between the landing page and editor', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+  await expect(page.locator('.panel-builder')).toHaveClass(/light/)
+
+  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
+  await page.waitForTimeout(650)
+  await page.getByRole('button', { name: 'Open panel library' }).click()
+  await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
+  await expect(page.getByRole('button', { name: 'Use light mode' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Use light mode' }).click()
+  await expect(page.locator('.launch-screen')).toHaveClass(/light/)
+  await page.getByRole('button', { name: 'Open Panel 1' }).click()
+  await expect(page.locator('.panel-builder')).toHaveClass(/light/)
+
+  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
+  await page.getByRole('button', { name: 'Open panel library' }).click()
+  await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
+})
+
 test('shows the fluorophore name beside the cursor when hovering a spectrum', async ({ page }) => {
   await page.goto(APP_PATH)
   await openEmptyPanel(page)

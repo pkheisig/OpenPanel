@@ -33,6 +33,7 @@ import {
     unique,
 } from './panelBuilderShared';
 import { createRefreshSequence } from './refreshSequence';
+import { readThemePreference, saveThemePreference } from './themePreference';
 import type {
     FluorInfo,
     NumericRow,
@@ -102,10 +103,7 @@ const PanelBuilder = ({
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
     const [theme, setTheme] = useState<'light' | 'dark'>(() => {
         if (embedded && cockpitTheme) return cockpitTheme;
-        if (initialProject?.theme) return initialProject.theme;
-        const stored = localStorage.getItem('spectreasy-theme') || localStorage.getItem('spectreasy_theme');
-        if (stored === 'light' || stored === 'dark') return stored;
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        return readThemePreference(initialProject?.theme);
     });
     const [guiStateLoaded, setGuiStateLoaded] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(initialProject?.sidebarWidth ?? 214);
@@ -147,9 +145,7 @@ const PanelBuilder = ({
 
     useEffect(() => {
         if (embedded) return;
-        localStorage.setItem('spectreasy-theme', theme);
-        localStorage.removeItem('spectreasy_theme');
-        document.documentElement.dataset.theme = theme;
+        saveThemePreference(theme);
     }, [embedded, theme]);
 
     useEffect(() => {
