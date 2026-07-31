@@ -14,7 +14,7 @@ import {
   recommendationScore,
 } from '../src/panelWizardEngine'
 import { loadPanelWizardReferences } from '../src/panelWizardReferences'
-import { OMIP_CATALOG } from '../src/panelWizardKnowledge'
+import { markerOptionsForPanel, OMIP_CATALOG } from '../src/panelWizardKnowledge'
 import type { CoexpressionLevel, WizardMarker } from '../src/panelWizardEngine'
 import { mockBundledData } from './helpers'
 
@@ -213,6 +213,24 @@ describe('panel wizard recommendation engine', () => {
     const results = generateWizardResults(payload, [lowDensityMarker], {}, 1, references)
     expect(results.bestFit.rows[0].fluorophore).toBe('PE')
     expect(results.bestFit.rows[0].brightnessLevel).toBe(5)
+  })
+
+  test('loads the expanded marker dictionary and aliases for autocomplete', async () => {
+    const references = await loadPanelWizardReferences('aurora', '5l_uv_v_b_yg_r')
+    expect(references.markerOptions.length).toBeGreaterThanOrEqual(878)
+    expect(references.markerOptions.find((option) => option.value === 'TIM-4')).toBeDefined()
+    expect(references.markerOptions.find((option) => option.value === 'CD49b')?.searchText).toContain('DX5')
+    expect(references.markerOptions.find((option) => option.value === 'Live/Dead')?.searchText).toContain('Viability')
+
+    const contextual = markerOptionsForPanel(
+      'NK cells',
+      [],
+      'human',
+      references.markerOptions,
+    )
+    expect(contextual.findIndex((option) => option.value === 'CD56')).toBeLessThan(
+      contextual.findIndex((option) => option.value === 'TIM-4'),
+    )
   })
 
   test('keeps rare colors out of recommended panels when a complete practical pool exists', async () => {

@@ -36,7 +36,7 @@ interface PanelVisualizationsProps {
     lasers: string[];
     tab: TabId;
     setTab: Dispatch<SetStateAction<TabId>>;
-    setMarkers: Dispatch<SetStateAction<Record<number, string>>>;
+    onMarkerChange: (slotIndex: number, value: string) => void;
     spectraByName: Map<string, NumericRow>;
     similarityByName: Map<string, NumericRow>;
     colorByFluor: Map<string, string>;
@@ -54,7 +54,7 @@ export function PanelVisualizations({
     lasers,
     tab,
     setTab,
-    setMarkers,
+    onMarkerChange,
     spectraByName,
     similarityByName,
     colorByFluor,
@@ -274,11 +274,7 @@ export function PanelVisualizations({
                                                         placeholder="Marker"
                                                         onChange={event => {
                                                             const val = event.target.value;
-                                                            setMarkers(prev => {
-                                                                const next = { ...prev, [entry.slotIndex]: val };
-                                                                localStorage.setItem('spectreasy_markers', JSON.stringify(next));
-                                                                return next;
-                                                            });
+                                                            onMarkerChange(entry.slotIndex, val);
                                                         }}
                                                     />
                                                 )}

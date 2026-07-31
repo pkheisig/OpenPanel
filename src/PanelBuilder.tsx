@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, BookOpen, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Sun, Upload, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Undo2, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ModuleLoadingState } from './ModuleLoadingState';
 import { OmipLibrary } from './OmipLibrary';
@@ -57,6 +57,13 @@ type PanelBuilderProps = {
 const MIN_SIDEBAR_WIDTH = 180;
 const MAX_SIDEBAR_WIDTH = 440;
 const SIDEBAR_KEYBOARD_STEP = 12;
+const MAX_PANEL_HISTORY = 100;
+
+type PanelEditSnapshot = {
+    slots: string[];
+    markers: Record<number, string>;
+    wizard: WizardProjectState | null;
+};
 
 const PanelBuilder = ({
     embedded = false,
@@ -81,6 +88,7 @@ const PanelBuilder = ({
     const sidebarRef = useRef<HTMLElement | null>(null);
     const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
     const [markers, setMarkers] = useState<Record<number, string>>(() => initialProject?.markers ?? {});
+    const markersRef = useRef(markers);
     const [panelName, setPanelName] = useState(projectName);
     const bootSelectionRef = useRef({ cytometer, configuration, slots });
     const bootPromiseRef = useRef<Promise<void> | null>(null);
@@ -111,6 +119,13 @@ const PanelBuilder = ({
     const [showOmipLibrary, setShowOmipLibrary] = useState(false);
     const [pendingOmipTemplate, setPendingOmipTemplate] = useState<OmipTemplate | null>(null);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
+    const wizardStateRef = useRef(wizardState);
+    const panelHistoryRef = useRef<{ past: PanelEditSnapshot[]; future: PanelEditSnapshot[] }>({
+        past: [],
+        future: [],
+    });
+    const [historyAvailability, setHistoryAvailability] = useState({ canUndo: false, canRedo: false });
+    const [historyBusy, setHistoryBusy] = useState(false);
     const [cytometerPanels, setCytometerPanels] = useState<Record<string, CytometerPanelState>>(
         () => initialProject?.cytometerPanels ?? {},
     );
@@ -137,6 +152,14 @@ const PanelBuilder = ({
     useEffect(() => {
         localStorage.setItem('spectreasy_slots', JSON.stringify(slots));
     }, [slots]);
+
+    useEffect(() => {
+        markersRef.current = markers;
+    }, [markers]);
+
+    useEffect(() => {
+        wizardStateRef.current = wizardState;
+    }, [wizardState]);
 
     useEffect(() => {
         localStorage.setItem('spectreasy_markers', JSON.stringify(markers));
@@ -272,6 +295,32 @@ const PanelBuilder = ({
         return hit?.label || '';
     }, [configuration, payload]);
 
+    const capturePanelEdit = (): PanelEditSnapshot => ({
+        slots: [...slotsRef.current],
+        markers: { ...markersRef.current },
+        wizard: wizardStateRef.current,
+    });
+
+    const syncHistoryAvailability = () => {
+        setHistoryAvailability({
+            canUndo: panelHistoryRef.current.past.length > 0,
+            canRedo: panelHistoryRef.current.future.length > 0,
+        });
+    };
+
+    const recordPanelEdit = () => {
+        const history = panelHistoryRef.current;
+        history.past.push(capturePanelEdit());
+        if (history.past.length > MAX_PANEL_HISTORY) history.past.shift();
+        history.future = [];
+        syncHistoryAvailability();
+    };
+
+    const clearPanelHistory = () => {
+        panelHistoryRef.current = { past: [], future: [] };
+        syncHistoryAvailability();
+    };
+
     const requestPanel = useCallback((
         nextCytometer: string,
         nextConfiguration: string,
@@ -301,6 +350,50 @@ const PanelBuilder = ({
             if (showLoading && panelRequestSequenceRef.current.isCurrent(requestSequence)) {
                 setLoading(false);
             }
+        }
+    };
+
+    const restorePanelEdit = async (snapshot: PanelEditSnapshot) => {
+        slotsRef.current = [...snapshot.slots];
+        markersRef.current = { ...snapshot.markers };
+        wizardStateRef.current = snapshot.wizard;
+        setSlots(snapshot.slots);
+        setMarkers(snapshot.markers);
+        setWizardState(snapshot.wizard);
+        setQueries({});
+        setActiveSlot(null);
+        localStorage.setItem('spectreasy_slots', JSON.stringify(snapshot.slots));
+        localStorage.setItem('spectreasy_markers', JSON.stringify(snapshot.markers));
+        await fetchPanel(cytometer, configuration, snapshot.slots.filter(Boolean)).catch((historyError) => {
+            setError(historyError instanceof Error ? historyError.message : 'Could not restore panel edit.');
+        });
+    };
+
+    const undoPanelEdit = async () => {
+        if (historyBusy) return;
+        const previous = panelHistoryRef.current.past.pop();
+        if (!previous) return;
+        panelHistoryRef.current.future.push(capturePanelEdit());
+        syncHistoryAvailability();
+        setHistoryBusy(true);
+        try {
+            await restorePanelEdit(previous);
+        } finally {
+            setHistoryBusy(false);
+        }
+    };
+
+    const redoPanelEdit = async () => {
+        if (historyBusy) return;
+        const next = panelHistoryRef.current.future.pop();
+        if (!next) return;
+        panelHistoryRef.current.past.push(capturePanelEdit());
+        syncHistoryAvailability();
+        setHistoryBusy(true);
+        try {
+            await restorePanelEdit(next);
+        } finally {
+            setHistoryBusy(false);
         }
     };
 
@@ -358,6 +451,8 @@ const PanelBuilder = ({
     const updateSlot = async (index: number, fluor: string) => {
         const currentSlots = slotsRef.current;
         if (fluor && currentSlots.some((existing, i) => i !== index && existing === fluor)) return;
+        if (currentSlots[index] === fluor) return;
+        recordPanelEdit();
         const nextSlots = currentSlots.map((existing, i) => (i === index ? fluor : existing));
         slotsRef.current = nextSlots;
         setSlots(nextSlots);
@@ -370,14 +465,16 @@ const PanelBuilder = ({
     };
 
     const removeSlot = async (index: number) => {
+        recordPanelEdit();
         const nextSlots = slotsRef.current.filter((_, slotIndex) => slotIndex !== index);
         const nextMarkers = Object.fromEntries(
-            Object.entries(markers)
+            Object.entries(markersRef.current)
                 .map(([key, value]) => [Number(key), value] as const)
                 .filter(([slotIndex]) => slotIndex !== index)
                 .map(([slotIndex, value]) => [slotIndex > index ? slotIndex - 1 : slotIndex, value]),
         );
         slotsRef.current = nextSlots;
+        markersRef.current = nextMarkers;
         setSlots(nextSlots);
         setMarkers(nextMarkers);
         setQueries((current) => Object.fromEntries(
@@ -395,18 +492,55 @@ const PanelBuilder = ({
         await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
     };
 
-    const addSlot = () => setSlots(prev => {
-        const next = [...prev, ''];
-        slotsRef.current = next;
-        localStorage.setItem('spectreasy_slots', JSON.stringify(next));
-        return next;
-    });
+    const addSlot = () => {
+        recordPanelEdit();
+        setSlots(prev => {
+            const next = [...prev, ''];
+            slotsRef.current = next;
+            localStorage.setItem('spectreasy_slots', JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const updateMarkerWithHistory = (slotIndex: number, value: string) => {
+        if ((markersRef.current[slotIndex] ?? '') === value) return;
+        recordPanelEdit();
+        const nextMarkers = { ...markersRef.current };
+        if (value) nextMarkers[slotIndex] = value;
+        else delete nextMarkers[slotIndex];
+        markersRef.current = nextMarkers;
+        setMarkers(nextMarkers);
+        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+    };
+
+    const clearPanelContent = async () => {
+        const hasContent = slotsRef.current.some(Boolean)
+            || Object.keys(markersRef.current).length > 0
+            || wizardStateRef.current !== null;
+        if (!hasContent) return;
+        recordPanelEdit();
+        const nextSlots = slotsRef.current.map(() => '');
+        slotsRef.current = nextSlots;
+        markersRef.current = {};
+        wizardStateRef.current = null;
+        setSlots(nextSlots);
+        setMarkers({});
+        setWizardState(null);
+        setQueries({});
+        setActiveSlot(null);
+        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        localStorage.setItem('spectreasy_markers', '{}');
+        await fetchPanel(cytometer, configuration, []).catch((clearError) => {
+            setError(clearError instanceof Error ? clearError.message : 'Could not clear the panel.');
+        });
+    };
 
     const applyWizardRecommendations = async ({
         markers: wizardMarkers,
         recommendations,
         desiredSize,
     }: WizardApplication) => {
+        recordPanelEdit();
         const recommendationByMarker = new Map(
             recommendations.map(recommendation => [recommendation.markerId, recommendation.fluorophore]),
         );
@@ -422,6 +556,7 @@ const PanelBuilder = ({
             if (name) nextMarkers[index] = name;
         });
         slotsRef.current = nextSlots;
+        markersRef.current = nextMarkers;
         setSlots(nextSlots);
         setMarkers(nextMarkers);
         localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
@@ -575,14 +710,17 @@ const PanelBuilder = ({
         try {
             const text = await file.text();
             const imported = detectImportedPanelRows(text, payload.fluorophores);
+            recordPanelEdit();
             const nextSlots = imported.map(row => row.fluor);
             while (nextSlots.length < emptySlots) nextSlots.push('');
-            slotsRef.current = nextSlots;
-            setSlots(nextSlots);
             const nextMarkers: Record<number, string> = {};
             imported.forEach((row, index) => {
                 if (row.marker) nextMarkers[index] = row.marker;
             });
+            slotsRef.current = nextSlots;
+            markersRef.current = nextMarkers;
+            wizardStateRef.current = null;
+            setSlots(nextSlots);
             setMarkers(nextMarkers);
             setWizardState(null);
             localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
@@ -631,12 +769,15 @@ const PanelBuilder = ({
                 true,
             );
             if (!nextPayload) return;
+            clearPanelHistory();
             const available = new Set(nextPayload.fluorophores.map((item) => item.fluorophore));
             const nextSlots = state.slots.map((fluorophore) => available.has(fluorophore) ? fluorophore : '');
             const nextMarkers = Object.fromEntries(
                 Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
             ) as Record<number, string>;
             slotsRef.current = nextSlots;
+            markersRef.current = nextMarkers;
+            wizardStateRef.current = state.wizard;
             setSlots(nextSlots);
             setMarkers(nextMarkers);
             setTab(state.tab);
@@ -733,25 +874,49 @@ const PanelBuilder = ({
                         </div>
                     </div>
                 </div>
-                <button
-                    type="button"
-                    className="export-button wizard-launch-button panel-wizard-header-action"
-                    onClick={() => setShowPanelWizard(true)}
-                    aria-label="Open panel wizard"
-                >
-                    <WandSparkles size={17} aria-hidden="true" />
-                    <span>Panel wizard</span>
-                </button>
-                <div className="panel-actions">
+                <div className="panel-primary-actions">
                     <button
                         type="button"
-                        className="export-button icon-only"
-                        onClick={() => setShowOmipLibrary(true)}
-                        aria-label="Open OMIP Library"
-                        title="OMIP Library"
+                        className="export-button wizard-launch-button panel-wizard-header-action"
+                        onClick={() => setShowPanelWizard(true)}
+                        aria-label="Open panel wizard"
                     >
-                        <BookOpen size={16} />
+                        <WandSparkles size={17} aria-hidden="true" />
+                        <span>Panel wizard</span>
                     </button>
+                    <button
+                        type="button"
+                        className="export-button panel-omip-header-action"
+                        onClick={() => setShowOmipLibrary(true)}
+                        aria-label="Import from OMIP"
+                    >
+                        <BookOpen size={17} aria-hidden="true" />
+                        <span>Import from OMIP</span>
+                    </button>
+                </div>
+                <div className="panel-actions">
+                    <div className="history-controls" role="group" aria-label="Edit history">
+                        <button
+                            type="button"
+                            className="export-button icon-only"
+                            onClick={() => void undoPanelEdit()}
+                            disabled={!historyAvailability.canUndo || historyBusy}
+                            aria-label="Undo last edit"
+                            title="Undo"
+                        >
+                            <Undo2 size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            className="export-button icon-only"
+                            onClick={() => void redoPanelEdit()}
+                            disabled={!historyAvailability.canRedo || historyBusy}
+                            aria-label="Redo last edit"
+                            title="Redo"
+                        >
+                            <Redo2 size={16} />
+                        </button>
+                    </div>
                     <div className="plot-size-controls" role="group" aria-label="Plot size">
                         <button
                             type="button"
@@ -987,7 +1152,7 @@ const PanelBuilder = ({
                     lasers={lasers}
                     tab={tab}
                     setTab={setTab}
-                    setMarkers={setMarkers}
+                    onMarkerChange={updateMarkerWithHistory}
                     spectraByName={spectraByName}
                     similarityByName={similarityByName}
                     colorByFluor={colorByFluor}
@@ -1016,6 +1181,7 @@ const PanelBuilder = ({
                         setWizardState(state);
                         setPendingOmipTemplate(null);
                     }}
+                    onClearPanel={clearPanelContent}
                     onClose={() => {
                         setPendingOmipTemplate(null);
                         setShowPanelWizard(false);

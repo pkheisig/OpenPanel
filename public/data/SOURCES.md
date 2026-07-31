@@ -19,6 +19,20 @@ For rows added from the Cytek export:
 Existing higher-precision Aurora rows were retained unchanged. No spectrum is
 interpolated from a different dye or cytometer.
 
+On 2026-07-31, missing reference records were merged from the AutoSpectral
+development branch at commit
+[`f262593f8dc9461dedf2b95cd6a55cc57550f589`](https://github.com/DrCytometer/AutoSpectral/commit/f262593f8dc9461dedf2b95cd6a55cc57550f589).
+The merge added 25 Aurora signatures and 10 FACSDiscover signatures without
+replacing any existing OpenPanel spectrum. It also expanded the local
+fluorophore dictionary to 446 unique canonical names. ID7000 and Xenith were
+already complete relative to that snapshot.
+
+OpenPanel intentionally continues to support Aurora, FACSDiscover, ID7000, and
+Attune Xenith only. The sparse AutoSpectral libraries for other instruments are
+not bundled. Detector peaks are calculated from each fluorophore's full
+signature on the selected instrument configuration; imported peak-channel
+assignments do not override that calculation.
+
 ## Panel Wizard reference data
 
 - `panel_wizard_brightness.csv` contains ordinal relative-brightness
@@ -38,7 +52,10 @@ calculation.
 
 Marker names and aliases used by wizard autocomplete are based on the
 [AutoSpectral marker database](https://docs.google.com/spreadsheets/d/16FAinR_Nfnl00mpHvmQFJT_uJJY3VUWk29yAaQ7HHn8/edit?usp=sharing).
-The bundled list is used only for local lookup and never sends marker searches
+The bundled `marker_dictionary.csv` snapshot contains 878 unique canonical
+names. It is merged at runtime with OpenPanel's curated contextual markers, so
+their aliases remain searchable and their cell-type prioritization remains
+intact. The list is used only for local lookup and never sends marker searches
 to a server.
 
 The bundled OMIP bibliography covers OMIP-001 through OMIP-121 from the

@@ -76,11 +76,54 @@ const MARKERS: MarkerEntry[] = [
   ].map((name) => ({ name })),
 ].sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }))
 
-export const MARKER_OPTIONS: UiSelectOption[] = MARKERS.map(({ name, aliases = [] }) => ({
-  value: name,
-  label: name,
-  searchText: [name, ...aliases].join(' '),
-}))
+export type MarkerDictionaryRow = {
+  marker?: string
+  aliases?: string
+}
+
+function normalizeMarkerOptionKey(value: string): string {
+  return value.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function splitMarkerAliases(value: string): string[] {
+  return value
+    .split(';')
+    .map((alias) => alias.trim())
+    .filter(Boolean)
+}
+
+export function buildMarkerOptions(rows: MarkerDictionaryRow[] = []): UiSelectOption[] {
+  const entries = new Map<string, MarkerEntry>()
+  const addEntry = (name: string, aliases: string[]) => {
+    const cleanName = name.trim()
+    const key = normalizeMarkerOptionKey(cleanName)
+    if (!key) return
+    const existing = entries.get(key)
+    const canonicalName = existing?.name ?? cleanName
+    const aliasMap = new Map<string, string>()
+    for (const alias of [...(existing?.aliases ?? []), ...aliases]) {
+      const cleanAlias = alias.trim()
+      const aliasKey = normalizeMarkerOptionKey(cleanAlias)
+      if (aliasKey && aliasKey !== key && !aliasMap.has(aliasKey)) {
+        aliasMap.set(aliasKey, cleanAlias)
+      }
+    }
+    entries.set(key, { name: canonicalName, aliases: [...aliasMap.values()] })
+  }
+
+  MARKERS.forEach(({ name, aliases = [] }) => addEntry(name, aliases))
+  rows.forEach(({ marker = '', aliases = '' }) => addEntry(marker, splitMarkerAliases(aliases)))
+
+  return [...entries.values()]
+    .sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }))
+    .map(({ name, aliases = [] }) => ({
+      value: name,
+      label: name,
+      searchText: [name, ...aliases].join(' '),
+    }))
+}
+
+export const MARKER_OPTIONS = buildMarkerOptions()
 
 export type CoexpressionContext = {
   species: 'human' | 'mouse'
@@ -247,13 +290,14 @@ export function markerOptionsForPanel(
   cellType: string,
   selectedNames: string[],
   species: CoexpressionContext['species'],
+  options: UiSelectOption[] = MARKER_OPTIONS,
 ): UiSelectOption[] {
   const contextual = new Set(
     CELL_TYPE_MARKERS.find(([pattern]) => pattern.test(cellType))?.[1].map(normalizeMarkerName) ?? [],
   )
   if (species === 'mouse') contextual.add('B220')
   const selected = new Set(selectedNames.map(normalizeMarkerName))
-  return [...MARKER_OPTIONS].sort((left, right) => {
+  return [...options].sort((left, right) => {
     const leftName = normalizeMarkerName(left.value)
     const rightName = normalizeMarkerName(right.value)
     return (

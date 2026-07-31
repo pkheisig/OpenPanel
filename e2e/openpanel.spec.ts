@@ -143,8 +143,9 @@ test('selects the instrument and configuration before opening a clean workspace'
   await chooseOption(page, 'DETECTOR CONFIGURATION', 'ID7000 4L: V/B/YG/R')
   await openEmptyPanel(page)
   await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
-  await expect(page.getByRole('button', { name: 'Open OMIP Library' })).toBeVisible()
-  await page.getByRole('button', { name: 'Open OMIP Library' }).click()
+  await expect(page.locator('.panel-primary-actions')).toContainText('Panel wizard')
+  await expect(page.locator('.panel-primary-actions')).toContainText('Import from OMIP')
+  await page.getByRole('button', { name: 'Import from OMIP' }).click()
   await page.getByRole('dialog', { name: 'OMIP Library' }).getByRole('button', { name: 'Preview OMIP-077' }).click()
   await page.getByRole('button', { name: 'Open in panel wizard' }).click()
   await expect(page.getByRole('dialog', { name: 'Panel wizard' })).toBeVisible()
@@ -524,6 +525,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     return { borderRadius: style.borderRadius, paddingLeft: style.paddingLeft }
   })
 
+  await page.getByRole('button', { name: 'Close panel wizard' }).click()
   await page.getByRole('button', { name: 'Import from OMIP' }).click()
   const templateDialog = page.getByRole('dialog', { name: 'OMIP Library' })
   await expect(templateDialog).toBeVisible()
@@ -552,7 +554,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'href',
     'https://pubmed.ncbi.nlm.nih.gov/42230532/',
   )
-  await expect(page.getByRole('button', { name: 'Import into wizard' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open in panel wizard' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Back to OMIP Library' }).click()
   await templateSearch.fill('OMIP-077')
   await templateDialog.getByRole('button', { name: 'Preview OMIP-077' }).click()
@@ -562,18 +564,37 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'href',
     'https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/',
   )
-  await page.getByRole('button', { name: 'Import into wizard' }).click()
+  await page.getByRole('button', { name: 'Open in panel wizard' }).click()
   await expect(panelSizeInput).toHaveValue('14')
   await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('CD1c')
   await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('PE')
 
-  await page.getByRole('button', { name: 'Clear marker setup' }).click()
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  const clearConfirmation = page.getByRole('alertdialog', { name: 'Clear the panel?' })
+  await expect(clearConfirmation).toBeVisible()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+  await clearConfirmation.getByRole('button', { name: 'Cancel' }).click()
+  await expect(clearConfirmation).toBeHidden()
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await clearConfirmation.getByRole('button', { name: 'Clear panel' }).click()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
   await expect(panelSizeInput).toHaveValue('16')
   await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('Select marker')
   await expect(page.getByRole('combobox', { name: 'Cell type for marker 1', exact: true })).toContainText('Select cell type')
-  await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('Alexa Fluor 488')
+  await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('Auto-select')
   await expect(page.getByRole('combobox', { name: 'Color for marker 2' })).toContainText('Auto-select')
   await expect(recommendationsTab).toBeDisabled()
+
+  await page.getByRole('button', { name: 'Close panel wizard' }).click()
+  const undoButton = page.getByRole('button', { name: 'Undo last edit' })
+  const redoButton = page.getByRole('button', { name: 'Redo last edit' })
+  await expect(undoButton).toBeEnabled()
+  await undoButton.click()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
+  await expect(redoButton).toBeEnabled()
+  await redoButton.click()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
 
   await panelSizeInput.fill('6')
   for (const [index, name] of ['CD3', 'CD4', 'CD8', 'CD19', 'CD25', 'Live/Dead'].entries()) {
@@ -698,8 +719,8 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(primaryRecommendations.getByRole('columnheader', { name: 'Brightness' })).toBeVisible()
   const existingRow = primaryRecommendations.locator('tbody tr').first()
   await expect(existingRow).toHaveClass(/is-existing/)
-  await expect(existingRow.locator('.marker-color-pair')).toContainText('CD3')
-  await expect(existingRow.locator('.marker-color-pair')).toContainText('Alexa Fluor 488')
+  await expect(existingRow.locator('.marker-color-pair')).toContainText('CD4')
+  await expect(existingRow.locator('.marker-color-pair')).toContainText('FITC')
   await expect(existingRow.getByRole('img', { name: 'Brightness 3 of 5' })).toBeVisible()
   await expect(existingRow.locator('.brightness-dot.is-filled')).toHaveCount(3)
   await expect(page.getByLabel('Recommendations complete')).toBeVisible()
@@ -725,7 +746,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(page.locator('.alternative-table').getByRole('img', { name: 'Brightness unavailable' }).first()).toBeVisible()
   await chooseOption(page, 'Sort ranked colors', 'Availability')
   await expect(primaryRecommendations.locator('tbody tr').first()).toHaveClass(/is-existing/)
-  await expect(primaryRecommendations.locator('tbody tr').first()).toContainText('Alexa Fluor 488')
+  await expect(primaryRecommendations.locator('tbody tr').first()).toContainText('FITC')
   await page.getByRole('button', { name: 'Best spectral fit' }).click()
   await expect(page.locator('.result-mode button.active')).toHaveText('Best spectral fit')
 
@@ -755,7 +776,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     name: 'CD3',
     cellType: 'T cells',
     frequency: 'high',
-    currentFluorophore: 'Alexa Fluor 488',
+    currentFluorophore: '',
   })
   expect(wizardProject.wizard.markers[1]).toMatchObject({
     cellType: 'Activated lymphocytes',
@@ -775,7 +796,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await page.getByRole('button', { name: 'Apply 6-color panel' }).click()
   await expect(wizard).toHaveCount(0)
   await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(6)
-  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('Alexa Fluor 488')
+  await expect(page.getByPlaceholder('Select fluorophore').first()).not.toHaveValue('')
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(6 colors)')
   expect(await page.locator('.matrix-marker-input').evaluateAll((inputs) => (
     inputs.some((input) => (input as HTMLInputElement).value === 'CD3')

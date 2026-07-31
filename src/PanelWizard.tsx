@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
-  BookOpen,
   Check,
   ChevronRight,
   Eraser,
@@ -14,13 +13,13 @@ import {
   X,
 } from 'lucide-react'
 import './PanelWizard.css'
-import { OmipLibrary } from './OmipLibrary'
 import { UiSelect } from './UiSelect'
 import { buildPanelPayload } from './spectralEngine'
 import { loadPanelWizardReferences } from './panelWizardReferences'
 import {
   DEFAULT_COEXPRESSION_CONTEXT,
   inferCoexpression,
+  MARKER_OPTIONS,
   markerOptionsForPanel,
 } from './panelWizardKnowledge'
 import type {
@@ -64,6 +63,7 @@ type PanelWizardProps = {
   initialState: WizardProjectState | null
   initialTemplate?: OmipTemplate | null
   onStateChange: (state: WizardProjectState) => void
+  onClearPanel: () => void | Promise<void>
   onClose: () => void
   onApply: (application: WizardApplication) => void | Promise<void>
 }
@@ -282,6 +282,7 @@ export function PanelWizard({
   initialState,
   initialTemplate = null,
   onStateChange,
+  onClearPanel,
   onClose,
   onApply,
 }: PanelWizardProps) {
@@ -360,8 +361,10 @@ export function PanelWizard({
   const [resultSort, setResultSort] = useState<WizardResultSort>(initialState?.resultSort ?? 'recommended')
   const [error, setError] = useState('')
   const [applying, setApplying] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false)
   const [dialog, setDialog] = useState<'coexpression' | null>(null)
-  const [showOmipLibrary, setShowOmipLibrary] = useState(false)
+  const [markerReferenceOptions, setMarkerReferenceOptions] = useState(MARKER_OPTIONS)
 
   const frequencyReady = desiredSize > 0
     && markers.length === desiredSize
@@ -386,6 +389,16 @@ export function PanelWizard({
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [onClose])
+
+  useEffect(() => {
+    let active = true
+    void loadPanelWizardReferences(cytometer, configuration).then((references) => {
+      if (active) setMarkerReferenceOptions(references.markerOptions)
+    })
+    return () => {
+      active = false
+    }
+  }, [configuration, cytometer])
 
   useEffect(() => {
     onStateChange({
@@ -513,6 +526,7 @@ export function PanelWizard({
         selectedMarker?.cellType ?? '',
         markers.filter((marker) => marker.id !== markerId).map((marker) => marker.name),
         coexpressionContext.species,
+        markerReferenceOptions,
       ),
     ]
   }
@@ -525,45 +539,16 @@ export function PanelWizard({
     setDialog(null)
   }
 
-  const applyTemplate = (template: OmipTemplate) => {
-    if (template.markers.length > maxPanelSize) return
-    const templateMarkers = template.markers
-    const nextSize = Math.max(lockedCount, templateMarkers.length)
-    const usedColors = new Set<string>()
-    const nextMarkers = Array.from({ length: nextSize }, (_, slotIndex) => {
-      const templateMarker = templateMarkers[slotIndex]
-      const name = templateMarker?.name ?? markerNames[slotIndex]?.trim() ?? ''
-      const suggested = templateMarker?.fluorophore ?? slots[slotIndex] ?? ''
-      const currentFluorophore = suggested
-        && availableFluorophores.includes(suggested)
-        && !usedColors.has(suggested)
-        && isWizardFluorophoreAllowed(suggested, name)
-        ? suggested
-        : ''
-      if (currentFluorophore) usedColors.add(currentFluorophore)
-      return {
-        id: `marker-${slotIndex}`,
-        slotIndex,
-        name,
-        cellType: templateMarker?.cellType ?? '',
-        frequency: templateMarker?.frequency ?? 'medium',
-        currentFluorophore,
-      } satisfies WizardMarker
-    })
-    setDesiredSize(nextSize)
-    setMarkers(nextMarkers)
-    setCoexpressionContext(template.context)
-    setCoexpression(inferCoexpression(nextMarkers, template.context, {}))
-    setCoexpressionVisited(false)
-    setCoexpressionCompleted(false)
-    setActiveTab('frequency')
-    invalidateResults()
-    setShowOmipLibrary(false)
-  }
-
-  const clearMarkerSetup = () => {
+  const clearMarkerSetup = async () => {
+    setClearing(true)
+    try {
+      await onClearPanel()
+    } finally {
+      setClearing(false)
+      setShowClearConfirmation(false)
+    }
     setDesiredSize(defaultSize)
-    setMarkers(initialMarkerSettings(defaultSize, slots, {}))
+    setMarkers(initialMarkerSettings(defaultSize, Array(defaultSize).fill(''), {}))
     setCoexpression({})
     setCoexpressionContext(DEFAULT_COEXPRESSION_CONTEXT)
     setCoexpressionVisited(false)
@@ -725,18 +710,10 @@ export function PanelWizard({
                   <button
                     type="button"
                     className="wizard-tool-button"
-                    onClick={() => setShowOmipLibrary(true)}
-                  >
-                    <BookOpen size={15} />
-                    Import from OMIP
-                  </button>
-                  <button
-                    type="button"
-                    className="wizard-tool-button"
-                    onClick={clearMarkerSetup}
+                    onClick={() => setShowClearConfirmation(true)}
                   >
                     <Eraser size={15} />
-                    Clear marker setup
+                    Clear
                   </button>
                   {panelSizeControl}
                 </div>
@@ -1118,15 +1095,47 @@ export function PanelWizard({
           </div>
         )}
 
-        {showOmipLibrary && (
-          <OmipLibrary
-            theme={theme}
-            maxPanelSize={maxPanelSize}
-            actionLabel="Import into wizard"
-            onClose={() => setShowOmipLibrary(false)}
-            onUseTemplate={applyTemplate}
-          />
+        {showClearConfirmation && (
+          <div
+            className="wizard-confirm-backdrop"
+            role="presentation"
+            onPointerDown={(event) => {
+              if (event.target === event.currentTarget && !clearing) setShowClearConfirmation(false)
+            }}
+          >
+            <section
+              className="wizard-confirm"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="wizard-clear-title"
+              aria-describedby="wizard-clear-description"
+            >
+              <h3 id="wizard-clear-title">Clear the panel?</h3>
+              <p id="wizard-clear-description">
+                This clears every marker and color from the wizard and sidebar. You can undo it from the editor header.
+              </p>
+              <div>
+                <button
+                  type="button"
+                  className="wizard-confirm-cancel"
+                  onClick={() => setShowClearConfirmation(false)}
+                  disabled={clearing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="wizard-confirm-clear"
+                  onClick={() => void clearMarkerSetup()}
+                  disabled={clearing}
+                >
+                  {clearing ? 'Clearing…' : 'Clear panel'}
+                </button>
+              </div>
+            </section>
+          </div>
         )}
+
       </section>
     </div>
   )

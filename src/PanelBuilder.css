@@ -283,7 +283,8 @@
   }
 }
 
-.plot-size-controls {
+.plot-size-controls,
+.history-controls {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -293,7 +294,8 @@
   background: color-mix(in srgb, var(--button-bg) 88%, transparent);
 }
 
-.plot-size-controls .export-button {
+.plot-size-controls .export-button,
+.history-controls .export-button {
   width: 32px;
   height: 32px;
   border: 0;
@@ -309,12 +311,31 @@
 .panel-wizard-header-action {
   min-width: 142px;
   padding-inline: 17px;
-  justify-self: center;
   white-space: nowrap;
 }
 
 .panel-wizard-header-action > svg {
   flex: 0 0 auto;
+}
+
+.panel-primary-actions {
+  display: flex;
+  align-items: center;
+  justify-self: center;
+  gap: 8px;
+}
+
+.panel-omip-header-action {
+  min-width: 156px;
+  padding-inline: 15px;
+  white-space: nowrap;
+}
+
+.panel-omip-header-action:hover,
+.panel-omip-header-action:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .wizard-launch-button:hover,

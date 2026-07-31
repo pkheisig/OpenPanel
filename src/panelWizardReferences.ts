@@ -1,13 +1,17 @@
 import { parseCsv } from './spectralEngine'
+import { buildMarkerOptions } from './panelWizardKnowledge'
+import type { UiSelectOption } from './UiSelect'
 
 export type WizardReferenceData = {
   brightnessByFluorophore: Record<string, number>
   antigenDensityByContext: Record<string, number>
+  markerOptions: UiSelectOption[]
 }
 
 type ReferenceRows = {
   brightness: string[][]
   antigenDensity: string[][]
+  markerDictionary: string[][]
 }
 
 let referenceRowsPromise: Promise<ReferenceRows> | null = null
@@ -60,7 +64,12 @@ export async function loadPanelWizardReferences(
     referenceRowsPromise = Promise.all([
       loadCsv('panel_wizard_brightness.csv'),
       loadCsv('panel_wizard_antigen_density.csv'),
-    ]).then(([brightness, antigenDensity]) => ({ brightness, antigenDensity }))
+      loadCsv('marker_dictionary.csv'),
+    ]).then(([brightness, antigenDensity, markerDictionary]) => ({
+      brightness,
+      antigenDensity,
+      markerDictionary,
+    }))
   }
   const rows = await referenceRowsPromise
   const brightnessByFluorophore: Record<string, number> = {}
@@ -79,7 +88,11 @@ export async function loadPanelWizardReferences(
       antigenDensityByContext[antigenDensityKey(row.cell_type, row.antigen)] = density
     }
   })
-  return { brightnessByFluorophore, antigenDensityByContext }
+  return {
+    brightnessByFluorophore,
+    antigenDensityByContext,
+    markerOptions: buildMarkerOptions(rowsToRecords(rows.markerDictionary)),
+  }
 }
 
 export function resetPanelWizardReferencesForTests(): void {
