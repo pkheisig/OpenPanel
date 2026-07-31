@@ -35,3 +35,18 @@ These references are intentionally sparse. A missing fluorophore is displayed
 as unknown rather than as dim. A missing fluorophore, antigen, or cell-type
 combination contributes no brightness or antigen-density term to the wizard
 calculation.
+
+Marker names and aliases used by wizard autocomplete are based on the
+[AutoSpectral marker database](https://docs.google.com/spreadsheets/d/16FAinR_Nfnl00mpHvmQFJT_uJJY3VUWk29yAaQ7HHn8/edit?usp=sharing).
+The bundled list is used only for local lookup and never sends marker searches
+to a server.
+
+The built-in templates reproduce the marker/fluorochrome tables from
+[OMIP-077](https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/) and
+[OMIP-090](https://pmc.ncbi.nlm.nih.gov/articles/PMC10952450/). Suggestions
+that are unavailable on the selected cytometer remain unassigned for the
+wizard to optimize.
+
+Spectral spread risk uses the Hotspot Matrix / spreading-inflation-factor
+formulation described in
+[AutoSpectral](https://www.biorxiv.org/content/10.64898/2026.01.27.701929v2).

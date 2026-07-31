@@ -1,6 +1,7 @@
 export type SearchableSelectOption = {
   value: string
   label: string
+  searchText?: string
 }
 
 export function normalizeSearchValue(value: string): string {
@@ -23,9 +24,10 @@ export function rankUiSelectOptions<T extends SearchableSelectOption>(
   return options
     .map((option, originalIndex) => {
       const label = normalizeSearchValue(option.label)
-      if (!queryTokens.every((token) => label.includes(token))) return null
+      const searchable = normalizeSearchValue(option.searchText ?? option.label)
+      if (!queryTokens.every((token) => searchable.includes(token))) return null
 
-      const words = label.split(/\s+/)
+      const words = searchable.split(/\s+/)
       const priority = label === normalizedQuery
         ? 0
         : label.startsWith(normalizedQuery)

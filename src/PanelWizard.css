@@ -13,6 +13,7 @@
 }
 
 .panel-wizard-window {
+  position: relative;
   width: min(1220px, 96vw);
   height: min(820px, 100%);
   max-height: 100%;
@@ -252,6 +253,38 @@
   gap: 20px;
 }
 
+.wizard-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.wizard-tool-button {
+  min-height: 40px;
+  padding: 0 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--button-border);
+  border-radius: 9px;
+  color: var(--button-text);
+  background: var(--button-bg);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.wizard-tool-button:hover,
+.wizard-tool-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
+
 .wizard-panel-size {
   min-width: 250px;
   padding: 9px 12px;
@@ -461,6 +494,7 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.wizard-marker-select.launch-field,
 .wizard-color-select.launch-field,
 .wizard-cell-type-select.launch-field,
 .wizard-frequency-select.launch-field {
@@ -470,12 +504,14 @@
   margin: 0;
 }
 
+.wizard-marker-select.is-select-open,
 .wizard-color-select.is-select-open,
 .wizard-cell-type-select.is-select-open,
 .wizard-frequency-select.is-select-open {
   z-index: 30;
 }
 
+.wizard-marker-select .ui-select-trigger,
 .wizard-color-select .ui-select-trigger,
 .wizard-cell-type-select .ui-select-trigger,
 .wizard-frequency-select .ui-select-trigger {
@@ -489,6 +525,7 @@
   font-weight: 600;
 }
 
+.wizard-marker-select .ui-select-trigger svg,
 .wizard-color-select .ui-select-trigger svg,
 .wizard-cell-type-select .ui-select-trigger svg,
 .wizard-frequency-select .ui-select-trigger svg {
@@ -496,6 +533,8 @@
   color: var(--text-muted);
 }
 
+.wizard-marker-select .ui-select-options,
+.wizard-marker-select-menu,
 .wizard-color-select .ui-select-options,
 .wizard-color-select-menu,
 .wizard-cell-type-select .ui-select-options,
@@ -508,6 +547,8 @@
   background: var(--bg-card);
 }
 
+.wizard-marker-select .ui-select-options,
+.wizard-marker-select-menu,
 .wizard-color-select .ui-select-options,
 .wizard-color-select-menu,
 .wizard-cell-type-select .ui-select-options,
@@ -516,6 +557,7 @@
   overflow: hidden;
 }
 
+.wizard-marker-select-menu.is-portal,
 .wizard-color-select-menu.is-portal,
 .wizard-cell-type-select-menu.is-portal {
   position: fixed;
@@ -531,6 +573,8 @@
   right: auto;
 }
 
+.wizard-marker-select .ui-select-search,
+.wizard-marker-select-menu .ui-select-search,
 .wizard-color-select .ui-select-search,
 .wizard-color-select-menu .ui-select-search,
 .wizard-cell-type-select .ui-select-search,
@@ -540,6 +584,8 @@
   background: var(--input-bg);
 }
 
+.wizard-marker-select .ui-select-search input,
+.wizard-marker-select-menu .ui-select-search input,
 .wizard-color-select .ui-select-search input,
 .wizard-color-select-menu .ui-select-search input,
 .wizard-cell-type-select .ui-select-search input,
@@ -548,6 +594,10 @@
   font-size: 10px;
 }
 
+.wizard-marker-select .ui-select-search input::placeholder,
+.wizard-marker-select-menu .ui-select-search input::placeholder,
+.wizard-marker-select .ui-select-empty,
+.wizard-marker-select-menu .ui-select-empty,
 .wizard-color-select .ui-select-search input::placeholder,
 .wizard-color-select-menu .ui-select-search input::placeholder,
 .wizard-color-select .ui-select-empty,
@@ -559,6 +609,8 @@
   color: var(--text-muted);
 }
 
+.wizard-marker-select .ui-select-listbox,
+.wizard-marker-select-menu .ui-select-listbox,
 .wizard-color-select .ui-select-listbox,
 .wizard-color-select-menu .ui-select-listbox,
 .wizard-cell-type-select .ui-select-listbox,
@@ -567,6 +619,8 @@
   overflow: auto;
 }
 
+.wizard-marker-select .ui-select-option,
+.wizard-marker-select-menu .ui-select-option,
 .wizard-color-select .ui-select-option,
 .wizard-color-select-menu .ui-select-option,
 .wizard-cell-type-select .ui-select-option,
@@ -579,6 +633,8 @@
   font-size: 10px;
 }
 
+.wizard-marker-select .ui-select-option.is-selected,
+.wizard-marker-select-menu .ui-select-option.is-selected,
 .wizard-color-select .ui-select-option.is-selected,
 .wizard-color-select-menu .ui-select-option.is-selected,
 .wizard-cell-type-select .ui-select-option.is-selected,
@@ -589,6 +645,8 @@
   background: var(--accent);
 }
 
+.panel-builder.dark .wizard-marker-select .ui-select-option.is-selected,
+.panel-builder.dark .wizard-marker-select-menu .ui-select-option.is-selected,
 .panel-builder.dark .wizard-color-select .ui-select-option.is-selected,
 .panel-builder.dark .wizard-color-select-menu .ui-select-option.is-selected,
 .panel-builder.dark .wizard-cell-type-select .ui-select-option.is-selected,
@@ -789,6 +847,16 @@
 }
 
 .level-2 {
+  color: #725616;
+  background: #f3df9b;
+}
+
+.level-3 {
+  color: #fff;
+  background: #e58a4a;
+}
+
+.level-4 {
   color: #fff;
   background: #d65a3d;
 }
@@ -796,6 +864,21 @@
 .panel-builder.dark .level-1 {
   color: #8ee3d5;
   background: #203b35;
+}
+
+.panel-builder.dark .level-2 {
+  color: #ffe6a0;
+  background: #5a4825;
+}
+
+.panel-builder.dark .level-3 {
+  color: #fff4e9;
+  background: #8d4d2c;
+}
+
+.panel-builder.dark .level-4 {
+  color: #fff;
+  background: #a43f2d;
 }
 
 .panel-builder.dark .level-0 {
@@ -1147,6 +1230,133 @@
   box-shadow: var(--shadow-dropdown);
   font-size: 10px;
   font-weight: 700;
+}
+
+.wizard-subdialog-backdrop {
+  position: absolute;
+  z-index: 600;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, #08110e 62%, transparent);
+  animation: wizard-backdrop-in 140ms ease-out both;
+}
+
+.wizard-subdialog {
+  width: min(560px, 100%);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  box-shadow: 0 24px 70px rgba(8, 16, 13, 0.34);
+  animation: wizard-window-in 170ms ease-out both;
+}
+
+.wizard-subdialog > header {
+  min-height: 58px;
+  padding: 12px 14px 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color-soft);
+}
+
+.wizard-subdialog h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.wizard-subdialog > header > button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--button-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: var(--button-bg);
+  cursor: pointer;
+}
+
+.wizard-subdialog-fields {
+  padding: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wizard-subdialog-fields .launch-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.wizard-subdialog-fields .launch-field > span:not(.ui-select-label-hidden) {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.wizard-subdialog-fields .ui-select-trigger {
+  min-height: 40px;
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+  background: var(--input-bg);
+  font-size: 11px;
+}
+
+.wizard-subdialog > footer {
+  padding: 0 18px 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.wizard-template-dialog {
+  width: min(520px, 100%);
+}
+
+.wizard-template-list {
+  padding: 10px;
+  display: grid;
+  gap: 7px;
+}
+
+.wizard-template-list > button {
+  min-height: 62px;
+  padding: 11px 13px;
+  display: grid;
+  grid-template-columns: 92px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--border-color-soft);
+  border-radius: 9px;
+  color: var(--text-primary);
+  background: var(--input-bg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.wizard-template-list > button:hover,
+.wizard-template-list > button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.wizard-template-list strong {
+  font-size: 12px;
+}
+
+.wizard-template-list span {
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 @keyframes wizard-backdrop-in {

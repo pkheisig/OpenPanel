@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
+  BookOpen,
   Check,
   ChevronRight,
   Info,
@@ -8,12 +9,23 @@ import {
   Minus,
   Plus,
   Sparkles,
+  WandSparkles,
   X,
 } from 'lucide-react'
 import './PanelWizard.css'
 import { UiSelect } from './UiSelect'
 import { buildPanelPayload } from './spectralEngine'
 import { loadPanelWizardReferences } from './panelWizardReferences'
+import {
+  DEFAULT_COEXPRESSION_CONTEXT,
+  inferCoexpression,
+  markerOptionsForPanel,
+  OMIP_TEMPLATES,
+} from './panelWizardKnowledge'
+import type {
+  CoexpressionContext,
+  OmipTemplate,
+} from './panelWizardKnowledge'
 import {
   coexpressionKey,
   generateWizardResults,
@@ -56,8 +68,18 @@ type PanelWizardProps = {
 
 const COEXPRESSION_LABELS: Record<CoexpressionLevel, string> = {
   0: 'None',
-  1: 'Possible',
-  2: 'Strong',
+  1: 'Low',
+  2: 'Medium',
+  3: 'High',
+  4: 'Very high',
+}
+
+const COEXPRESSION_SHORT_LABELS: Record<CoexpressionLevel, string> = {
+  0: 'N',
+  1: 'L',
+  2: 'M',
+  3: 'H',
+  4: 'VH',
 }
 
 const SORT_OPTIONS = [
@@ -100,6 +122,34 @@ const CELL_TYPE_OPTIONS = [
   { value: 'Endothelial cells', label: 'Endothelial cells' },
   { value: 'Epithelial cells', label: 'Epithelial cells' },
   { value: 'Stromal cells', label: 'Stromal cells' },
+]
+
+const SPECIES_OPTIONS = [
+  { value: 'human', label: 'Human' },
+  { value: 'mouse', label: 'Mouse' },
+]
+
+const TISSUE_OPTIONS = [
+  { value: 'pbmc', label: 'PBMC' },
+  { value: 'peripheral-blood', label: 'Whole blood' },
+  { value: 'bone-marrow', label: 'Bone marrow' },
+  { value: 'spleen', label: 'Spleen' },
+  { value: 'tumor', label: 'Tumor' },
+]
+
+const POPULATION_OPTIONS = [
+  { value: 'all', label: 'All cells' },
+  { value: 't-cells', label: 'T cells' },
+  { value: 'b-cells', label: 'B cells' },
+  { value: 'nk-cells', label: 'NK cells' },
+  { value: 'myeloid', label: 'Myeloid cells' },
+  { value: 'tumor-stroma', label: 'Tumor / stroma' },
+]
+
+const CONDITION_OPTIONS = [
+  { value: 'baseline', label: 'Baseline' },
+  { value: 'inflammatory', label: 'Inflammatory' },
+  { value: 'tumor', label: 'Tumor' },
 ]
 
 const CYTOMETER_LABELS: Record<string, string> = {
@@ -253,6 +303,9 @@ export function PanelWizard({
   const [coexpression, setCoexpression] = useState<Record<string, CoexpressionLevel>>(
     initialState?.coexpression ?? {},
   )
+  const [coexpressionContext, setCoexpressionContext] = useState<CoexpressionContext>(
+    initialState?.coexpressionContext ?? DEFAULT_COEXPRESSION_CONTEXT,
+  )
   const [coexpressionVisited, setCoexpressionVisited] = useState(initialState?.coexpressionVisited ?? false)
   const [coexpressionCompleted, setCoexpressionCompleted] = useState(initialState?.coexpressionCompleted ?? false)
   const [calculating, setCalculating] = useState(false)
@@ -261,6 +314,7 @@ export function PanelWizard({
   const [resultSort, setResultSort] = useState<WizardResultSort>(initialState?.resultSort ?? 'recommended')
   const [error, setError] = useState('')
   const [applying, setApplying] = useState(false)
+  const [dialog, setDialog] = useState<'coexpression' | 'templates' | null>(null)
 
   const frequencyReady = desiredSize > 0
     && markers.length === desiredSize
@@ -292,6 +346,8 @@ export function PanelWizard({
       desiredSize,
       markers,
       coexpression,
+      coexpressionScale: 5,
+      coexpressionContext,
       coexpressionVisited,
       coexpressionCompleted,
       activeTab,
@@ -302,6 +358,7 @@ export function PanelWizard({
   }, [
     activeTab,
     coexpression,
+    coexpressionContext,
     coexpressionCompleted,
     coexpressionVisited,
     desiredSize,
@@ -366,8 +423,8 @@ export function PanelWizard({
 
   const cycleCoexpression = (left: WizardMarker, right: WizardMarker) => {
     const key = coexpressionKey(left.id, right.id)
-    const current = coexpression[key] ?? 1
-    const next = ((current + 1) % 3) as CoexpressionLevel
+    const current = coexpression[key] ?? 2
+    const next = ((current + 1) % 5) as CoexpressionLevel
     setCoexpression((values) => ({ ...values, [key]: next }))
     setCoexpressionCompleted(false)
     invalidateResults()
@@ -400,6 +457,61 @@ export function PanelWizard({
         ))
         .map((fluorophore) => ({ value: fluorophore, label: fluorophore })),
     ]
+  }
+
+  const markerOptions = (markerId: string) => {
+    const selectedMarker = markers.find((marker) => marker.id === markerId)
+    return [
+      { value: '', label: 'Select marker' },
+      ...markerOptionsForPanel(
+        selectedMarker?.cellType ?? '',
+        markers.filter((marker) => marker.id !== markerId).map((marker) => marker.name),
+        coexpressionContext.species,
+      ),
+    ]
+  }
+
+  const autoFillCoexpression = () => {
+    setCoexpression((current) => inferCoexpression(markers, coexpressionContext, current))
+    setCoexpressionVisited(true)
+    setCoexpressionCompleted(false)
+    invalidateResults()
+    setDialog(null)
+  }
+
+  const applyTemplate = (template: OmipTemplate) => {
+    const templateMarkers = template.markers.slice(0, maxPanelSize)
+    const nextSize = Math.max(lockedCount, templateMarkers.length)
+    const usedColors = new Set<string>()
+    const nextMarkers = Array.from({ length: nextSize }, (_, slotIndex) => {
+      const templateMarker = templateMarkers[slotIndex]
+      const name = templateMarker?.name ?? markerNames[slotIndex]?.trim() ?? ''
+      const suggested = templateMarker?.fluorophore ?? slots[slotIndex] ?? ''
+      const currentFluorophore = suggested
+        && availableFluorophores.includes(suggested)
+        && !usedColors.has(suggested)
+        && isWizardFluorophoreAllowed(suggested, name)
+        ? suggested
+        : ''
+      if (currentFluorophore) usedColors.add(currentFluorophore)
+      return {
+        id: `marker-${slotIndex}`,
+        slotIndex,
+        name,
+        cellType: templateMarker?.cellType ?? '',
+        frequency: templateMarker?.frequency ?? 'medium',
+        currentFluorophore,
+      } satisfies WizardMarker
+    })
+    setDesiredSize(nextSize)
+    setMarkers(nextMarkers)
+    setCoexpressionContext(template.context)
+    setCoexpression(inferCoexpression(nextMarkers, template.context, {}))
+    setCoexpressionVisited(false)
+    setCoexpressionCompleted(false)
+    setActiveTab('frequency')
+    invalidateResults()
+    setDialog(null)
   }
 
   const calculate = async () => {
@@ -550,7 +662,17 @@ export function PanelWizard({
           {activeTab === 'frequency' && (
             <div className="wizard-step frequency-step">
               <div className="wizard-step-toolbar">
-                {panelSizeControl}
+                <div className="wizard-toolbar-actions">
+                  <button
+                    type="button"
+                    className="wizard-tool-button"
+                    onClick={() => setDialog('templates')}
+                  >
+                    <BookOpen size={15} />
+                    OMIP templates
+                  </button>
+                  {panelSizeControl}
+                </div>
               </div>
 
               <div className="frequency-table-wrap">
@@ -567,11 +689,18 @@ export function PanelWizard({
                     {markers.map((marker, index) => (
                       <tr key={marker.id}>
                         <td>
-                          <input
-                            type="text"
+                          <UiSelect
+                            className="wizard-marker-select"
+                            label={`Marker ${index + 1} name`}
+                            hideLabel
                             value={marker.name}
-                            onChange={(event) => updateMarker(marker.id, { name: event.target.value })}
-                            aria-label={`Marker ${index + 1} name`}
+                            options={markerOptions(marker.id)}
+                            onChange={(value) => updateMarker(marker.id, { name: value })}
+                            searchable
+                            searchPlaceholder="Search or enter marker"
+                            portalMenu
+                            menuClassName="wizard-marker-select-menu"
+                            allowCustomValue
                           />
                         </td>
                         <td>
@@ -628,10 +757,22 @@ export function PanelWizard({
               <div className="wizard-step-toolbar coexpression-toolbar">
                 <div className="coexpression-legend" aria-label="Co-expression legend">
                   <span><i className="level-0" /> None</span>
-                  <span><i className="level-1" /> Possible</span>
-                  <span><i className="level-2" /> Strong</span>
+                  <span><i className="level-1" /> Low</span>
+                  <span><i className="level-2" /> Medium</span>
+                  <span><i className="level-3" /> High</span>
+                  <span><i className="level-4" /> Very high</span>
                 </div>
-                {panelSizeControl}
+                <div className="wizard-toolbar-actions">
+                  <button
+                    type="button"
+                    className="wizard-tool-button"
+                    onClick={() => setDialog('coexpression')}
+                  >
+                    <WandSparkles size={15} />
+                    Auto-fill
+                  </button>
+                  {panelSizeControl}
+                </div>
               </div>
 
               <div className="coexpression-matrix-wrap">
@@ -653,7 +794,7 @@ export function PanelWizard({
                         {markers.map((right, columnIndex) => {
                           if (rowIndex === columnIndex) return <td key={right.id} className="matrix-diagonal">—</td>
                           if (columnIndex < rowIndex) return <td key={right.id} className="matrix-hidden" aria-hidden="true" />
-                          const level = coexpression[coexpressionKey(left.id, right.id)] ?? 1
+                          const level = coexpression[coexpressionKey(left.id, right.id)] ?? 2
                           const leftLabel = left.name.trim() || `Marker ${rowIndex + 1}`
                           const rightLabel = right.name.trim() || `Marker ${columnIndex + 1}`
                           return (
@@ -665,7 +806,7 @@ export function PanelWizard({
                                 aria-label={`${leftLabel} and ${rightLabel} co-expression: ${COEXPRESSION_LABELS[level]}`}
                                 title={`${leftLabel} × ${rightLabel}: ${COEXPRESSION_LABELS[level]}`}
                               >
-                                {level === 0 ? 'N' : level === 1 ? 'P' : 'S'}
+                                {COEXPRESSION_SHORT_LABELS[level]}
                               </button>
                             </td>
                           )
@@ -861,6 +1002,72 @@ export function PanelWizard({
 
           {error && <div className="wizard-error" role="alert">{error}</div>}
         </main>
+
+        {dialog === 'coexpression' && (
+          <div className="wizard-subdialog-backdrop" role="presentation">
+            <section className="wizard-subdialog" role="dialog" aria-modal="true" aria-labelledby="coexpression-autofill-title">
+              <header>
+                <div>
+                  <h3 id="coexpression-autofill-title">Auto-fill co-expression</h3>
+                </div>
+                <button type="button" onClick={() => setDialog(null)} aria-label="Close"><X size={17} /></button>
+              </header>
+              <div className="wizard-subdialog-fields">
+                <UiSelect
+                  label="Species"
+                  value={coexpressionContext.species}
+                  options={SPECIES_OPTIONS}
+                  onChange={(value) => setCoexpressionContext((current) => ({ ...current, species: value as CoexpressionContext['species'] }))}
+                />
+                <UiSelect
+                  label="Sample"
+                  value={coexpressionContext.tissue}
+                  options={TISSUE_OPTIONS}
+                  onChange={(value) => setCoexpressionContext((current) => ({ ...current, tissue: value as CoexpressionContext['tissue'] }))}
+                />
+                <UiSelect
+                  label="Population"
+                  value={coexpressionContext.population}
+                  options={POPULATION_OPTIONS}
+                  onChange={(value) => setCoexpressionContext((current) => ({ ...current, population: value as CoexpressionContext['population'] }))}
+                />
+                <UiSelect
+                  label="Condition"
+                  value={coexpressionContext.condition}
+                  options={CONDITION_OPTIONS}
+                  onChange={(value) => setCoexpressionContext((current) => ({ ...current, condition: value as CoexpressionContext['condition'] }))}
+                />
+              </div>
+              <footer>
+                <button type="button" className="wizard-primary" onClick={autoFillCoexpression}>
+                  Fill matrix
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
+
+        {dialog === 'templates' && (
+          <div className="wizard-subdialog-backdrop" role="presentation">
+            <section className="wizard-subdialog wizard-template-dialog" role="dialog" aria-modal="true" aria-labelledby="omip-template-title">
+              <header>
+                <div>
+                  <h3 id="omip-template-title">OMIP templates</h3>
+                </div>
+                <button type="button" onClick={() => setDialog(null)} aria-label="Close"><X size={17} /></button>
+              </header>
+              <div className="wizard-template-list">
+                {OMIP_TEMPLATES.map((template) => (
+                  <button type="button" key={template.id} onClick={() => applyTemplate(template)}>
+                    <strong>{template.name}</strong>
+                    <span>{template.summary}</span>
+                    <ChevronRight size={17} />
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
       </section>
     </div>
   )

@@ -1,3 +1,4 @@
+import { inverse, Matrix } from 'ml-matrix'
 import { calculatePanelComplexity, calculateSimilarityMatrix } from './spectralEngine'
 import {
   antigenDensityKey,
@@ -6,7 +7,7 @@ import {
 import type { NumericRow, PanelPayload } from './panelBuilderShared'
 import type { WizardReferenceData } from './panelWizardReferences'
 
-export type CoexpressionLevel = 0 | 1 | 2
+export type CoexpressionLevel = 0 | 1 | 2 | 3 | 4
 export type MarkerFrequency = 'low' | 'medium' | 'high'
 
 export const MARKER_FREQUENCY_SCORES: Record<MarkerFrequency, number> = {
@@ -74,6 +75,13 @@ export type WizardProjectState = {
   desiredSize: number
   markers: WizardMarker[]
   coexpression: Record<string, CoexpressionLevel>
+  coexpressionScale?: 5
+  coexpressionContext?: {
+    species: 'human' | 'mouse'
+    tissue: 'peripheral-blood' | 'pbmc' | 'bone-marrow' | 'spleen' | 'tumor'
+    population: 'all' | 't-cells' | 'b-cells' | 'nk-cells' | 'myeloid' | 'tumor-stroma'
+    condition: 'baseline' | 'inflammatory' | 'tumor'
+  }
   coexpressionVisited: boolean
   coexpressionCompleted: boolean
   activeTab: WizardTab
@@ -86,6 +94,7 @@ type PanelMetrics = {
   complexity: number
   maxSimilarity: number
   topSimilarityMean: number
+  maxSpreadingInflation: number
   spectralRisk: number
 }
 
@@ -387,7 +396,27 @@ function panelMetrics(
   const topSimilarityMean = pairs.length === 0
     ? 0
     : pairs.slice(0, topCount).reduce((sum, value) => sum + value, 0) / topCount
+  let maxSpreadingInflation = 1
+  if (similarities.length > 1) {
+    try {
+      const regularized = new Matrix(similarities)
+      for (let index = 0; index < regularized.rows; index += 1) {
+        regularized.set(index, index, regularized.get(index, index) + 1e-6)
+      }
+      const hotspot = inverse(regularized)
+      maxSpreadingInflation = Math.max(
+        1,
+        ...Array.from(
+          { length: hotspot.rows },
+          (_, index) => Math.sqrt(Math.abs(hotspot.get(index, index))),
+        ),
+      )
+    } catch {
+      maxSpreadingInflation = 100
+    }
+  }
   const complexityRisk = Number.isFinite(complexity) ? Math.log2(Math.max(1, complexity)) * 18 : 1000
+  const spreadingRisk = Math.log2(Math.max(1, maxSpreadingInflation)) * 28
   const similarityGuardrail = maxSimilarity >= 0.98
     ? 90 + (maxSimilarity - 0.98) * 500
     : maxSimilarity >= 0.9
@@ -397,7 +426,8 @@ function panelMetrics(
     complexity,
     maxSimilarity,
     topSimilarityMean,
-    spectralRisk: complexityRisk + maxSimilarity * 42 + topSimilarityMean * 22 + similarityGuardrail,
+    maxSpreadingInflation,
+    spectralRisk: complexityRisk + spreadingRisk + maxSimilarity * 42 + topSimilarityMean * 22 + similarityGuardrail,
   }
 }
 
@@ -596,7 +626,7 @@ function markerPriority(
   const burden = others.length === 0
     ? 0
     : others.reduce((sum, candidate) => (
-      sum + (coexpression[coexpressionKey(marker.id, candidate.id)] ?? 1) / 2
+      sum + (coexpression[coexpressionKey(marker.id, candidate.id)] ?? 2) / 4
     ), 0) / others.length
   return markerFrequencyScore(marker.frequency) * 0.45 + burden * 55
 }
@@ -614,14 +644,22 @@ function recommendationRows(
   const fullMetrics = panelMetrics(selected, spectra)
   const dyeMetric = (fluorophore: string) => {
     const without = selected.filter((name) => name !== fluorophore)
-    const withoutComplexity = panelMetrics(without, spectra).complexity
+    const withoutMetrics = panelMetrics(without, spectra)
+    const withoutComplexity = withoutMetrics.complexity
     const pair = closestPair(fluorophore, selected, spectra)
     const complexityDelta = Number.isFinite(withoutComplexity)
       ? fullMetrics.complexity - withoutComplexity
       : 0
     const availability = fluorophoreAvailability(fluorophore)
+    const spreadingDelta = Math.max(
+      0,
+      fullMetrics.maxSpreadingInflation - withoutMetrics.maxSpreadingInflation,
+    )
     const spectralFit = Math.round(clamp(
-      100 - pair.similarity * 58 - Math.max(0, complexityDelta) * 7,
+      100
+      - pair.similarity * 58
+      - Math.max(0, complexityDelta) * 7
+      - Math.log2(1 + spreadingDelta) * 18,
     ))
     return {
       fluorophore,
@@ -686,7 +724,7 @@ function recommendationRows(
           const assignedSpectrum = spectra.get(assigned.fluorophore)
           if (!targetSpectrum || !assignedSpectrum) return sum
           const similarity = calculateSimilarityMatrix([targetSpectrum, assignedSpectrum])[0][1]
-          const relationship = (coexpression[coexpressionKey(marker.id, assigned.marker.id)] ?? 1) / 2
+          const relationship = (coexpression[coexpressionKey(marker.id, assigned.marker.id)] ?? 2) / 4
           const frequencyWeight = 0.5 + (
             markerFrequencyScore(marker.frequency)
             + markerFrequencyScore(assigned.marker.frequency)
@@ -766,8 +804,18 @@ function alternatives(
       const complexityDelta = Number.isFinite(baselineComplexity)
         ? metrics.complexity - baselineComplexity
         : 0
+      const previousMetrics = baseline
+        ? panelMetrics(selected.filter((name) => name !== baseline), spectra)
+        : panelMetrics(selected, spectra)
+      const spreadingDelta = Math.max(
+        0,
+        metrics.maxSpreadingInflation - previousMetrics.maxSpreadingInflation,
+      )
       const spectralFit = Math.round(clamp(
-        100 - pair.similarity * 58 - Math.max(0, complexityDelta) * 7,
+        100
+        - pair.similarity * 58
+        - Math.max(0, complexityDelta) * 7
+        - Math.log2(1 + spreadingDelta) * 18,
       ))
       return {
         fluorophore,

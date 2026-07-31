@@ -117,8 +117,16 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
   const coexpression = Object.fromEntries(
     Object.entries(rawCoexpression)
       .map(([key, level]) => [key, Number(level)] as const)
-      .filter(([, level]) => level === 0 || level === 1 || level === 2),
+      .filter(([, level]) => Number.isInteger(level) && level >= 0 && level <= 4),
   ) as WizardProjectState['coexpression']
+  const rawContext = isRecord(value.coexpressionContext) ? value.coexpressionContext : null
+  const coexpressionContext = rawContext
+    && (rawContext.species === 'human' || rawContext.species === 'mouse')
+    && ['peripheral-blood', 'pbmc', 'bone-marrow', 'spleen', 'tumor'].includes(String(rawContext.tissue))
+    && ['all', 't-cells', 'b-cells', 'nk-cells', 'myeloid', 'tumor-stroma'].includes(String(rawContext.population))
+    && ['baseline', 'inflammatory', 'tumor'].includes(String(rawContext.condition))
+    ? rawContext as WizardProjectState['coexpressionContext']
+    : undefined
   const rawResults = isRecord(value.results)
     && isWizardPanelResult(value.results.recommended)
     && isWizardPanelResult(value.results.bestFit)
@@ -137,6 +145,8 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
     desiredSize: Math.max(1, Math.round(Number(value.desiredSize) || markers.length)),
     markers,
     coexpression,
+    ...(value.coexpressionScale === 5 ? { coexpressionScale: 5 as const } : {}),
+    ...(coexpressionContext ? { coexpressionContext } : {}),
     coexpressionVisited: value.coexpressionVisited === true,
     coexpressionCompleted: value.coexpressionCompleted === true,
     activeTab,

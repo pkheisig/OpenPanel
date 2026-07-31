@@ -7,6 +7,7 @@ import { normalizeSearchValue, rankUiSelectOptions } from './uiSelectSearch'
 export type UiSelectOption = {
   value: string
   label: string
+  searchText?: string
 }
 
 type UiSelectProps = {
