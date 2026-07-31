@@ -344,6 +344,12 @@ export function PanelWizard({
     && markers.length === desiredSize
     && markers.every((marker) => marker.name.trim() && marker.antigenDensity)
   const recommendationsUnlocked = setupReady && coexpressionVisited
+  const setupMatchesProject = desiredSize === slots.length
+    && markers.length === slots.length
+    && markers.every((marker, index) => (
+      marker.name.trim() === (markerNames[index]?.trim() ?? '')
+      && marker.currentFluorophore === (slots[index] ?? '')
+    ))
   const activeResult: WizardPanelResult | null = results
     ? (resultMode === 'recommended' ? results.recommended : results.bestFit)
     : null
@@ -531,7 +537,7 @@ export function PanelWizard({
   }
 
   const calculate = async () => {
-    if (!recommendationsUnlocked) return
+    if (!recommendationsUnlocked || setupMatchesProject) return
     setCalculating(true)
     setError('')
     setResults(null)
@@ -823,11 +829,29 @@ export function PanelWizard({
             <div className="wizard-step recommendations-step">
               {!results && (
                 <div className="calculation-gate">
-                  <button type="button" className="wizard-calculate" onClick={() => void calculate()} disabled={calculating}>
-                    {calculating
-                      ? <><LoaderCircle className="spin" size={18} /> Calculating panels…</>
-                      : <><Sparkles size={18} /> Calculate recommendations</>}
-                  </button>
+                  <div
+                    className={`wizard-calculate-control${setupMatchesProject ? ' is-disabled' : ''}`}
+                    tabIndex={setupMatchesProject ? 0 : undefined}
+                    aria-label={setupMatchesProject ? 'Calculation unavailable' : undefined}
+                    aria-describedby={setupMatchesProject ? 'wizard-calculation-unavailable' : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="wizard-calculate"
+                      onClick={() => void calculate()}
+                      disabled={calculating || setupMatchesProject}
+                      aria-describedby={setupMatchesProject ? 'wizard-calculation-unavailable' : undefined}
+                    >
+                      {calculating
+                        ? <><LoaderCircle className="spin" size={18} /> Calculating panels…</>
+                        : <><Sparkles size={18} /> Calculate recommendations</>}
+                    </button>
+                    {setupMatchesProject && (
+                      <span id="wizard-calculation-unavailable" className="wizard-calculate-tooltip" role="tooltip">
+                        This setup already matches the project. Increase the panel size or change a marker/color to calculate new recommendations.
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 

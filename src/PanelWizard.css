@@ -909,6 +909,50 @@
   min-width: 210px;
 }
 
+.wizard-calculate-control {
+  position: relative;
+}
+
+.wizard-calculate-control.is-disabled {
+  cursor: help;
+  outline: none;
+}
+
+.wizard-calculate-control.is-disabled .wizard-calculate {
+  cursor: help;
+}
+
+.wizard-calculate-tooltip {
+  width: min(340px, calc(100vw - 48px));
+  padding: 11px 13px;
+  position: absolute;
+  z-index: 50;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  visibility: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-dropdown);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+  pointer-events: none;
+}
+
+.wizard-calculate-control.is-disabled:hover .wizard-calculate-tooltip,
+.wizard-calculate-control.is-disabled:focus-visible .wizard-calculate-tooltip,
+.wizard-calculate-control.is-disabled:focus-within .wizard-calculate-tooltip {
+  visibility: visible;
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .spin {
   animation: wizard-spin 800ms linear infinite;
 }

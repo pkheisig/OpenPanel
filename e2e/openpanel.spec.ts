@@ -685,6 +685,14 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('Platelet GPVI')
   await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('BV711')
 
+  await page.getByRole('button', { name: /Co-expression/ }).click()
+  await recommendationsTab.click()
+  const unchangedCalculation = page.getByRole('button', { name: 'Calculate recommendations' })
+  await expect(unchangedCalculation).toBeDisabled()
+  await page.getByLabel('Calculation unavailable').hover()
+  await expect(page.getByRole('tooltip').filter({ hasText: 'This setup already matches the project' })).toBeVisible()
+  await page.getByRole('button', { name: /Marker setup/ }).click()
+
   await page.getByRole('button', { name: 'Clear', exact: true }).click()
   const clearConfirmation = page.getByRole('alertdialog', { name: 'Clear the panel?' })
   await expect(clearConfirmation).toBeVisible()
