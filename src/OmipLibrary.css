@@ -1,0 +1,497 @@
+.omip-library-backdrop {
+  --omip-bg: #fffdfa;
+  --omip-surface: #f8f7f3;
+  --omip-header: #ece7db;
+  --omip-text: #17201d;
+  --omip-muted: #68736e;
+  --omip-border: #d8d5cc;
+  --omip-border-soft: #e6e2d9;
+  --omip-accent: #1f7a6d;
+  --omip-accent-soft: #eef7f3;
+  position: fixed;
+  z-index: 950;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  color: var(--omip-text);
+  background: rgb(8 17 14 / 0.62);
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  animation: omip-library-backdrop-in 150ms ease-out both;
+}
+
+.omip-library-backdrop.dark {
+  --omip-bg: #1e2522;
+  --omip-surface: #121816;
+  --omip-header: #252e2a;
+  --omip-text: #f0f3f2;
+  --omip-muted: #9ba7a2;
+  --omip-border: #3b4541;
+  --omip-border-soft: #303a36;
+  --omip-accent: #55c7b6;
+  --omip-accent-soft: #1c2b26;
+}
+
+.omip-library-window {
+  width: min(820px, 100%);
+  max-height: min(760px, calc(100dvh - 56px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--omip-border);
+  border-radius: 16px;
+  color: var(--omip-text);
+  background: var(--omip-bg);
+  box-shadow: 0 28px 80px rgb(6 14 11 / 0.34);
+  animation: omip-library-window-in 190ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.omip-library-window.is-preview {
+  width: min(900px, 100%);
+}
+
+.omip-library-window > header {
+  min-height: 72px;
+  padding: 14px 16px 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--omip-border-soft);
+  background: var(--omip-bg);
+}
+
+.omip-library-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.omip-library-heading h2 {
+  margin: 0;
+  font-family: Georgia, "Source Serif 4", serif;
+  font-size: 21px;
+  font-weight: 500;
+}
+
+.omip-library-heading p {
+  margin: 3px 0 0;
+  color: var(--omip-muted);
+  font-size: 10px;
+}
+
+.omip-library-back,
+.omip-library-close {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--omip-border);
+  border-radius: 9px;
+  color: var(--omip-muted);
+  background: var(--omip-bg);
+}
+
+.omip-library-back:hover,
+.omip-library-back:focus-visible,
+.omip-library-close:hover,
+.omip-library-close:focus-visible {
+  border-color: var(--omip-accent);
+  color: var(--omip-accent);
+  background: var(--omip-accent-soft);
+  outline: none;
+}
+
+.omip-library-tools {
+  padding: 12px 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.omip-library-search {
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--omip-border);
+  border-radius: 10px;
+  color: var(--omip-muted);
+  background: var(--omip-surface);
+}
+
+.omip-library-search:focus-within {
+  border-color: var(--omip-accent);
+  box-shadow: 0 0 0 3px var(--omip-accent-soft);
+}
+
+.omip-library-search input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--omip-text);
+  background: transparent;
+  font-size: 11px;
+}
+
+.omip-library-tools > span {
+  flex: none;
+  color: var(--omip-muted);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.omip-library-tools > a {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  color: var(--omip-accent);
+  font-size: 9px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.omip-library-tools > a:hover,
+.omip-library-tools > a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: none;
+}
+
+.omip-library-filters {
+  padding: 10px 12px 3px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.omip-library-filter {
+  min-width: 0;
+}
+
+.omip-library-filter > span:not(.ui-select-label-hidden) {
+  margin: 0 0 4px 2px;
+  display: block;
+  color: var(--omip-muted);
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.omip-library-filter .ui-select-trigger {
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--omip-border);
+  border-radius: 9px;
+  color: var(--omip-text);
+  background: var(--omip-surface);
+  font-size: 9px;
+}
+
+.panel-builder .omip-library-filter-menu {
+  border-color: var(--button-border);
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.launch-screen .omip-library-filter-menu {
+  border-color: var(--launch-border);
+  color: var(--launch-text);
+  background: var(--launch-menu);
+}
+
+.panel-builder .omip-library-filter-menu .ui-select-option:hover,
+.panel-builder .omip-library-filter-menu .ui-select-option:focus-visible {
+  background: var(--accent-soft);
+}
+
+.panel-builder .omip-library-filter-menu .ui-select-option.is-selected {
+  color: #fff;
+  background: var(--accent);
+}
+
+.panel-builder.dark .omip-library-filter-menu .ui-select-option.is-selected {
+  color: #10211d;
+}
+
+.omip-library-filter-menu .ui-select-option {
+  min-height: 32px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 9px;
+}
+
+.omip-library-clear {
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--omip-border);
+  border-radius: 9px;
+  color: var(--omip-muted);
+  background: var(--omip-bg);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.omip-library-clear:hover,
+.omip-library-clear:focus-visible {
+  border-color: var(--omip-accent);
+  color: var(--omip-accent);
+  background: var(--omip-accent-soft);
+  outline: none;
+}
+
+.omip-library-list {
+  min-height: 0;
+  max-height: min(560px, 65dvh);
+  padding: 9px 12px 12px;
+  display: grid;
+  gap: 7px;
+  overflow: auto;
+}
+
+.omip-library-list > button {
+  min-height: 64px;
+  padding: 11px 14px;
+  display: grid;
+  grid-template-columns: 105px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--omip-border-soft);
+  border-radius: 10px;
+  color: var(--omip-text);
+  background: var(--omip-surface);
+  text-align: left;
+}
+
+.omip-library-list > button:hover,
+.omip-library-list > button:focus-visible {
+  border-color: var(--omip-accent);
+  color: var(--omip-accent);
+  background: var(--omip-accent-soft);
+  outline: none;
+}
+
+.omip-library-entry-name {
+  display: grid;
+  gap: 3px;
+}
+
+.omip-library-entry-name strong {
+  font-size: 12px;
+}
+
+.omip-library-entry-name small,
+.omip-library-list > button > span:nth-child(2) {
+  color: var(--omip-muted);
+  font-size: 9px;
+}
+
+.omip-library-empty {
+  margin: 28px 0;
+  color: var(--omip-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.omip-library-preview {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.omip-library-overview {
+  padding: 17px 20px;
+  display: grid;
+  gap: 13px;
+  border-bottom: 1px solid var(--omip-border-soft);
+  background: color-mix(in srgb, var(--omip-accent-soft) 45%, var(--omip-bg));
+}
+
+.omip-library-overview p {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.omip-library-overview a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--omip-accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.omip-library-overview a:hover,
+.omip-library-overview a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  outline: none;
+}
+
+.omip-library-overview dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.omip-library-overview dl > div {
+  padding: 9px 10px;
+  border: 1px solid var(--omip-border-soft);
+  border-radius: 9px;
+  background: var(--omip-surface);
+}
+
+.omip-library-overview dt {
+  margin-bottom: 4px;
+  color: var(--omip-muted);
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.omip-library-overview dd {
+  margin: 0;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.omip-library-table-wrap {
+  min-height: 0;
+  overflow: auto;
+}
+
+.omip-library-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.omip-library-table thead {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+}
+
+.omip-library-table th {
+  padding: 9px 13px;
+  color: var(--omip-muted);
+  background: var(--omip-header);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.omip-library-table td {
+  padding: 8px 13px;
+  border-top: 1px solid var(--omip-border-soft);
+  color: var(--omip-muted);
+}
+
+.omip-library-table td:first-child {
+  color: var(--omip-text);
+}
+
+.omip-library-paper-only {
+  min-height: 210px;
+  padding: 32px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 11px;
+  color: var(--omip-muted);
+  text-align: center;
+}
+
+.omip-library-paper-only p {
+  max-width: 460px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.omip-library-window > footer {
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--omip-border-soft);
+}
+
+.omip-library-window > footer > span {
+  color: var(--omip-muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.omip-library-primary {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--omip-accent);
+  border-radius: 9px;
+  color: #fff;
+  background: var(--omip-accent);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.omip-library-backdrop.dark .omip-library-primary {
+  color: #10211d;
+}
+
+.omip-library-primary:disabled {
+  opacity: 0.4;
+}
+
+@keyframes omip-library-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes omip-library-window-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 760px) {
+  .omip-library-backdrop {
+    padding: 12px;
+  }
+
+  .omip-library-tools {
+    flex-wrap: wrap;
+  }
+
+  .omip-library-search {
+    flex-basis: 100%;
+  }
+
+  .omip-library-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .omip-library-overview dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

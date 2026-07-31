@@ -2,6 +2,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowRight,
+  BookOpen,
   ChevronDown,
   Copy,
   Download,
@@ -23,6 +24,7 @@ import {
 import type { PanelPayload } from './panelBuilderShared'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
+import { OmipLibrary } from './OmipLibrary'
 import './LandingPage.css'
 
 export type PanelLaunchSelection = {
@@ -86,6 +88,7 @@ export function LandingPage({
   const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
   const [starting, setStarting] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
+  const [showOmipLibrary, setShowOmipLibrary] = useState(false)
   const [menu, setMenu] = useState<ProjectMenuState | null>(null)
   const [cytometer, setCytometer] = useState(() => storedCytometer(libraries[0].id))
   const configurations = useMemo(() => getSpectralPanelConfigurations(cytometer), [cytometer])
@@ -175,6 +178,14 @@ export function LandingPage({
           <span>OpenPanel</span>
         </a>
         <div className="launch-header-actions">
+          <button
+            type="button"
+            className="launch-secondary-button"
+            onClick={() => setShowOmipLibrary(true)}
+          >
+            <BookOpen size={16} />
+            OMIP Library
+          </button>
           <button
             type="button"
             className="launch-secondary-button"
@@ -334,6 +345,12 @@ export function LandingPage({
           onArchive={() => onArchive(menu.panel)}
           onRestore={() => onRestore(menu.panel)}
           onDelete={() => remove(menu.panel)}
+        />
+      )}
+      {showOmipLibrary && (
+        <OmipLibrary
+          theme={theme}
+          onClose={() => setShowOmipLibrary(false)}
         />
       )}
     </main>

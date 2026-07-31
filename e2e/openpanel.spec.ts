@@ -121,6 +121,13 @@ test('shows the fluorophore name beside the cursor when hovering a spectrum', as
 
 test('selects the instrument and configuration before opening a clean workspace', async ({ page }) => {
   await page.goto(APP_PATH)
+  await page.getByRole('button', { name: 'OMIP Library' }).click()
+  const landingOmipLibrary = page.getByRole('dialog', { name: 'OMIP Library' })
+  await expect(landingOmipLibrary).toBeVisible()
+  await landingOmipLibrary.getByRole('button', { name: 'Preview OMIP-077' }).click()
+  await expect(page.getByRole('dialog', { name: 'OMIP-077' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open in panel wizard' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Close OMIP Library' }).click()
   await page.getByLabel('Panel name').fill('T-cell panel')
   await page.getByRole('button', { name: 'Use dark mode' }).click()
   await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
@@ -136,6 +143,13 @@ test('selects the instrument and configuration before opening a clean workspace'
   await chooseOption(page, 'DETECTOR CONFIGURATION', 'ID7000 4L: V/B/YG/R')
   await openEmptyPanel(page)
   await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
+  await expect(page.getByRole('button', { name: 'Open OMIP Library' })).toBeVisible()
+  await page.getByRole('button', { name: 'Open OMIP Library' }).click()
+  await page.getByRole('dialog', { name: 'OMIP Library' }).getByRole('button', { name: 'Preview OMIP-077' }).click()
+  await page.getByRole('button', { name: 'Open in panel wizard' }).click()
+  await expect(page.getByRole('dialog', { name: 'Panel wizard' })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('CD1c')
+  await page.getByRole('button', { name: 'Close panel wizard' }).click()
   await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(18)
   await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('')
   await expect(page.getByLabel('Panel name')).toHaveValue('T-cell panel')
@@ -510,12 +524,12 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     return { borderRadius: style.borderRadius, paddingLeft: style.paddingLeft }
   })
 
-  await page.getByRole('button', { name: 'OMIP templates' }).click()
-  const templateDialog = page.getByRole('dialog', { name: 'OMIP templates' })
+  await page.getByRole('button', { name: 'Import from OMIP' }).click()
+  const templateDialog = page.getByRole('dialog', { name: 'OMIP Library' })
   await expect(templateDialog).toBeVisible()
-  await page.locator('.wizard-subdialog-backdrop').click({ position: { x: 30, y: 30 } })
+  await page.locator('.omip-library-backdrop').click({ position: { x: 20, y: 20 } })
   await expect(templateDialog).toBeHidden()
-  await page.getByRole('button', { name: 'OMIP templates' }).click()
+  await page.getByRole('button', { name: 'Import from OMIP' }).click()
   await expect(templateDialog).toBeVisible()
   await expect(templateDialog.getByText('121 of 121 panels')).toBeVisible()
   await expect(templateDialog.getByRole('link', { name: 'Browse database' })).toHaveAttribute(
@@ -523,7 +537,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'https://isac-net.org/omip-and-flow-repository-database/',
   )
   await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(121)
-  const templateSearch = templateDialog.getByRole('searchbox', { name: 'Search OMIP templates' })
+  const templateSearch = templateDialog.getByRole('searchbox', { name: 'Search OMIP Library' })
   await templateDialog.getByRole('combobox', { name: 'Method' }).click()
   await page.getByRole('option', { name: 'Spectral', exact: true }).click()
   await expect(templateDialog.getByText(/of 121 panels/)).toBeVisible()
@@ -538,17 +552,17 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'href',
     'https://pubmed.ncbi.nlm.nih.gov/42230532/',
   )
-  await expect(page.getByRole('button', { name: 'Use template' })).toBeDisabled()
-  await page.getByRole('button', { name: 'Back to OMIP templates' }).click()
+  await expect(page.getByRole('button', { name: 'Import into wizard' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back to OMIP Library' }).click()
   await templateSearch.fill('OMIP-077')
   await templateDialog.getByRole('button', { name: 'Preview OMIP-077' }).click()
   await expect(page.getByRole('dialog', { name: 'OMIP-077' })).toBeVisible()
-  await expect(page.locator('.wizard-template-table tbody tr')).toHaveCount(14)
+  await expect(page.locator('.omip-library-table tbody tr')).toHaveCount(14)
   await expect(page.getByRole('link', { name: 'View paper' })).toHaveAttribute(
     'href',
     'https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/',
   )
-  await page.getByRole('button', { name: 'Use template' }).click()
+  await page.getByRole('button', { name: 'Import into wizard' }).click()
   await expect(panelSizeInput).toHaveValue('14')
   await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('CD1c')
   await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('PE')

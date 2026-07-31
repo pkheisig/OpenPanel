@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Sun, Upload, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Sun, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ModuleLoadingState } from './ModuleLoadingState';
+import { OmipLibrary } from './OmipLibrary';
 import { PanelWizard } from './PanelWizard';
 import type { WizardApplication } from './PanelWizard';
+import type { OmipTemplate } from './panelWizardKnowledge';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
 import { openTextFile, projectJsonFilename, saveBlob } from './browserFiles';
@@ -106,6 +108,8 @@ const PanelBuilder = ({
     );
     const [showPdfConfirm, setShowPdfConfirm] = useState(false);
     const [showPanelWizard, setShowPanelWizard] = useState(false);
+    const [showOmipLibrary, setShowOmipLibrary] = useState(false);
+    const [pendingOmipTemplate, setPendingOmipTemplate] = useState<OmipTemplate | null>(null);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
     const [cytometerPanels, setCytometerPanels] = useState<Record<string, CytometerPanelState>>(
         () => initialProject?.cytometerPanels ?? {},
@@ -739,6 +743,15 @@ const PanelBuilder = ({
                     <span>Panel wizard</span>
                 </button>
                 <div className="panel-actions">
+                    <button
+                        type="button"
+                        className="export-button icon-only"
+                        onClick={() => setShowOmipLibrary(true)}
+                        aria-label="Open OMIP Library"
+                        title="OMIP Library"
+                    >
+                        <BookOpen size={16} />
+                    </button>
                     <div className="plot-size-controls" role="group" aria-label="Plot size">
                         <button
                             type="button"
@@ -998,9 +1011,31 @@ const PanelBuilder = ({
                     markerNames={markers}
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
                     initialState={wizardState}
-                    onStateChange={setWizardState}
-                    onClose={() => setShowPanelWizard(false)}
+                    initialTemplate={pendingOmipTemplate}
+                    onStateChange={(state) => {
+                        setWizardState(state);
+                        setPendingOmipTemplate(null);
+                    }}
+                    onClose={() => {
+                        setPendingOmipTemplate(null);
+                        setShowPanelWizard(false);
+                    }}
                     onApply={applyWizardRecommendations}
+                />
+            )}
+            {showOmipLibrary && (
+                <OmipLibrary
+                    theme={embedded && cockpitTheme ? cockpitTheme : theme}
+                    maxPanelSize={Math.max(
+                        selected.length,
+                        Math.min(payload.fluorophores.length, payload.detectors.length),
+                    )}
+                    onClose={() => setShowOmipLibrary(false)}
+                    onUseTemplate={(template) => {
+                        setPendingOmipTemplate(template);
+                        setShowOmipLibrary(false);
+                        setShowPanelWizard(true);
+                    }}
                 />
             )}
             {showPdfConfirm && (

@@ -1,22 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ArrowLeft,
   ArrowRight,
   BookOpen,
   Check,
   ChevronRight,
   Eraser,
-  ExternalLink,
   Info,
   LoaderCircle,
   Minus,
   Plus,
-  Search,
   Sparkles,
   WandSparkles,
   X,
 } from 'lucide-react'
 import './PanelWizard.css'
+import { OmipLibrary } from './OmipLibrary'
 import { UiSelect } from './UiSelect'
 import { buildPanelPayload } from './spectralEngine'
 import { loadPanelWizardReferences } from './panelWizardReferences'
@@ -24,12 +22,9 @@ import {
   DEFAULT_COEXPRESSION_CONTEXT,
   inferCoexpression,
   markerOptionsForPanel,
-  OMIP_CATALOG,
-  OMIP_DATABASE_URL,
 } from './panelWizardKnowledge'
 import type {
   CoexpressionContext,
-  OmipCatalogEntry,
   OmipTemplate,
 } from './panelWizardKnowledge'
 import {
@@ -67,6 +62,7 @@ type PanelWizardProps = {
   markerNames: Record<number, string>
   theme: 'light' | 'dark'
   initialState: WizardProjectState | null
+  initialTemplate?: OmipTemplate | null
   onStateChange: (state: WizardProjectState) => void
   onClose: () => void
   onApply: (application: WizardApplication) => void | Promise<void>
@@ -156,35 +152,6 @@ const CONDITION_OPTIONS = [
   { value: 'baseline', label: 'Baseline' },
   { value: 'inflammatory', label: 'Inflammatory' },
   { value: 'tumor', label: 'Tumor' },
-]
-
-const OMIP_SPECIES_FILTER_OPTIONS = [
-  { value: 'all', label: 'All species' },
-  { value: 'human', label: 'Human' },
-  { value: 'mouse', label: 'Mouse' },
-  { value: 'non-human-primate', label: 'Non-human primate' },
-  { value: 'other', label: 'Other species' },
-]
-
-const OMIP_METHOD_FILTER_OPTIONS = [
-  { value: 'all', label: 'All methods' },
-  { value: 'spectral', label: 'Spectral' },
-  { value: 'conventional', label: 'Conventional' },
-  { value: 'mass', label: 'Mass cytometry' },
-  { value: 'imaging', label: 'Imaging' },
-]
-
-const OMIP_AVAILABILITY_FILTER_OPTIONS = [
-  { value: 'all', label: 'All entries' },
-  { value: 'template', label: 'Editable templates' },
-  { value: 'paper', label: 'Papers only' },
-]
-
-const OMIP_YEAR_FILTER_OPTIONS = [
-  { value: 'all', label: 'All years' },
-  ...Array.from(new Set(OMIP_CATALOG.map((entry) => entry.year)))
-    .sort((left, right) => Number(right) - Number(left))
-    .map((year) => ({ value: year, label: year })),
 ]
 
 const CYTOMETER_LABELS: Record<string, string> = {
@@ -313,6 +280,7 @@ export function PanelWizard({
   markerNames,
   theme,
   initialState,
+  initialTemplate = null,
   onStateChange,
   onClose,
   onApply,
@@ -324,12 +292,43 @@ export function PanelWizard({
   )
   const initialSize = Math.max(
     lockedCount,
-    Math.min(maxPanelSize, initialState?.desiredSize ?? slots.length),
+    Math.min(
+      maxPanelSize,
+      initialTemplate?.markers.length ?? initialState?.desiredSize ?? slots.length,
+    ),
   )
-  const [activeTab, setActiveTab] = useState<WizardTab>(initialState?.activeTab ?? 'frequency')
+  const importedTemplateMarkers = initialTemplate
+    ? (() => {
+      const usedColors = new Set<string>()
+      return Array.from({ length: initialSize }, (_, slotIndex) => {
+        const templateMarker = initialTemplate.markers[slotIndex]
+        const name = templateMarker?.name ?? markerNames[slotIndex]?.trim() ?? ''
+        const suggested = templateMarker?.fluorophore ?? slots[slotIndex] ?? ''
+        const currentFluorophore = suggested
+          && availableFluorophores.includes(suggested)
+          && !usedColors.has(suggested)
+          && isWizardFluorophoreAllowed(suggested, name)
+          ? suggested
+          : ''
+        if (currentFluorophore) usedColors.add(currentFluorophore)
+        return {
+          id: `marker-${slotIndex}`,
+          slotIndex,
+          name,
+          cellType: templateMarker?.cellType ?? '',
+          frequency: templateMarker?.frequency ?? 'medium',
+          currentFluorophore,
+        } satisfies WizardMarker
+      })
+    })()
+    : null
+  const [activeTab, setActiveTab] = useState<WizardTab>(
+    initialTemplate ? 'frequency' : initialState?.activeTab ?? 'frequency',
+  )
   const [desiredSize, setDesiredSize] = useState(initialSize)
   const [markers, setMarkers] = useState<WizardMarker[]>(() => (
-    initialState?.markers.length
+    importedTemplateMarkers
+      ?? (initialState?.markers.length
       ? initialState.markers.slice(0, initialSize).map((marker) => (
         marker.name.trim()
           && marker.currentFluorophore
@@ -337,29 +336,32 @@ export function PanelWizard({
           ? { ...marker, currentFluorophore: '' }
           : marker
       ))
-      : initialMarkerSettings(initialSize, slots, markerNames)
+      : initialMarkerSettings(initialSize, slots, markerNames))
   ))
   const [coexpression, setCoexpression] = useState<Record<string, CoexpressionLevel>>(
-    initialState?.coexpression ?? {},
+    initialTemplate && importedTemplateMarkers
+      ? inferCoexpression(importedTemplateMarkers, initialTemplate.context, {})
+      : initialState?.coexpression ?? {},
   )
   const [coexpressionContext, setCoexpressionContext] = useState<CoexpressionContext>(
-    initialState?.coexpressionContext ?? DEFAULT_COEXPRESSION_CONTEXT,
+    initialTemplate?.context ?? initialState?.coexpressionContext ?? DEFAULT_COEXPRESSION_CONTEXT,
   )
-  const [coexpressionVisited, setCoexpressionVisited] = useState(initialState?.coexpressionVisited ?? false)
-  const [coexpressionCompleted, setCoexpressionCompleted] = useState(initialState?.coexpressionCompleted ?? false)
+  const [coexpressionVisited, setCoexpressionVisited] = useState(
+    initialTemplate ? false : initialState?.coexpressionVisited ?? false,
+  )
+  const [coexpressionCompleted, setCoexpressionCompleted] = useState(
+    initialTemplate ? false : initialState?.coexpressionCompleted ?? false,
+  )
   const [calculating, setCalculating] = useState(false)
-  const [results, setResults] = useState<WizardResults | null>(initialState?.results ?? null)
+  const [results, setResults] = useState<WizardResults | null>(
+    initialTemplate ? null : initialState?.results ?? null,
+  )
   const [resultMode, setResultMode] = useState<WizardResultMode>(initialState?.resultMode ?? 'recommended')
   const [resultSort, setResultSort] = useState<WizardResultSort>(initialState?.resultSort ?? 'recommended')
   const [error, setError] = useState('')
   const [applying, setApplying] = useState(false)
-  const [dialog, setDialog] = useState<'coexpression' | 'templates' | null>(null)
-  const [templatePreview, setTemplatePreview] = useState<OmipCatalogEntry | null>(null)
-  const [templateQuery, setTemplateQuery] = useState('')
-  const [templateSpecies, setTemplateSpecies] = useState('all')
-  const [templateMethod, setTemplateMethod] = useState('all')
-  const [templateYear, setTemplateYear] = useState('all')
-  const [templateAvailability, setTemplateAvailability] = useState('all')
+  const [dialog, setDialog] = useState<'coexpression' | null>(null)
+  const [showOmipLibrary, setShowOmipLibrary] = useState(false)
 
   const frequencyReady = desiredSize > 0
     && markers.length === desiredSize
@@ -372,54 +374,6 @@ export function PanelWizard({
     () => activeResult ? sortRows(activeResult.rows, resultSort) : [],
     [activeResult, resultSort],
   )
-  const visibleOmipCatalog = useMemo(() => {
-    const query = templateQuery.trim().toLocaleLowerCase()
-    return OMIP_CATALOG.filter((entry) => (
-      (templateSpecies === 'all' || entry.species === templateSpecies)
-      && (templateMethod === 'all' || entry.method === templateMethod)
-      && (templateYear === 'all' || entry.year === templateYear)
-      && (
-        templateAvailability === 'all'
-        || (templateAvailability === 'template' ? Boolean(entry.template) : !entry.template)
-      )
-      && (
-        !query
-        || [
-          entry.name,
-          entry.summary,
-          entry.year,
-          entry.species,
-          entry.method,
-          ...(entry.template?.markers.flatMap((marker) => [
-            marker.name,
-            marker.fluorophore ?? '',
-            marker.cellType ?? '',
-          ]) ?? []),
-        ].join(' ').toLocaleLowerCase().includes(query)
-      )
-    ))
-  }, [templateAvailability, templateMethod, templateQuery, templateSpecies, templateYear])
-  const omipFiltersActive = Boolean(
-    templateQuery.trim()
-    || templateSpecies !== 'all'
-    || templateMethod !== 'all'
-    || templateYear !== 'all'
-    || templateAvailability !== 'all',
-  )
-
-  const resetOmipFilters = () => {
-    setTemplateQuery('')
-    setTemplateSpecies('all')
-    setTemplateMethod('all')
-    setTemplateYear('all')
-    setTemplateAvailability('all')
-  }
-
-  const closeOmipTemplates = () => {
-    setTemplatePreview(null)
-    setDialog(null)
-  }
-
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -604,9 +558,7 @@ export function PanelWizard({
     setCoexpressionCompleted(false)
     setActiveTab('frequency')
     invalidateResults()
-    setDialog(null)
-    setTemplatePreview(null)
-    setTemplatePreview(null)
+    setShowOmipLibrary(false)
   }
 
   const clearMarkerSetup = () => {
@@ -773,14 +725,10 @@ export function PanelWizard({
                   <button
                     type="button"
                     className="wizard-tool-button"
-                    onClick={() => {
-                      setTemplatePreview(null)
-                      resetOmipFilters()
-                      setDialog('templates')
-                    }}
+                    onClick={() => setShowOmipLibrary(true)}
                   >
                     <BookOpen size={15} />
-                    OMIP templates
+                    Import from OMIP
                   </button>
                   <button
                     type="button"
@@ -1170,229 +1118,14 @@ export function PanelWizard({
           </div>
         )}
 
-        {dialog === 'templates' && (
-          <div
-            className="wizard-subdialog-backdrop"
-            role="presentation"
-            onPointerDown={(event) => {
-              if (event.target === event.currentTarget) closeOmipTemplates()
-            }}
-          >
-            <section
-              className={`wizard-subdialog wizard-template-dialog${templatePreview ? ' is-preview' : ''}`}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="omip-template-title"
-            >
-              <header>
-                <div className="wizard-template-heading">
-                  {templatePreview && (
-                    <button
-                      type="button"
-                      className="wizard-template-back"
-                      onClick={() => setTemplatePreview(null)}
-                      aria-label="Back to OMIP templates"
-                    >
-                      <ArrowLeft size={16} />
-                    </button>
-                  )}
-                  <h3 id="omip-template-title">{templatePreview?.name ?? 'OMIP templates'}</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeOmipTemplates}
-                  aria-label="Close"
-                >
-                  <X size={17} />
-                </button>
-              </header>
-              {templatePreview ? (
-                <>
-                  <div className="wizard-template-preview">
-                    <div className="wizard-template-overview">
-                      <div>
-                        <p>{templatePreview.summary}</p>
-                        <div className="wizard-template-links">
-                          <a href={templatePreview.sourceUrl} target="_blank" rel="noreferrer">
-                            View paper
-                            <ExternalLink size={14} aria-hidden="true" />
-                          </a>
-                        </div>
-                      </div>
-                      {templatePreview.template ? (
-                        <dl>
-                          <div>
-                            <dt>Markers</dt>
-                            <dd>{templatePreview.template.markers.length}</dd>
-                          </div>
-                          <div>
-                            <dt>Species</dt>
-                            <dd>{SPECIES_OPTIONS.find((option) => option.value === templatePreview.template?.context.species)?.label}</dd>
-                          </div>
-                          <div>
-                            <dt>Tissue</dt>
-                            <dd>{TISSUE_OPTIONS.find((option) => option.value === templatePreview.template?.context.tissue)?.label}</dd>
-                          </div>
-                          <div>
-                            <dt>Population</dt>
-                            <dd>{POPULATION_OPTIONS.find((option) => option.value === templatePreview.template?.context.population)?.label}</dd>
-                          </div>
-                          <div>
-                            <dt>Condition</dt>
-                            <dd>{CONDITION_OPTIONS.find((option) => option.value === templatePreview.template?.context.condition)?.label}</dd>
-                          </div>
-                        </dl>
-                      ) : (
-                        <dl className="wizard-template-catalog-meta">
-                          <div>
-                            <dt>Published</dt>
-                            <dd>{templatePreview.year}</dd>
-                          </div>
-                          <div>
-                            <dt>Source</dt>
-                            <dd>OMIP paper</dd>
-                          </div>
-                        </dl>
-                      )}
-                    </div>
-                    {templatePreview.template ? (
-                      <div className="wizard-template-table-wrap">
-                        <table className="wizard-template-table">
-                          <thead>
-                            <tr>
-                              <th>Marker</th>
-                              <th>Color</th>
-                              <th>Cell type</th>
-                              <th>Frequency</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {templatePreview.template.markers.map((marker, index) => (
-                              <tr key={`${marker.name}-${index}`}>
-                                <td><strong>{marker.name}</strong></td>
-                                <td>{marker.fluorophore || 'Auto-select'}</td>
-                                <td>{marker.cellType || '—'}</td>
-                                <td>{marker.frequency ? marker.frequency.replace(/^\w/, (letter) => letter.toLocaleUpperCase()) : 'Medium'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="wizard-template-paper-only">
-                        <BookOpen size={22} aria-hidden="true" />
-                        <p>The paper is available to preview, but its marker–color table is not yet bundled as an editable template.</p>
-                      </div>
-                    )}
-                  </div>
-                  <footer className="wizard-template-footer">
-                    <span>
-                      {templatePreview.template
-                        ? (
-                          templatePreview.template.markers.length > maxPanelSize
-                            ? `${templatePreview.template.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
-                            : `${templatePreview.template.markers.length} markers`
-                        )
-                        : `${templatePreview.year} publication`}
-                    </span>
-                    <button
-                      type="button"
-                      className="wizard-primary"
-                      onClick={() => {
-                        if (templatePreview.template) applyTemplate(templatePreview.template)
-                      }}
-                      disabled={!templatePreview.template || templatePreview.template.markers.length > maxPanelSize}
-                    >
-                      Use template
-                    </button>
-                  </footer>
-                </>
-              ) : (
-                <>
-                  <div className="wizard-template-search">
-                    <label>
-                      <Search size={16} aria-hidden="true" />
-                      <input
-                        type="search"
-                        aria-label="Search OMIP templates"
-                        placeholder="Search OMIP number, title, or year"
-                        value={templateQuery}
-                        onChange={(event) => setTemplateQuery(event.target.value)}
-                      />
-                    </label>
-                    <span>{visibleOmipCatalog.length} of {OMIP_CATALOG.length} panels</span>
-                    <a href={OMIP_DATABASE_URL} target="_blank" rel="noreferrer">
-                      Browse database
-                      <ExternalLink size={13} aria-hidden="true" />
-                    </a>
-                  </div>
-                  <div className="wizard-template-filters">
-                    <UiSelect
-                      className="wizard-template-filter-select"
-                      label="Species"
-                      value={templateSpecies}
-                      options={OMIP_SPECIES_FILTER_OPTIONS}
-                      onChange={setTemplateSpecies}
-                      portalMenu
-                      menuClassName="wizard-template-filter-menu"
-                    />
-                    <UiSelect
-                      className="wizard-template-filter-select"
-                      label="Method"
-                      value={templateMethod}
-                      options={OMIP_METHOD_FILTER_OPTIONS}
-                      onChange={setTemplateMethod}
-                      portalMenu
-                      menuClassName="wizard-template-filter-menu"
-                    />
-                    <UiSelect
-                      className="wizard-template-filter-select"
-                      label="Year"
-                      value={templateYear}
-                      options={OMIP_YEAR_FILTER_OPTIONS}
-                      onChange={setTemplateYear}
-                      portalMenu
-                      menuClassName="wizard-template-filter-menu"
-                    />
-                    <UiSelect
-                      className="wizard-template-filter-select"
-                      label="Availability"
-                      value={templateAvailability}
-                      options={OMIP_AVAILABILITY_FILTER_OPTIONS}
-                      onChange={setTemplateAvailability}
-                      portalMenu
-                      menuClassName="wizard-template-filter-menu"
-                    />
-                    {omipFiltersActive && (
-                      <button type="button" className="wizard-template-filter-clear" onClick={resetOmipFilters}>
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="wizard-template-list">
-                    {visibleOmipCatalog.map((entry) => (
-                      <button
-                        type="button"
-                        key={entry.id}
-                        onClick={() => setTemplatePreview(entry)}
-                        aria-label={`Preview ${entry.name}`}
-                      >
-                        <span className="wizard-template-name">
-                          <strong>{entry.name}</strong>
-                          <small>{entry.template ? `${entry.template.markers.length} markers` : entry.year}</small>
-                        </span>
-                        <span>{entry.summary}</span>
-                        <ChevronRight size={17} />
-                      </button>
-                    ))}
-                    {visibleOmipCatalog.length === 0 && (
-                      <p className="wizard-template-empty">No matching OMIP panels.</p>
-                    )}
-                  </div>
-                </>
-              )}
-            </section>
-          </div>
+        {showOmipLibrary && (
+          <OmipLibrary
+            theme={theme}
+            maxPanelSize={maxPanelSize}
+            actionLabel="Import into wizard"
+            onClose={() => setShowOmipLibrary(false)}
+            onUseTemplate={applyTemplate}
+          />
         )}
       </section>
     </div>
