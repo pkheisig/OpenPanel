@@ -14,7 +14,12 @@ import {
   recommendationScore,
 } from '../src/panelWizardEngine'
 import { loadPanelWizardReferences } from '../src/panelWizardReferences'
-import { inferOmipCellTypes, markerOptionsForPanel, OMIP_CATALOG } from '../src/panelWizardKnowledge'
+import {
+  inferOmipCellTypes,
+  markerOptionsForPanel,
+  OMIP_CATALOG,
+  omipTemplateAssignmentsForPanel,
+} from '../src/panelWizardKnowledge'
 import type { CoexpressionLevel, WizardMarker } from '../src/panelWizardEngine'
 import { mockBundledData } from './helpers'
 
@@ -44,6 +49,31 @@ describe('panel wizard recommendation engine', () => {
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-102')?.cellTypes).toEqual(
       expect.arrayContaining(['T cells', 'Dendritic cells']),
     )
+  })
+
+  test('matches OMIP templates to the active cytometer configuration', async () => {
+    const auroraFiveLaser = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r')
+    const auroraColors = auroraFiveLaser.fluorophores.map((item) => item.fluorophore)
+    const compatibleNames = OMIP_CATALOG.filter((entry) => (
+      entry.template
+      && omipTemplateAssignmentsForPanel(entry.template, auroraColors, auroraFiveLaser.detectors.length)
+    )).map((entry) => entry.name)
+
+    expect(compatibleNames).toContain('OMIP-097')
+    expect(compatibleNames).not.toContain('OMIP-111')
+    const omip97 = OMIP_CATALOG.find((entry) => entry.name === 'OMIP-097')?.template
+    expect(omip97).toBeDefined()
+    expect(omipTemplateAssignmentsForPanel(omip97!, auroraColors)?.[0]).toEqual({
+      marker: 'Platelet GPVI',
+      fluorophore: 'BV711',
+    })
+    expect(omipTemplateAssignmentsForPanel({
+      ...omip97!,
+      markers: [
+        { name: 'Marker A', fluorophore: 'BV711' },
+        { name: 'Marker B', fluorophore: 'BV711' },
+      ],
+    }, auroraColors)).toBeNull()
   })
 
   test('distinguishes common dyes from estimated limited dyes', () => {

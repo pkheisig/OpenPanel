@@ -6,6 +6,7 @@ import { ModuleLoadingState } from './ModuleLoadingState';
 import { OmipLibrary } from './OmipLibrary';
 import { PanelWizard } from './PanelWizard';
 import type { WizardApplication } from './PanelWizard';
+import { omipTemplateAssignmentsForPanel } from './panelWizardKnowledge';
 import type { OmipTemplate } from './panelWizardKnowledge';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
@@ -117,7 +118,6 @@ const PanelBuilder = ({
     const [showPdfConfirm, setShowPdfConfirm] = useState(false);
     const [showPanelWizard, setShowPanelWizard] = useState(false);
     const [showOmipLibrary, setShowOmipLibrary] = useState(false);
-    const [pendingOmipTemplate, setPendingOmipTemplate] = useState<OmipTemplate | null>(null);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
     const wizardStateRef = useRef(wizardState);
     const panelHistoryRef = useRef<{ past: PanelEditSnapshot[]; future: PanelEditSnapshot[] }>({
@@ -565,6 +565,56 @@ const PanelBuilder = ({
             throw wizardError instanceof Error ? wizardError : new Error('Could not apply the panel recommendations.');
         });
         await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
+    };
+
+    const applyOmipTemplate = async (template: OmipTemplate) => {
+        const availableFluorophores = payload?.fluorophores.map(item => item.fluorophore) ?? [];
+        const assignments = omipTemplateAssignmentsForPanel(
+            template,
+            availableFluorophores,
+            Math.min(payload?.fluorophores.length ?? 0, payload?.detectors.length ?? 0),
+        );
+        if (!assignments) {
+            setError('This OMIP panel is not compatible with the current cytometer configuration.');
+            return;
+        }
+
+        recordPanelEdit();
+        const nextSlots = assignments.map(assignment => assignment.fluorophore);
+        const nextMarkers = Object.fromEntries(
+            assignments.map((assignment, index) => [index, assignment.marker]),
+        );
+        slotsRef.current = nextSlots;
+        markersRef.current = nextMarkers;
+        wizardStateRef.current = null;
+        setSlots(nextSlots);
+        setMarkers(nextMarkers);
+        setWizardState(null);
+        setQueries({});
+        setActiveSlot(null);
+        setShowOmipLibrary(false);
+        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+
+        await fetchPanel(cytometer, configuration, nextSlots).catch((omipError) => {
+            throw omipError instanceof Error ? omipError : new Error('Could not apply the OMIP panel.');
+        });
+        const activeCytometer = getCytometerName(cytometer);
+        await persistProjectState({
+            ...projectState,
+            slots: nextSlots,
+            markers: nextMarkers,
+            wizard: null,
+            cytometerPanels: {
+                ...projectState.cytometerPanels,
+                [activeCytometer]: {
+                    configuration: getCytometerName(configuration),
+                    slots: nextSlots,
+                    markers: nextMarkers,
+                    wizard: null,
+                },
+            },
+        });
     };
 
     const filteredOptions = (slotIndex: number) => {
@@ -1176,14 +1226,11 @@ const PanelBuilder = ({
                     markerNames={markers}
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
                     initialState={wizardState}
-                    initialTemplate={pendingOmipTemplate}
                     onStateChange={(state) => {
                         setWizardState(state);
-                        setPendingOmipTemplate(null);
                     }}
                     onClearPanel={clearPanelContent}
                     onClose={() => {
-                        setPendingOmipTemplate(null);
                         setShowPanelWizard(false);
                     }}
                     onApply={applyWizardRecommendations}
@@ -1192,16 +1239,12 @@ const PanelBuilder = ({
             {showOmipLibrary && (
                 <OmipLibrary
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
-                    maxPanelSize={Math.max(
-                        selected.length,
-                        Math.min(payload.fluorophores.length, payload.detectors.length),
-                    )}
+                    availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
+                    maxPanelSize={Math.min(payload.fluorophores.length, payload.detectors.length)}
                     onClose={() => setShowOmipLibrary(false)}
-                    onUseTemplate={(template) => {
-                        setPendingOmipTemplate(template);
-                        setShowOmipLibrary(false);
-                        setShowPanelWizard(true);
-                    }}
+                    onApplyTemplate={(template) => void applyOmipTemplate(template).catch((omipError) => {
+                        setError(omipError instanceof Error ? omipError.message : 'Could not apply the OMIP panel.');
+                    })}
                 />
             )}
             {showPdfConfirm && (

@@ -10,6 +10,7 @@ import { UiSelect } from './UiSelect'
 import {
   OMIP_CATALOG,
   OMIP_DATABASE_URL,
+  omipTemplateAssignmentsForPanel,
 } from './panelWizardKnowledge'
 import type {
   OmipCatalogEntry,
@@ -20,7 +21,8 @@ import './OmipLibrary.css'
 type OmipLibraryProps = {
   theme: 'light' | 'dark'
   onClose: () => void
-  onUseTemplate?: (template: OmipTemplate) => void
+  onApplyTemplate?: (template: OmipTemplate) => void
+  availableFluorophores?: readonly string[]
   maxPanelSize?: number
   actionLabel?: string
 }
@@ -57,9 +59,10 @@ const SPECIES_LABELS: Record<OmipCatalogEntry['species'], string> = {
 export function OmipLibrary({
   theme,
   onClose,
-  onUseTemplate,
+  onApplyTemplate,
+  availableFluorophores,
   maxPanelSize,
-  actionLabel = 'Open in panel wizard',
+  actionLabel = 'Apply to panel',
 }: OmipLibraryProps) {
   const [preview, setPreview] = useState<OmipCatalogEntry | null>(null)
   const [query, setQuery] = useState('')
@@ -70,7 +73,11 @@ export function OmipLibrary({
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     return OMIP_CATALOG.filter((entry) => (
-      (species === 'all' || entry.species === species)
+      (!availableFluorophores || (
+        entry.template
+        && omipTemplateAssignmentsForPanel(entry.template, availableFluorophores, maxPanelSize)
+      ))
+      && (species === 'all' || entry.species === species)
       && (year === 'all' || entry.year === year)
       && (cellType === 'all' || entry.cellTypes.includes(cellType))
       && (
@@ -88,7 +95,7 @@ export function OmipLibrary({
         ].join(' ').toLocaleLowerCase().includes(normalizedQuery)
       )
     ))
-  }, [cellType, query, species, year])
+  }, [availableFluorophores, cellType, maxPanelSize, query, species, year])
 
   const filtersActive = Boolean(
     query.trim()
@@ -205,12 +212,12 @@ export function OmipLibrary({
                   ? `${preview.template?.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
                     : `${preview.template?.markers.length ?? 0} markers`}
               </span>
-              {onUseTemplate && preview.template && (
+              {onApplyTemplate && preview.template && (
                 <button
                   type="button"
                   className="omip-library-primary"
                   disabled={exceedsWorkspace}
-                  onClick={() => onUseTemplate(preview.template as OmipTemplate)}
+                  onClick={() => onApplyTemplate(preview.template as OmipTemplate)}
                 >
                   {actionLabel}
                 </button>
