@@ -1,7 +1,6 @@
 .launch-screen {
   --launch-bg: #f4f3ed;
   --launch-surface: #fffef9;
-  --launch-surface-muted: #e8ebe6;
   --launch-text: #1d2926;
   --launch-muted: #6f7d79;
   --launch-border: #c9d0cc;
@@ -11,6 +10,7 @@
   --launch-accent-soft: #e6f0ec;
   --launch-menu: #fff;
   --launch-danger: #b84539;
+  --launch-preview-bg: #fff;
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: 100%;
@@ -24,7 +24,6 @@
 .launch-screen.dark {
   --launch-bg: #111a17;
   --launch-surface: #1a2420;
-  --launch-surface-muted: #131d1a;
   --launch-text: #eef3f0;
   --launch-muted: #97a6a1;
   --launch-border: #394641;
@@ -34,6 +33,7 @@
   --launch-accent-soft: #21352f;
   --launch-menu: #1d2824;
   --launch-danger: #ef7b70;
+  --launch-preview-bg: #101815;
 }
 
 .launch-header {
@@ -294,53 +294,35 @@
   border-bottom: 1px solid var(--launch-line);
   border-radius: 7px 7px 0 0;
   color: var(--launch-text);
-  background: var(--launch-surface-muted);
+  background: var(--launch-preview-bg);
 }
 
-.panel-preview-grid {
+.panel-preview-plot {
   position: absolute;
   inset: 0;
-  opacity: 0.42;
-  background-image:
-    linear-gradient(var(--launch-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--launch-line) 1px, transparent 1px);
-  background-size: 22px 22px;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.panel-preview-spectrum {
+.panel-preview-count,
+.panel-preview-complexity {
   position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 24px;
-  display: grid;
-  grid-template-columns: 1.2fr 1.2fr 1.1fr 0.85fr 0.75fr;
-  height: 8px;
-  overflow: hidden;
-  border-radius: 3px;
+  top: 11px;
+  z-index: 2;
+  color: color-mix(in srgb, var(--launch-text) 82%, transparent);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
 }
-
-.panel-preview-spectrum i:nth-child(1) { background: #7332df; }
-.panel-preview-spectrum i:nth-child(2) { background: #ad21bd; }
-.panel-preview-spectrum i:nth-child(3) { background: #1766de; }
-.panel-preview-spectrum i:nth-child(4) { background: #8dcc24; }
-.panel-preview-spectrum i:nth-child(5) { background: #f22b27; }
 
 .panel-preview-count {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  color: var(--launch-muted);
-  font-size: 10px;
-  font-weight: 700;
+  left: 12px;
 }
 
-.panel-preview-count strong {
-  color: var(--launch-text);
-  font-family: Georgia, "Source Serif 4", serif;
-  font-size: 36px;
-  font-weight: 500;
+.panel-preview-complexity {
+  right: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .panel-preview-accessible-summary {

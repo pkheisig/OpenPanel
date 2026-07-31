@@ -15,10 +15,12 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  buildPanelPayload,
   getSpectralPanelConfigurations,
   getSpectralPanelLibraries,
   resolveConfiguration,
 } from './spectralEngine'
+import type { PanelPayload } from './panelBuilderShared'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
 import './LandingPage.css'
@@ -368,13 +370,9 @@ function ProjectCard({
         onClick={onOpen}
         aria-label={`Open ${panel.name}`}
       >
-        <span className="panel-preview-grid" aria-hidden="true" />
-        <span className="panel-preview-spectrum" aria-hidden="true">
-          <i /><i /><i /><i /><i />
-        </span>
+        <ProjectSpectrumPreview panel={panel} />
         <span className="panel-preview-count">
-          <strong>{colors}</strong>
-          {colors === 1 ? ' color' : ' colors'}
+          {colors} {colors === 1 ? 'color' : 'colors'}
         </span>
         <span className="panel-preview-accessible-summary">
           {cytometer} {configuration}
@@ -402,6 +400,85 @@ function ProjectCard({
         </div>
       </div>
     </article>
+  )
+}
+
+function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
+  const [payload, setPayload] = useState<PanelPayload | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void buildPanelPayload(
+      panel.state.cytometer,
+      panel.state.configuration,
+      panel.state.slots.filter(Boolean),
+    ).then((nextPayload) => {
+      if (!cancelled) setPayload(nextPayload)
+    }).catch(() => {
+      if (!cancelled) setPayload(null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [panel.state.configuration, panel.state.cytometer, panel.state.slots])
+
+  const width = 258
+  const height = 146
+  const left = 11
+  const right = 11
+  const top = 34
+  const bottom = 13
+  const plotWidth = width - left - right
+  const plotHeight = height - top - bottom
+  const colors = new Map(
+    payload?.fluorophores.map((fluorophore) => [
+      fluorophore.fluorophore,
+      fluorophore.peak_color || '#157e7c',
+    ]) ?? [],
+  )
+  const complexity = payload
+    ? payload.complexity_index === null ? '—' : payload.complexity_index.toFixed(2)
+    : '…'
+
+  return (
+    <>
+      <svg
+        className="panel-preview-plot"
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Saved panel spectrum preview"
+      >
+        {payload?.spectra.map((row) => {
+          const path = payload.detectors.map((detector, index) => {
+            const x = left + (index / Math.max(1, payload.detectors.length - 1)) * plotWidth
+            const rawValue = row[detector.detector]
+            const value = typeof rawValue === 'number' && Number.isFinite(rawValue) ? rawValue : 0
+            const y = top + (1 - Math.max(0, Math.min(1, value))) * plotHeight
+            return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+          }).join(' ')
+          return (
+            <path
+              key={row.fluorophore}
+              d={path}
+              fill="none"
+              stroke={colors.get(row.fluorophore) ?? '#157e7c'}
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )
+        })}
+      </svg>
+      <span
+        className="panel-preview-complexity"
+        aria-label={`Complexity index ${complexity}`}
+        title={`Complexity index: ${complexity}`}
+      >
+        {complexity}
+      </span>
+    </>
   )
 }
 

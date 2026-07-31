@@ -6,7 +6,6 @@ import { ModuleLoadingState } from './ModuleLoadingState';
 import { PanelWizard } from './PanelWizard';
 import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
-import { UiSelect } from './UiSelect';
 import { rankUiSelectOptions } from './uiSelectSearch';
 import { openTextFile, projectJsonFilename, saveBlob } from './browserFiles';
 import { buildPanelPayload } from './spectralEngine';
@@ -427,69 +426,6 @@ const PanelBuilder = ({
             throw wizardError instanceof Error ? wizardError : new Error('Could not apply the panel recommendations.');
         });
         await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
-    };
-
-    const changeCytometer = async (nextCytometer: string) => {
-        try {
-            const savedPanels = projectState.cytometerPanels;
-            const savedPanel = savedPanels[nextCytometer];
-            const requestedSlots = savedPanel ? [...savedPanel.slots] : Array(emptySlots).fill('');
-            const requestedMarkers = savedPanel ? { ...savedPanel.markers } : {};
-            const requestedWizard = savedPanel?.wizard ?? null;
-            const nextPayload = await fetchPanel(
-                nextCytometer,
-                savedPanel?.configuration || '',
-                requestedSlots.filter(Boolean),
-                true,
-            );
-            if (!nextPayload) return;
-            const availableSet = new Set(nextPayload.fluorophores.map(f => f.fluorophore));
-            const nextSlots = requestedSlots.map(fluor => (availableSet.has(fluor) ? fluor : ''));
-            const nextMarkers: Record<number, string> = {};
-            Object.entries(requestedMarkers).forEach(([key, val]) => {
-                const idx = parseInt(key, 10);
-                if (nextSlots[idx]) nextMarkers[idx] = val;
-            });
-            slotsRef.current = nextSlots;
-            setSlots(nextSlots);
-            setMarkers(nextMarkers);
-            setCytometerPanels(savedPanels);
-            localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
-            localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
-            setPayload(nextPayload);
-            setWizardState(requestedWizard);
-            setQueries({});
-            setActiveSlot(null);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not switch cytometer.');
-        }
-    };
-
-    const applyPayloadAvailability = (nextPayload: PanelPayload) => {
-        const availableSet = new Set(nextPayload.fluorophores.map(f => f.fluorophore));
-        const nextSlots = slotsRef.current.map(fluor => (availableSet.has(fluor) ? fluor : ''));
-        const nextMarkers: Record<number, string> = {};
-        Object.entries(markers).forEach(([key, val]) => {
-            const idx = parseInt(key, 10);
-            if (nextSlots[idx]) nextMarkers[idx] = val;
-        });
-        slotsRef.current = nextSlots;
-        setSlots(nextSlots);
-        setMarkers(nextMarkers);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
-        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
-        setPayload(nextPayload);
-    };
-
-    const changeConfiguration = async (nextConfiguration: string) => {
-        try {
-            const nextPayload = await fetchPanel(cytometer, nextConfiguration, slotsRef.current.filter(Boolean), true);
-            if (!nextPayload) return;
-            applyPayloadAvailability(nextPayload);
-            setWizardState(null);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not switch Aurora configuration.');
-        }
     };
 
     const filteredOptions = (slotIndex: number) => {
@@ -950,36 +886,6 @@ const PanelBuilder = ({
                     >
                         {sidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
                     </button>
-                    <div className="panel-sidebar-head">
-                        <UiSelect
-                            className="panel-sidebar-select"
-                            label="Cytometer"
-                            hideLabel
-                            value={cytometer}
-                            options={payload.libraries.map((library) => ({
-                                value: library.id,
-                                label: library.label,
-                            }))}
-                            onChange={(value) => void changeCytometer(value)}
-                            portalMenu
-                            menuClassName="panel-sidebar-select-menu"
-                        />
-                        {payload.configurations.length > 1 && (
-                            <UiSelect
-                                className="panel-sidebar-select configuration-sidebar-select"
-                                label="Detector configuration"
-                                hideLabel
-                                value={configuration}
-                                options={payload.configurations.map((config) => ({
-                                    value: config.id,
-                                    label: config.label,
-                                }))}
-                                onChange={(value) => void changeConfiguration(value)}
-                                portalMenu
-                                menuClassName="panel-sidebar-select-menu"
-                            />
-                        )}
-                    </div>
                     <div className="selector-list">
                         {slots.map((fluor, index) => {
                             const display = activeSlot === index ? (queries[index] ?? fluor) : fluor;
