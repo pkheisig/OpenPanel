@@ -1463,7 +1463,13 @@
   line-height: 1.5;
 }
 
-.wizard-template-overview a {
+.wizard-template-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.wizard-template-links a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1473,8 +1479,8 @@
   text-decoration: none;
 }
 
-.wizard-template-overview a:hover,
-.wizard-template-overview a:focus-visible {
+.wizard-template-links a:hover,
+.wizard-template-links a:focus-visible {
   text-decoration: underline;
   text-underline-offset: 3px;
   outline: none;

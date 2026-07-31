@@ -517,7 +517,11 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await templateDialog.getByRole('button', { name: 'Preview OMIP-069' }).click()
   await expect(page.getByRole('dialog', { name: 'OMIP-069' })).toBeVisible()
   await expect(page.locator('.wizard-template-table tbody tr')).toHaveCount(40)
-  await expect(page.getByRole('link', { name: 'View source paper' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Open OMIP database' })).toHaveAttribute(
+    'href',
+    'https://public.tableau.com/app/profile/fanny2212/viz/OMIP_ISAC/Menu',
+  )
+  await expect(page.getByRole('link', { name: 'View paper' })).toHaveAttribute(
     'href',
     'https://pmc.ncbi.nlm.nih.gov/articles/PMC8132182/',
   )
@@ -525,7 +529,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await templateDialog.getByRole('button', { name: 'Preview OMIP-077' }).click()
   await expect(page.getByRole('dialog', { name: 'OMIP-077' })).toBeVisible()
   await expect(page.locator('.wizard-template-table tbody tr')).toHaveCount(14)
-  await expect(page.getByRole('link', { name: 'View source paper' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'View paper' })).toHaveAttribute(
     'href',
     'https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/',
   )

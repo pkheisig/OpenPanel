@@ -23,6 +23,7 @@ import {
   DEFAULT_COEXPRESSION_CONTEXT,
   inferCoexpression,
   markerOptionsForPanel,
+  OMIP_DATABASE_URL,
   OMIP_TEMPLATES,
 } from './panelWizardKnowledge'
 import type {
@@ -1124,10 +1125,16 @@ export function PanelWizard({
                     <div className="wizard-template-overview">
                       <div>
                         <p>{templatePreview.summary}</p>
-                        <a href={templatePreview.sourceUrl} target="_blank" rel="noreferrer">
-                          View source paper
-                          <ExternalLink size={14} aria-hidden="true" />
-                        </a>
+                        <div className="wizard-template-links">
+                          <a href={OMIP_DATABASE_URL} target="_blank" rel="noreferrer">
+                            Open OMIP database
+                            <ExternalLink size={14} aria-hidden="true" />
+                          </a>
+                          <a href={templatePreview.sourceUrl} target="_blank" rel="noreferrer">
+                            View paper
+                            <ExternalLink size={14} aria-hidden="true" />
+                          </a>
+                        </div>
                       </div>
                       <dl>
                         <div>

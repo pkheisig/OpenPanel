@@ -326,6 +326,8 @@ export type OmipTemplate = {
   markers: OmipTemplateMarker[]
 }
 
+export const OMIP_DATABASE_URL = 'https://public.tableau.com/app/profile/fanny2212/viz/OMIP_ISAC/Menu'
+
 export const OMIP_TEMPLATES: OmipTemplate[] = [
   {
     id: 'omip-042',
