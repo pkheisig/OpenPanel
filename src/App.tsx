@@ -45,11 +45,13 @@ function preferredTheme(): 'light' | 'dark' {
 }
 
 function emptyProject(selection: PanelLaunchSelection): ProjectState {
+  const slots = selection.slots ? [...selection.slots] : Array(18).fill('')
+  const markers = selection.markers ? { ...selection.markers } : {}
   return {
     cytometer: selection.cytometer,
     configuration: selection.configuration,
-    slots: Array(18).fill(''),
-    markers: {},
+    slots,
+    markers,
     tab: 'panel',
     theme: preferredTheme(),
     sidebarWidth: 214,
@@ -60,8 +62,8 @@ function emptyProject(selection: PanelLaunchSelection): ProjectState {
     cytometerPanels: {
       [selection.cytometer]: {
         configuration: selection.configuration,
-        slots: Array(18).fill(''),
-        markers: {},
+        slots: [...slots],
+        markers: { ...markers },
         wizard: null,
       },
     },

@@ -26,6 +26,10 @@ type OmipLibraryProps = {
   availableFluorophores?: readonly string[]
   maxPanelSize?: number
   actionLabel?: string
+  actionDisabled?: boolean
+  compatibilityTitle?: string
+  compatibilityActionLabel?: string
+  activeWorkspaceDescription?: string
   activeCytometerLabel?: string
   activeConfigurationLabel?: string
 }
@@ -83,6 +87,10 @@ export function OmipLibrary({
   availableFluorophores,
   maxPanelSize,
   actionLabel = 'Apply to panel',
+  actionDisabled = false,
+  compatibilityTitle = 'Apply this panel anyway?',
+  compatibilityActionLabel = 'Apply anyway',
+  activeWorkspaceDescription = 'This project uses',
   activeCytometerLabel,
   activeConfigurationLabel = '',
 }: OmipLibraryProps) {
@@ -275,6 +283,7 @@ export function OmipLibrary({
                   type="button"
                   className="omip-library-primary"
                   onClick={applyPreview}
+                  disabled={actionDisabled}
                 >
                   {actionLabel}
                 </button>
@@ -373,11 +382,11 @@ export function OmipLibrary({
               aria-describedby="omip-compatibility-description"
             >
               <AlertTriangle size={24} aria-hidden="true" />
-              <h3 id="omip-compatibility-title">Apply this panel anyway?</h3>
+              <h3 id="omip-compatibility-title">{compatibilityTitle}</h3>
               <p id="omip-compatibility-description">
                 {pendingIncompatibleEntry.name} was designed for {pendingIncompatibleEntry.cytometers.join(' / ')}.
                 {activeCytometerLabel && (
-                  <> This project uses {activeCytometerLabel}{activeConfigurationLabel ? ` · ${activeConfigurationLabel}` : ''}.</>
+                  <> {activeWorkspaceDescription} {activeCytometerLabel}{activeConfigurationLabel ? ` · ${activeConfigurationLabel}` : ''}.</>
                 )}
                 {' '}Its published marker–color assignments may not perform as intended. Unsupported colors will remain unassigned. Proceed at your own risk.
               </p>
@@ -394,7 +403,7 @@ export function OmipLibrary({
                     if (template) onApplyTemplate?.(template)
                   }}
                 >
-                  Apply anyway
+                  {compatibilityActionLabel}
                 </button>
               </div>
             </section>

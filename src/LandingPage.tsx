@@ -22,6 +22,11 @@ import {
   resolveConfiguration,
 } from './spectralEngine'
 import type { PanelPayload } from './panelBuilderShared'
+import {
+  omipTemplateAssignmentsForPanel,
+  omipTemplateAssignmentsForPanelBestEffort,
+} from './panelWizardKnowledge'
+import type { OmipTemplate } from './panelWizardKnowledge'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
 import { OmipLibrary } from './OmipLibrary'
@@ -31,6 +36,8 @@ export type PanelLaunchSelection = {
   name: string
   cytometer: string
   configuration: string
+  slots?: string[]
+  markers?: Record<number, string>
 }
 
 type LandingPageProps = {
@@ -89,6 +96,8 @@ export function LandingPage({
   const [starting, setStarting] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [showOmipLibrary, setShowOmipLibrary] = useState(false)
+  const [omipPayload, setOmipPayload] = useState<PanelPayload | null>(null)
+  const [creatingFromOmip, setCreatingFromOmip] = useState(false)
   const [menu, setMenu] = useState<ProjectMenuState | null>(null)
   const [cytometer, setCytometer] = useState(() => storedCytometer(libraries[0].id))
   const configurations = useMemo(() => getSpectralPanelConfigurations(cytometer), [cytometer])
@@ -128,6 +137,19 @@ export function LandingPage({
     }
   }, [])
 
+  useEffect(() => {
+    if (!showOmipLibrary) return
+    let cancelled = false
+    void buildPanelPayload(cytometer, configuration).then((nextPayload) => {
+      if (!cancelled) setOmipPayload(nextPayload)
+    }).catch(() => {
+      if (!cancelled) setOmipPayload(null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [configuration, cytometer, showOmipLibrary])
+
   const startPanel = async () => {
     localStorage.setItem('spectreasy_cytometer', cytometer)
     localStorage.setItem('spectreasy_configuration', configuration)
@@ -136,6 +158,39 @@ export function LandingPage({
       await onStart({ name: panelName, cytometer, configuration })
     } finally {
       setStarting(false)
+    }
+  }
+
+  const startPanelFromOmip = async (template: OmipTemplate) => {
+    if (!omipPayload) return
+    const maxPanelSize = Math.min(omipPayload.fluorophores.length, omipPayload.detectors.length)
+    const availableFluorophores = omipPayload.fluorophores.map((item) => item.fluorophore)
+    const assignments = omipTemplateAssignmentsForPanel(
+      template,
+      availableFluorophores,
+      maxPanelSize,
+    ) ?? omipTemplateAssignmentsForPanelBestEffort(
+      template,
+      availableFluorophores,
+      maxPanelSize,
+    )
+    if (assignments.length === 0) return
+
+    localStorage.setItem('spectreasy_cytometer', cytometer)
+    localStorage.setItem('spectreasy_configuration', configuration)
+    setCreatingFromOmip(true)
+    try {
+      await onStart({
+        name: template.name,
+        cytometer,
+        configuration,
+        slots: assignments.map((assignment) => assignment.fluorophore),
+        markers: Object.fromEntries(
+          assignments.map((assignment, index) => [index, assignment.marker]),
+        ),
+      })
+    } finally {
+      setCreatingFromOmip(false)
     }
   }
 
@@ -181,10 +236,13 @@ export function LandingPage({
           <button
             type="button"
             className="launch-secondary-button"
-            onClick={() => setShowOmipLibrary(true)}
+            onClick={() => {
+              setOmipPayload(null)
+              setShowOmipLibrary(true)
+            }}
           >
             <BookOpen size={16} />
-            OMIP Library
+            Start from OMIP
           </button>
           <button
             type="button"
@@ -350,7 +408,22 @@ export function LandingPage({
       {showOmipLibrary && (
         <OmipLibrary
           theme={theme}
-          onClose={() => setShowOmipLibrary(false)}
+          availableFluorophores={omipPayload?.fluorophores.map((item) => item.fluorophore)}
+          maxPanelSize={omipPayload
+            ? Math.min(omipPayload.fluorophores.length, omipPayload.detectors.length)
+            : undefined}
+          activeCytometerLabel={libraries.find((library) => library.id === cytometer)?.label ?? cytometer}
+          activeConfigurationLabel={configurations.find((candidate) => candidate.id === configuration)?.label ?? configuration}
+          actionLabel={creatingFromOmip ? 'Creating panel…' : 'Create panel from OMIP'}
+          actionDisabled={!omipPayload || creatingFromOmip}
+          compatibilityTitle="Create this panel anyway?"
+          compatibilityActionLabel="Create anyway"
+          activeWorkspaceDescription="The selected setup uses"
+          onClose={() => {
+            setShowOmipLibrary(false)
+            setOmipPayload(null)
+          }}
+          onApplyTemplate={(template) => void startPanelFromOmip(template)}
         />
       )}
     </main>

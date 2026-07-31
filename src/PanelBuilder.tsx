@@ -1,17 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, BookOpen, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Trash2, Undo2, Upload, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Trash2, Undo2, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ClearPanelConfirmation } from './ClearPanelConfirmation';
 import { ModuleLoadingState } from './ModuleLoadingState';
-import { OmipLibrary } from './OmipLibrary';
 import { PanelWizard } from './PanelWizard';
 import type { WizardApplication } from './PanelWizard';
-import {
-    omipTemplateAssignmentsForPanel,
-    omipTemplateAssignmentsForPanelBestEffort,
-} from './panelWizardKnowledge';
-import type { OmipTemplate } from './panelWizardKnowledge';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
 import { openTextFile, projectJsonFilename, saveBlob } from './browserFiles';
@@ -123,7 +117,6 @@ const PanelBuilder = ({
     const [showClearConfirmation, setShowClearConfirmation] = useState(false);
     const [clearingPanel, setClearingPanel] = useState(false);
     const [showPanelWizard, setShowPanelWizard] = useState(false);
-    const [showOmipLibrary, setShowOmipLibrary] = useState(false);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
     const wizardStateRef = useRef(wizardState);
     const handleWizardStateChange = useCallback((state: WizardProjectState) => {
@@ -604,58 +597,6 @@ const PanelBuilder = ({
         await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
     };
 
-    const applyOmipTemplate = async (template: OmipTemplate) => {
-        const availableFluorophores = payload?.fluorophores.map(item => item.fluorophore) ?? [];
-        const assignments = omipTemplateAssignmentsForPanel(
-            template,
-            availableFluorophores,
-            Math.min(payload?.fluorophores.length ?? 0, payload?.detectors.length ?? 0),
-        );
-        const appliedAssignments = assignments ?? omipTemplateAssignmentsForPanelBestEffort(
-            template,
-            availableFluorophores,
-            Math.min(payload?.fluorophores.length ?? 0, payload?.detectors.length ?? 0),
-        );
-        if (appliedAssignments.length === 0) return;
-
-        recordPanelEdit();
-        const nextSlots = appliedAssignments.map(assignment => assignment.fluorophore);
-        const nextMarkers = Object.fromEntries(
-            appliedAssignments.map((assignment, index) => [index, assignment.marker]),
-        );
-        slotsRef.current = nextSlots;
-        markersRef.current = nextMarkers;
-        wizardStateRef.current = null;
-        setSlots(nextSlots);
-        setMarkers(nextMarkers);
-        setWizardState(null);
-        setQueries({});
-        setActiveSlot(null);
-        setShowOmipLibrary(false);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
-        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
-
-        await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((omipError) => {
-            throw omipError instanceof Error ? omipError : new Error('Could not apply the OMIP panel.');
-        });
-        const activeCytometer = getCytometerName(cytometer);
-        await persistProjectState({
-            ...projectState,
-            slots: nextSlots,
-            markers: nextMarkers,
-            wizard: null,
-            cytometerPanels: {
-                ...projectState.cytometerPanels,
-                [activeCytometer]: {
-                    configuration: getCytometerName(configuration),
-                    slots: nextSlots,
-                    markers: nextMarkers,
-                    wizard: null,
-                },
-            },
-        });
-    };
-
     const filteredOptions = (slotIndex: number) => {
         if (!payload) return [];
         const query = queries[slotIndex] ?? '';
@@ -973,15 +914,6 @@ const PanelBuilder = ({
                         <WandSparkles size={17} aria-hidden="true" />
                         <span>Panel wizard</span>
                     </button>
-                    <button
-                        type="button"
-                        className="export-button panel-omip-header-action"
-                        onClick={() => setShowOmipLibrary(true)}
-                        aria-label="Import from OMIP"
-                    >
-                        <BookOpen size={17} aria-hidden="true" />
-                        <span>Import from OMIP</span>
-                    </button>
                 </div>
                 <div className="panel-actions">
                     <div className="history-controls" role="group" aria-label="Edit history">
@@ -1281,19 +1213,6 @@ const PanelBuilder = ({
                         setShowPanelWizard(false);
                     }}
                     onApply={applyWizardRecommendations}
-                />
-            )}
-            {showOmipLibrary && (
-                <OmipLibrary
-                    theme={embedded && cockpitTheme ? cockpitTheme : theme}
-                    availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
-                    maxPanelSize={Math.min(payload.fluorophores.length, payload.detectors.length)}
-                    activeCytometerLabel={payload.libraries.find((item) => item.id === payload.cytometer)?.label ?? payload.cytometer}
-                    activeConfigurationLabel={selectedConfigurationLabel}
-                    onClose={() => setShowOmipLibrary(false)}
-                    onApplyTemplate={(template) => void applyOmipTemplate(template).catch((omipError) => {
-                        setError(omipError instanceof Error ? omipError.message : 'Could not apply the OMIP panel.');
-                    })}
                 />
             )}
             {showClearConfirmation && (
