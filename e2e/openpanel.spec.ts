@@ -197,6 +197,15 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(editorClearConfirmation).toContainText(
     'This clears every marker and color from the panel and sidebar. You can undo it from the editor header.',
   )
+  expect(await editorClearConfirmation.evaluate((dialog) => ({
+    title: getComputedStyle(dialog.querySelector('h3')!).fontSize,
+    description: getComputedStyle(dialog.querySelector('p')!).fontSize,
+    button: getComputedStyle(dialog.querySelector('button')!).fontSize,
+  }))).toEqual({
+    title: '24px',
+    description: '16.5px',
+    button: '15px',
+  })
   await editorClearConfirmation.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(16 colors)')
   await clearProjectPanel.click()

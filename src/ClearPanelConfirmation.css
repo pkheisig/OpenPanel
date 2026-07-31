@@ -23,13 +23,13 @@
 
 .clear-panel-confirm h3 {
   margin: 0 0 8px;
-  font-size: 16px;
+  font-size: 24px;
 }
 
 .clear-panel-confirm p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 16.5px;
   line-height: 1.55;
 }
 
@@ -46,7 +46,7 @@
   border: 1px solid var(--button-border);
   border-radius: 8px;
   font: inherit;
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 800;
   cursor: pointer;
 }
