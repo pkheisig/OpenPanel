@@ -40,15 +40,18 @@ const YEAR_OPTIONS = [
     .map((year) => ({ value: year, label: year })),
 ]
 
+const CELL_TYPE_OPTIONS = [
+  { value: 'all', label: 'All cell types' },
+  ...Array.from(new Set(OMIP_CATALOG.flatMap((entry) => entry.cellTypes)))
+    .sort((left, right) => left.localeCompare(right))
+    .map((cellType) => ({ value: cellType, label: cellType })),
+]
+
 const SPECIES_LABELS: Record<OmipCatalogEntry['species'], string> = {
   human: 'Human',
   mouse: 'Mouse',
   'non-human-primate': 'Non-human primate',
   other: 'Other',
-}
-
-function titleCase(value: string): string {
-  return value.replace(/^\w/, (letter) => letter.toLocaleUpperCase())
 }
 
 export function OmipLibrary({
@@ -62,12 +65,14 @@ export function OmipLibrary({
   const [query, setQuery] = useState('')
   const [species, setSpecies] = useState('all')
   const [year, setYear] = useState('all')
+  const [cellType, setCellType] = useState('all')
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     return OMIP_CATALOG.filter((entry) => (
       (species === 'all' || entry.species === species)
       && (year === 'all' || entry.year === year)
+      && (cellType === 'all' || entry.cellTypes.includes(cellType))
       && (
         !normalizedQuery
         || [
@@ -75,26 +80,28 @@ export function OmipLibrary({
           entry.summary,
           entry.year,
           entry.species,
+          ...entry.cellTypes,
           ...(entry.template?.markers.flatMap((marker) => [
             marker.name,
             marker.fluorophore ?? '',
-            marker.cellType ?? '',
           ]) ?? []),
         ].join(' ').toLocaleLowerCase().includes(normalizedQuery)
       )
     ))
-  }, [query, species, year])
+  }, [cellType, query, species, year])
 
   const filtersActive = Boolean(
     query.trim()
     || species !== 'all'
-    || year !== 'all',
+    || year !== 'all'
+    || cellType !== 'all',
   )
 
   const clearFilters = () => {
     setQuery('')
     setSpecies('all')
     setYear('all')
+    setCellType('all')
   }
 
   const exceedsWorkspace = Boolean(
@@ -163,6 +170,10 @@ export function OmipLibrary({
                     <dt>Markers</dt>
                     <dd>{preview.template?.markers.length ?? '—'}</dd>
                   </div>
+                  <div>
+                    <dt>Cell types</dt>
+                    <dd title={preview.cellTypes.join(', ')}>{preview.cellTypes.join(', ')}</dd>
+                  </div>
                 </dl>
               </div>
 
@@ -173,8 +184,6 @@ export function OmipLibrary({
                       <tr>
                         <th>Marker</th>
                         <th>Color</th>
-                        <th>Cell type</th>
-                        <th>Frequency</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -182,8 +191,6 @@ export function OmipLibrary({
                         <tr key={`${marker.name}-${index}`}>
                           <td><strong>{marker.name}</strong></td>
                           <td>{marker.fluorophore || 'Auto-select'}</td>
-                          <td>{marker.cellType || '—'}</td>
-                          <td>{titleCase(marker.frequency ?? 'medium')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -236,6 +243,15 @@ export function OmipLibrary({
                 value={species}
                 options={SPECIES_OPTIONS}
                 onChange={setSpecies}
+                portalMenu
+                menuClassName="omip-library-filter-menu"
+              />
+              <UiSelect
+                className="omip-library-filter"
+                label="Cell type"
+                value={cellType}
+                options={CELL_TYPE_OPTIONS}
+                onChange={setCellType}
                 portalMenu
                 menuClassName="omip-library-filter-menu"
               />

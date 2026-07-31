@@ -1,16 +1,15 @@
 import { inverse, Matrix } from 'ml-matrix'
 import { calculatePanelComplexity, calculateSimilarityMatrix } from './spectralEngine'
 import {
-  antigenDensityKey,
   fluorophoreBrightnessKey,
 } from './panelWizardReferences'
 import type { NumericRow, PanelPayload } from './panelBuilderShared'
 import type { WizardReferenceData } from './panelWizardReferences'
 
 export type CoexpressionLevel = 0 | 1 | 2 | 3 | 4
-export type MarkerFrequency = 'low' | 'medium' | 'high'
+export type AntigenDensity = 'low' | 'medium' | 'high'
 
-export const MARKER_FREQUENCY_SCORES: Record<MarkerFrequency, number> = {
+export const ANTIGEN_DENSITY_SCORES: Record<AntigenDensity, number> = {
   low: 20,
   medium: 55,
   high: 90,
@@ -20,8 +19,7 @@ export type WizardMarker = {
   id: string
   slotIndex: number
   name: string
-  cellType: string
-  frequency: MarkerFrequency
+  antigenDensity: AntigenDensity
   currentFluorophore: string
 }
 
@@ -31,7 +29,7 @@ export type WizardRecommendation = {
   markerId: string
   markerName: string
   slotIndex: number
-  frequency: MarkerFrequency
+  antigenDensity: AntigenDensity
   fluorophore: string
   brightnessLevel: number | null
   isExisting: boolean
@@ -48,7 +46,7 @@ export type WizardRecommendation = {
 
 export type WizardAlternative = Omit<
   WizardRecommendation,
-  'markerId' | 'markerName' | 'slotIndex' | 'frequency'
+  'markerId' | 'markerName' | 'slotIndex' | 'antigenDensity'
 >
 
 export type WizardPanelResult = {
@@ -246,15 +244,13 @@ export function coexpressionKey(leftId: string, rightId: string): string {
   return [leftId, rightId].sort().join('::')
 }
 
-export function markerFrequencyScore(frequency: MarkerFrequency): number {
-  return MARKER_FREQUENCY_SCORES[frequency]
+export function antigenDensityScore(density: AntigenDensity): number {
+  return ANTIGEN_DENSITY_SCORES[density]
 }
 
-function brightnessDemand(moleculesPerCell: number): number {
-  if (moleculesPerCell <= 5_000) return 5
-  if (moleculesPerCell <= 20_000) return 4
-  if (moleculesPerCell <= 75_000) return 3
-  if (moleculesPerCell <= 150_000) return 2
+function brightnessDemand(density: AntigenDensity): number {
+  if (density === 'low') return 5
+  if (density === 'medium') return 3
   return 1
 }
 
@@ -263,11 +259,10 @@ export function markerFluorophoreBrightnessScore(
   fluorophore: string,
   references?: WizardReferenceData,
 ): number | null {
-  if (!references || !marker.cellType.trim() || !marker.name.trim()) return null
-  const density = references.antigenDensityByContext[antigenDensityKey(marker.cellType, marker.name)]
+  if (!references) return null
   const brightness = references.brightnessByFluorophore[fluorophoreBrightnessKey(fluorophore)]
-  if (!Number.isFinite(density) || !Number.isFinite(brightness)) return null
-  const demand = brightnessDemand(density)
+  if (!Number.isFinite(brightness)) return null
+  const demand = brightnessDemand(marker.antigenDensity)
   const underpowered = Math.max(0, demand - brightness)
   const overpowered = Math.max(0, brightness - demand)
   return Math.round(clamp(100 - underpowered ** 2 * 22 - overpowered ** 2 * 5))
@@ -292,12 +287,9 @@ function brightnessCoverageRisk(
   if (!references) return 0
   const demands = markers
     .filter((marker) => !marker.currentFluorophore)
-    .map((marker) => ({
-      marker,
-      density: references.antigenDensityByContext[antigenDensityKey(marker.cellType, marker.name)],
-    }))
-    .filter(({ density }) => Number.isFinite(density))
-    .sort((left, right) => brightnessDemand(right.density) - brightnessDemand(left.density))
+    .sort((left, right) => (
+      brightnessDemand(right.antigenDensity) - brightnessDemand(left.antigenDensity)
+    ))
   const available = selection
     .filter((fluorophore) => !locked.includes(fluorophore))
     .map((fluorophore) => ({
@@ -308,7 +300,7 @@ function brightnessCoverageRisk(
     .sort((left, right) => right.brightness - left.brightness)
   const pairCount = Math.min(demands.length, available.length)
   if (pairCount === 0) return 0
-  return demands.slice(0, pairCount).reduce((sum, { marker }, index) => {
+  return demands.slice(0, pairCount).reduce((sum, marker, index) => {
     const score = markerFluorophoreBrightnessScore(marker, available[index].fluorophore, references)
     return sum + (score === null ? 0 : (100 - score) / 100)
   }, 0) / pairCount
@@ -628,7 +620,7 @@ function markerPriority(
     : others.reduce((sum, candidate) => (
       sum + (coexpression[coexpressionKey(marker.id, candidate.id)] ?? 2) / 4
     ), 0) / others.length
-  return markerFrequencyScore(marker.frequency) * 0.45 + burden * 55
+  return antigenDensityScore(marker.antigenDensity) * 0.45 + burden * 55
 }
 
 function recommendationRows(
@@ -691,7 +683,7 @@ function recommendationRows(
       markerId: marker.id,
       markerName: marker.name,
       slotIndex: marker.slotIndex,
-      frequency: marker.frequency,
+      antigenDensity: marker.antigenDensity,
       fluorophore,
       brightnessLevel: fluorophoreBrightnessLevel(fluorophore, references),
       isExisting: true,
@@ -725,11 +717,11 @@ function recommendationRows(
           if (!targetSpectrum || !assignedSpectrum) return sum
           const similarity = calculateSimilarityMatrix([targetSpectrum, assignedSpectrum])[0][1]
           const relationship = (coexpression[coexpressionKey(marker.id, assigned.marker.id)] ?? 2) / 4
-          const frequencyWeight = 0.5 + (
-            markerFrequencyScore(marker.frequency)
-            + markerFrequencyScore(assigned.marker.frequency)
+          const densityWeight = 0.5 + (
+            antigenDensityScore(marker.antigenDensity)
+            + antigenDensityScore(assigned.marker.antigenDensity)
           ) / 200
-          return sum + similarity * relationship * frequencyWeight
+          return sum + similarity * relationship * densityWeight
         }, 0)
         const brightnessScore = markerFluorophoreBrightnessScore(
           marker,
@@ -761,7 +753,7 @@ function recommendationRows(
       markerId: marker.id,
       markerName: marker.name,
       slotIndex: marker.slotIndex,
-      frequency: marker.frequency,
+      antigenDensity: marker.antigenDensity,
       fluorophore: dye.fluorophore,
       brightnessLevel: fluorophoreBrightnessLevel(dye.fluorophore, references),
       isExisting: false,

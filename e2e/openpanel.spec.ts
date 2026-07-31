@@ -541,6 +541,10 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(23)
   const templateSearch = templateDialog.getByRole('searchbox', { name: 'Search OMIP Library' })
   await expect(templateDialog.getByRole('combobox', { name: 'Method' })).toHaveCount(0)
+  await chooseOption(page, 'Cell type', 'Dendritic cells')
+  await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-102' })).toBeVisible()
+  await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-118' })).toHaveCount(0)
+  await chooseOption(page, 'Cell type', 'All cell types')
   await templateSearch.fill('OMIP-120')
   await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(1)
   await templateDialog.getByRole('button', { name: 'Preview OMIP-120' }).click()
@@ -577,8 +581,8 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
   await expect(panelSizeInput).toHaveValue('16')
   await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('Select marker')
-  await expect(page.getByRole('combobox', { name: 'Cell type for marker 1', exact: true })).toContainText('Select cell type')
   await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('Auto-select')
+  await expect(page.getByRole('combobox', { name: 'Antigen density for marker 1', exact: true })).toContainText('Medium')
   await expect(page.getByRole('combobox', { name: 'Color for marker 2' })).toContainText('Auto-select')
   await expect(recommendationsTab).toBeDisabled()
 
@@ -599,24 +603,10 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     await page.getByRole('searchbox', { name: 'Search or enter marker' }).fill(name)
     await page.getByRole('option', { name, exact: true }).click()
   }
-  await page.getByRole('combobox', { name: 'Cell type for marker 1' }).click()
-  const cellTypeSearch = page.getByRole('searchbox', { name: 'Search or enter cell type' })
-  await cellTypeSearch.fill('t')
-  const rankedCellTypes = await page.getByRole('option').allTextContents()
-  expect(rankedCellTypes.slice(0, 2).map((label) => label.trim())).toEqual([
-    'T cells',
-    'Tumor cells',
-  ])
-  await cellTypeSearch.fill('T cells')
-  await page.getByRole('option', { name: 'T cells', exact: true }).click()
-  await page.getByRole('combobox', { name: 'Cell type for marker 2' }).click()
-  await page.getByRole('searchbox', { name: 'Search or enter cell type' }).fill('Activated lymphocytes')
-  await page.getByRole('option', { name: 'Use “Activated lymphocytes”', exact: true }).click()
-  await expect(page.getByRole('combobox', { name: 'Cell type for marker 2' })).toContainText('Activated lymphocytes')
   const originalViewport = page.viewportSize()!
   await page.setViewportSize({ ...originalViewport, height: 600 })
   const wizardTopBeforeFrequencyMenu = await wizard.evaluate((dialog) => dialog.getBoundingClientRect().top)
-  const bottomFrequencyTrigger = page.getByRole('combobox', { name: 'Expected positive frequency for marker 6' })
+  const bottomFrequencyTrigger = page.getByRole('combobox', { name: 'Antigen density for marker 6' })
   const bottomFrequencyTriggerBox = await bottomFrequencyTrigger.boundingBox()
   await bottomFrequencyTrigger.click()
   const frequencyMenu = page.locator('.wizard-frequency-select-menu.is-portal')
@@ -634,7 +624,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   )) - wizardTopBeforeFrequencyMenu)).toBeLessThan(1)
   await page.getByRole('option', { name: 'Medium', exact: true }).click()
   await page.setViewportSize(originalViewport)
-  await chooseOption(page, 'Expected positive frequency for marker 1', 'High')
+  await chooseOption(page, 'Antigen density for marker 1', 'High')
   const wizardTopBeforeColorMenu = await wizard.evaluate((dialog) => dialog.getBoundingClientRect().top)
   await page.getByRole('combobox', { name: 'Color for marker 2' }).click()
   expect(await page.evaluate(() => window.scrollY)).toBe(0)
@@ -663,7 +653,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(page.getByRole('option', { name: /^Zombie / })).toHaveCount(7)
   await page.getByRole('combobox', { name: 'Color for marker 6' }).click()
   await expect(page.getByLabel('Marker setup complete')).toBeVisible()
-  await expect(page.locator('.frequency-table thead th')).toHaveCount(4)
+  await expect(page.locator('.frequency-table thead th')).toHaveCount(3)
   expect(await page.locator('.frequency-table').evaluate((table) => table.getBoundingClientRect().width)).toBeLessThan(1100)
   expect(await page.getByRole('button', { name: /Marker setup/ }).evaluate((button) => (
     getComputedStyle(button).transitionDuration
@@ -733,7 +723,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     Number.parseFloat(getComputedStyle(tooltip).fontSize)
   ))).toBeGreaterThanOrEqual(16)
   await page.getByRole('button', { name: 'About panel wizard calculations' }).focus()
-  await expect(page.getByRole('tooltip').filter({ hasText: 'prioritize co-expressed' })).toBeVisible()
+  await expect(page.getByRole('tooltip').filter({ hasText: 'use antigen density' })).toBeVisible()
   await expect(page.locator('.wizard-alternatives')).toContainText('Other fluorophores')
   await page.locator('.wizard-alternatives summary').click()
   const primaryHeaders = await primaryRecommendations.locator('thead th').allTextContents()
@@ -758,7 +748,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   const wizardProject = JSON.parse(wizardProjectText) as {
     wizard: {
       desiredSize: number
-      markers: Array<{ name: string; cellType: string; frequency: string; currentFluorophore: string }>
+      markers: Array<{ name: string; antigenDensity: string; currentFluorophore: string }>
       coexpression: Record<string, number>
       coexpressionVisited: boolean
       coexpressionCompleted: boolean
@@ -771,12 +761,11 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   expect(wizardProject.wizard.desiredSize).toBe(6)
   expect(wizardProject.wizard.markers[0]).toMatchObject({
     name: 'CD3',
-    cellType: 'T cells',
-    frequency: 'high',
+    antigenDensity: 'high',
     currentFluorophore: '',
   })
   expect(wizardProject.wizard.markers[1]).toMatchObject({
-    cellType: 'Activated lymphocytes',
+    antigenDensity: 'medium',
     currentFluorophore: 'FITC',
   })
   expect(wizardProject.wizard.coexpression['marker-0::marker-1']).toBe(3)

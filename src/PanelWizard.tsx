@@ -28,13 +28,13 @@ import type {
 } from './panelWizardKnowledge'
 import {
   coexpressionKey,
+  antigenDensityScore,
   generateWizardResults,
   isWizardFluorophoreAllowed,
-  markerFrequencyScore,
 } from './panelWizardEngine'
 import type {
+  AntigenDensity,
   CoexpressionLevel,
-  MarkerFrequency,
   WizardMarker,
   WizardPanelResult,
   WizardProjectState,
@@ -90,40 +90,13 @@ const SORT_OPTIONS = [
   { value: 'availability', label: 'Availability' },
   { value: 'similarity', label: 'Lowest similarity' },
   { value: 'complexity', label: 'Lowest complexity impact' },
-  { value: 'marker', label: 'Marker frequency' },
+  { value: 'marker', label: 'Antigen density' },
 ]
 
-const FREQUENCY_OPTIONS = [
+const ANTIGEN_DENSITY_OPTIONS = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
-]
-
-const CELL_TYPE_OPTIONS = [
-  { value: '', label: 'Select cell type' },
-  { value: 'T cells', label: 'T cells' },
-  { value: 'CD4 T cells', label: 'CD4 T cells' },
-  { value: 'CD8 T cells', label: 'CD8 T cells' },
-  { value: 'Regulatory T cells', label: 'Regulatory T cells' },
-  { value: 'B cells', label: 'B cells' },
-  { value: 'Plasma cells', label: 'Plasma cells' },
-  { value: 'NK cells', label: 'NK cells' },
-  { value: 'NKT cells', label: 'NKT cells' },
-  { value: 'Monocytes', label: 'Monocytes' },
-  { value: 'Macrophages', label: 'Macrophages' },
-  { value: 'Dendritic cells', label: 'Dendritic cells' },
-  { value: 'Neutrophils', label: 'Neutrophils' },
-  { value: 'Eosinophils', label: 'Eosinophils' },
-  { value: 'Basophils', label: 'Basophils' },
-  { value: 'Mast cells', label: 'Mast cells' },
-  { value: 'Platelets', label: 'Platelets' },
-  { value: 'Red blood cells', label: 'Red blood cells' },
-  { value: 'Hematopoietic stem/progenitor cells', label: 'Hematopoietic stem/progenitor cells' },
-  { value: 'Tumor cells', label: 'Tumor cells' },
-  { value: 'Fibroblasts', label: 'Fibroblasts' },
-  { value: 'Endothelial cells', label: 'Endothelial cells' },
-  { value: 'Epithelial cells', label: 'Epithelial cells' },
-  { value: 'Stromal cells', label: 'Stromal cells' },
 ]
 
 const SPECIES_OPTIONS = [
@@ -206,8 +179,7 @@ function initialMarkerSettings(
       id: `marker-${slotIndex}`,
       slotIndex,
       name,
-      cellType: '',
-      frequency: 'medium',
+      antigenDensity: 'medium',
       currentFluorophore: name
         && currentFluorophore
         && !isWizardFluorophoreAllowed(currentFluorophore, name)
@@ -265,7 +237,9 @@ function sortRows(rows: WizardRecommendation[], sort: WizardResultSort): WizardR
     if (sort === 'availability') return right.availabilityScore - left.availabilityScore
     if (sort === 'similarity') return left.maxSimilarity - right.maxSimilarity
     if (sort === 'complexity') return left.complexityDelta - right.complexityDelta
-    if (sort === 'marker') return markerFrequencyScore(right.frequency) - markerFrequencyScore(left.frequency)
+    if (sort === 'marker') {
+      return antigenDensityScore(right.antigenDensity) - antigenDensityScore(left.antigenDensity)
+    }
     return right.recommendedScore - left.recommendedScore
   })
 }
@@ -316,8 +290,7 @@ export function PanelWizard({
           id: `marker-${slotIndex}`,
           slotIndex,
           name,
-          cellType: templateMarker?.cellType ?? '',
-          frequency: templateMarker?.frequency ?? 'medium',
+          antigenDensity: 'medium',
           currentFluorophore,
         } satisfies WizardMarker
       })
@@ -366,10 +339,10 @@ export function PanelWizard({
   const [dialog, setDialog] = useState<'coexpression' | null>(null)
   const [markerReferenceOptions, setMarkerReferenceOptions] = useState(MARKER_OPTIONS)
 
-  const frequencyReady = desiredSize > 0
+  const setupReady = desiredSize > 0
     && markers.length === desiredSize
-    && markers.every((marker) => marker.name.trim() && marker.frequency)
-  const recommendationsUnlocked = frequencyReady && coexpressionVisited
+    && markers.every((marker) => marker.name.trim() && marker.antigenDensity)
+  const recommendationsUnlocked = setupReady && coexpressionVisited
   const activeResult: WizardPanelResult | null = results
     ? (resultMode === 'recommended' ? results.recommended : results.bestFit)
     : null
@@ -451,8 +424,7 @@ export function PanelWizard({
             id: `marker-${slotIndex}`,
             slotIndex,
             name: '',
-            cellType: '',
-            frequency: 'medium',
+            antigenDensity: 'medium',
             currentFluorophore: slots[slotIndex] || '',
           })
           usedIndices.add(slotIndex)
@@ -519,11 +491,10 @@ export function PanelWizard({
   }
 
   const markerOptions = (markerId: string) => {
-    const selectedMarker = markers.find((marker) => marker.id === markerId)
     return [
       { value: '', label: 'Select marker' },
       ...markerOptionsForPanel(
-        selectedMarker?.cellType ?? '',
+        coexpressionContext.population,
         markers.filter((marker) => marker.id !== markerId).map((marker) => marker.name),
         coexpressionContext.species,
         markerReferenceOptions,
@@ -661,7 +632,7 @@ export function PanelWizard({
                 <Info size={18} />
               </button>
               <div className="wizard-info-popover" id="wizard-methodology" role="tooltip">
-                Marker-to-color assignments prioritize co-expressed, frequently positive markers for spectrally cleaner colors.
+                Marker-to-color assignments use antigen density, fluorophore brightness, co-expression, spectral overlap, and availability.
               </div>
             </div>
             <button type="button" className="wizard-close" onClick={onClose} aria-label="Close panel wizard">
@@ -678,7 +649,7 @@ export function PanelWizard({
           >
             <span>1</span>
             Marker setup
-            {frequencyReady && <Check size={15} aria-label="Marker setup complete" />}
+            {setupReady && <Check size={15} aria-label="Marker setup complete" />}
           </button>
           <button
             type="button"
@@ -724,9 +695,8 @@ export function PanelWizard({
                   <thead>
                     <tr>
                       <th>Marker</th>
-                      <th>Cell type</th>
                       <th>Color</th>
-                      <th>Expected positive frequency</th>
+                      <th>Antigen density</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -749,21 +719,6 @@ export function PanelWizard({
                         </td>
                         <td>
                           <UiSelect
-                            className="wizard-cell-type-select"
-                            label={`Cell type for marker ${index + 1}`}
-                            hideLabel
-                            value={marker.cellType}
-                            options={CELL_TYPE_OPTIONS}
-                            onChange={(value) => updateMarker(marker.id, { cellType: value })}
-                            searchable
-                            searchPlaceholder="Search or enter cell type"
-                            portalMenu
-                            menuClassName="wizard-cell-type-select-menu"
-                            allowCustomValue
-                          />
-                        </td>
-                        <td>
-                          <UiSelect
                             className="wizard-color-select"
                             label={`Color for marker ${index + 1}`}
                             hideLabel
@@ -779,11 +734,11 @@ export function PanelWizard({
                         <td>
                           <UiSelect
                             className="wizard-frequency-select"
-                            label={`Expected positive frequency for marker ${index + 1}`}
+                            label={`Antigen density for marker ${index + 1}`}
                             hideLabel
-                            value={marker.frequency}
-                            options={FREQUENCY_OPTIONS}
-                            onChange={(value) => updateMarker(marker.id, { frequency: value as MarkerFrequency })}
+                            value={marker.antigenDensity}
+                            options={ANTIGEN_DENSITY_OPTIONS}
+                            onChange={(value) => updateMarker(marker.id, { antigenDensity: value as AntigenDensity })}
                             portalMenu
                             menuClassName="wizard-frequency-select-menu"
                           />

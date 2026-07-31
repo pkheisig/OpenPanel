@@ -11,8 +11,8 @@ import type { WizardProjectState } from '../src/panelWizardEngine'
 const wizard: WizardProjectState = {
   desiredSize: 2,
   markers: [
-    { id: 'marker-0', slotIndex: 0, name: 'CD3', cellType: 'T cells', frequency: 'high', currentFluorophore: 'Alexa Fluor 488' },
-    { id: 'marker-1', slotIndex: 1, name: 'CD19', cellType: 'B cells', frequency: 'low', currentFluorophore: 'Alexa Fluor 647' },
+    { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'high', currentFluorophore: 'Alexa Fluor 488' },
+    { id: 'marker-1', slotIndex: 1, name: 'CD19', antigenDensity: 'low', currentFluorophore: 'Alexa Fluor 647' },
   ],
   coexpression: { 'marker-0::marker-1': 2 },
   coexpressionVisited: true,
@@ -137,6 +137,31 @@ describe('OpenPanel project files', () => {
     const migrated = parseProject(JSON.stringify(legacyName))
     expect(migrated.slots[0]).toBe('LIVE DEAD NIR')
     expect(migrated.wizard?.markers[0].currentFluorophore).toBe('LIVE DEAD NIR')
+  })
+
+  test('migrates former frequency and cell-type marker settings to antigen density', () => {
+    const legacy = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    legacy.wizard = {
+      ...wizard,
+      markers: [{
+        id: 'marker-0',
+        slotIndex: 0,
+        name: 'CD3',
+        cellType: 'T cells',
+        frequency: 'high',
+        currentFluorophore: 'PE',
+      }],
+      desiredSize: 1,
+    }
+    delete legacy.cytometerPanels
+
+    expect(parseProject(JSON.stringify(legacy)).wizard?.markers).toEqual([{
+      id: 'marker-0',
+      slotIndex: 0,
+      name: 'CD3',
+      antigenDensity: 'high',
+      currentFluorophore: 'PE',
+    }])
   })
 
   test('rejects unrelated and future project formats', () => {

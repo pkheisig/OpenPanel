@@ -1,7 +1,6 @@
 import { coexpressionKey } from './panelWizardEngine'
 import type {
   CoexpressionLevel,
-  MarkerFrequency,
   WizardMarker,
 } from './panelWizardEngine'
 import { OMIP_CATALOG_RECORDS } from './omipCatalog'
@@ -275,26 +274,22 @@ function normalizeMarkerName(name: string): string {
   return aliases[normalized] ?? normalized
 }
 
-const CELL_TYPE_MARKERS: Array<[RegExp, string[]]> = [
-  [/regulatory t/i, ['CD3', 'CD4', 'CD25', 'CD127', 'FoxP3', 'CTLA-4']],
-  [/(?:cd4 )?t cells?/i, ['CD3', 'CD4', 'CD8', 'CD25', 'CD27', 'CD28', 'CD45RA', 'CD45RO', 'CD62L', 'CCR7', 'PD-1']],
-  [/b cells?|plasma/i, ['CD19', 'CD20', 'CD21', 'CD22', 'CD27', 'CD38', 'CD138', 'HLA-DR', 'IgD', 'IgM']],
-  [/nk|nkt/i, ['CD3', 'CD16', 'CD56', 'CD57', 'CD94', 'CD107a', 'Granzyme B', 'Perforin']],
-  [/mono|macrophage/i, ['CD11b', 'CD14', 'CD16', 'CD33', 'CD36', 'CD45', 'CD64', 'CD88', 'CD163', 'CD206', 'HLA-DR']],
-  [/dendritic/i, ['CD1c', 'CD11c', 'CD123', 'CD141', 'CD304', 'HLA-DR']],
-  [/neutrophil|eosinophil|basophil/i, ['CD11b', 'CD15', 'CD16', 'CD45', 'CD66b', 'CCR3']],
-  [/tumor|epithelial/i, ['EpCAM', 'CD47', 'CD54', 'CD71', 'PD-L1', 'Vimentin']],
-  [/fibroblast|stromal/i, ['CD90', 'CD105', 'CD146', 'CD271', 'Vimentin']],
-]
+const POPULATION_MARKERS: Partial<Record<CoexpressionContext['population'], string[]>> = {
+  't-cells': ['CD3', 'CD4', 'CD8', 'CD25', 'CD27', 'CD28', 'CD45RA', 'CD45RO', 'CD62L', 'CCR7', 'PD-1'],
+  'b-cells': ['CD19', 'CD20', 'CD21', 'CD22', 'CD27', 'CD38', 'CD138', 'HLA-DR', 'IgD', 'IgM'],
+  'nk-cells': ['CD3', 'CD16', 'CD56', 'CD57', 'CD94', 'CD107a', 'Granzyme B', 'Perforin'],
+  myeloid: ['CD1c', 'CD11b', 'CD11c', 'CD14', 'CD16', 'CD33', 'CD64', 'CD123', 'CD141', 'HLA-DR'],
+  'tumor-stroma': ['EpCAM', 'CD47', 'CD54', 'CD71', 'PD-L1', 'CD90', 'CD105', 'CD146', 'Vimentin'],
+}
 
 export function markerOptionsForPanel(
-  cellType: string,
+  population: CoexpressionContext['population'],
   selectedNames: string[],
   species: CoexpressionContext['species'],
   options: UiSelectOption[] = MARKER_OPTIONS,
 ): UiSelectOption[] {
   const contextual = new Set(
-    CELL_TYPE_MARKERS.find(([pattern]) => pattern.test(cellType))?.[1].map(normalizeMarkerName) ?? [],
+    (POPULATION_MARKERS[population] ?? []).map(normalizeMarkerName),
   )
   if (species === 'mouse') contextual.add('B220')
   const selected = new Set(selectedNames.map(normalizeMarkerName))
@@ -359,8 +354,6 @@ export function inferCoexpression(
 export type OmipTemplateMarker = {
   name: string
   fluorophore?: string
-  cellType?: string
-  frequency?: MarkerFrequency
 }
 
 export type OmipTemplate = {
@@ -378,6 +371,7 @@ export type OmipCatalogEntry = {
   summary: string
   year: string
   species: 'human' | 'mouse' | 'non-human-primate' | 'other'
+  cellTypes: string[]
   method: 'spectral' | 'mass' | 'imaging' | 'conventional'
   sourceUrl: string
   template: OmipTemplate | null
@@ -385,7 +379,9 @@ export type OmipCatalogEntry = {
 
 export const OMIP_DATABASE_URL = 'https://isac-net.org/omip-and-flow-repository-database/'
 
-const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
+type LegacyOmipMetadata = Omit<OmipTemplate, 'markers'>
+
+const LEGACY_OMIP_METADATA: LegacyOmipMetadata[] = [
   {
     id: 'omip-042',
     name: 'OMIP-042',
@@ -397,29 +393,6 @@ const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
       population: 'all',
       condition: 'baseline',
     },
-    markers: [
-      { name: 'CD14', fluorophore: 'BUV395', cellType: 'Monocytes' },
-      { name: 'Live/Dead', frequency: 'low' },
-      { name: 'CD16', fluorophore: 'BUV496', cellType: 'Monocytes' },
-      { name: 'HLA-DR', fluorophore: 'BUV661' },
-      { name: 'CD56', fluorophore: 'BUV737', cellType: 'NK cells' },
-      { name: 'CD38', fluorophore: 'BV421' },
-      { name: 'CD20', fluorophore: 'BV450', cellType: 'B cells' },
-      { name: 'CD4', fluorophore: 'BV510', cellType: 'CD4 T cells' },
-      { name: 'CCR4', fluorophore: 'BV605', cellType: 'T cells' },
-      { name: 'CD8', fluorophore: 'BV650', cellType: 'CD8 T cells' },
-      { name: 'CD25', fluorophore: 'BV711', cellType: 'Regulatory T cells' },
-      { name: 'CCR6', fluorophore: 'BV785', cellType: 'T cells' },
-      { name: 'CD3', fluorophore: 'Alexa Fluor 488', cellType: 'T cells', frequency: 'high' },
-      { name: 'CD45RA', fluorophore: 'PerCP-Cy5.5', cellType: 'T cells' },
-      { name: 'CXCR3', fluorophore: 'PE', cellType: 'T cells' },
-      { name: 'CCR7', fluorophore: 'PE-CF594', cellType: 'T cells' },
-      { name: 'CD11c', fluorophore: 'PE-Cy5', cellType: 'Dendritic cells' },
-      { name: 'CXCR5', fluorophore: 'PE-Cy7', cellType: 'T cells' },
-      { name: 'CCR10', fluorophore: 'APC', cellType: 'T cells', frequency: 'low' },
-      { name: 'CD123', fluorophore: 'Alexa Fluor 700', cellType: 'Dendritic cells' },
-      { name: 'CD127', fluorophore: 'APC-eFluor 780', cellType: 'T cells' },
-    ],
   },
   {
     id: 'omip-051',
@@ -432,36 +405,6 @@ const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
       population: 'all',
       condition: 'baseline',
     },
-    markers: [
-      { name: 'CD19', fluorophore: 'APC-H7', cellType: 'B cells', frequency: 'high' },
-      { name: 'CD20', fluorophore: 'BUV805', cellType: 'B cells' },
-      { name: 'CD141', fluorophore: 'BB630', cellType: 'Dendritic cells', frequency: 'low' },
-      { name: 'CD123', fluorophore: 'BB660', cellType: 'Dendritic cells' },
-      { name: 'CD11c', fluorophore: 'PE-Cy5.5', cellType: 'Dendritic cells' },
-      { name: 'CD1c', fluorophore: 'BUV395', cellType: 'Dendritic cells' },
-      { name: 'HLA-DR', fluorophore: 'BUV661' },
-      { name: 'CD14', fluorophore: 'BV510', cellType: 'Monocytes' },
-      { name: 'CD27', fluorophore: 'APC-R700', cellType: 'B cells' },
-      { name: 'IgA', fluorophore: 'APC', cellType: 'B cells' },
-      { name: 'IgD', fluorophore: 'BB790', cellType: 'B cells' },
-      { name: 'CD21', fluorophore: 'BUV496', cellType: 'B cells' },
-      { name: 'IgG', fluorophore: 'BUV737', cellType: 'B cells' },
-      { name: 'IgM', fluorophore: 'BV570', cellType: 'B cells' },
-      { name: 'CD10', fluorophore: 'BV650', cellType: 'B cells' },
-      { name: 'CD23', fluorophore: 'BV711', cellType: 'B cells' },
-      { name: 'CD16', fluorophore: 'BB700', cellType: 'Monocytes' },
-      { name: 'CD32', fluorophore: 'PE' },
-      { name: 'CD64', fluorophore: 'BV786', cellType: 'Monocytes' },
-      { name: 'CD73', fluorophore: 'BB515', cellType: 'B cells' },
-      { name: 'CD85j', fluorophore: 'PE-Cy5' },
-      { name: 'CD40', fluorophore: 'PE-Dazzle 594', cellType: 'B cells' },
-      { name: 'TACI', fluorophore: 'BUV563', cellType: 'B cells' },
-      { name: 'IL-21R', fluorophore: 'BV421', cellType: 'B cells' },
-      { name: 'BAFF-R', fluorophore: 'BV605', cellType: 'B cells' },
-      { name: 'CXCR3', fluorophore: 'PE-Cy7', cellType: 'B cells' },
-      { name: 'CXCR5', fluorophore: 'BV750', cellType: 'B cells' },
-      { name: 'Live/Dead', fluorophore: 'LIVE DEAD Blue', frequency: 'low' },
-    ],
   },
   {
     id: 'omip-069',
@@ -474,48 +417,6 @@ const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
       population: 'all',
       condition: 'baseline',
     },
-    markers: [
-      { name: 'Live/Dead', fluorophore: 'LIVE DEAD Blue', frequency: 'low' },
-      { name: 'CD45', fluorophore: 'PerCP', frequency: 'high' },
-      { name: 'CD3', fluorophore: 'BV510', cellType: 'T cells', frequency: 'high' },
-      { name: 'CD4', fluorophore: 'cFluor YG584', cellType: 'CD4 T cells' },
-      { name: 'CD8', fluorophore: 'BUV805', cellType: 'CD8 T cells' },
-      { name: 'CD25', fluorophore: 'PE-Alexa Fluor 700', cellType: 'Regulatory T cells' },
-      { name: 'TCR γ/δ', fluorophore: 'PerCP-eFluor 710', cellType: 'T cells', frequency: 'low' },
-      { name: 'CD14', fluorophore: 'Spark Blue 550', cellType: 'Monocytes' },
-      { name: 'CD16', fluorophore: 'BUV496', cellType: 'Monocytes' },
-      { name: 'CD11c', fluorophore: 'eFluor 450', cellType: 'Dendritic cells' },
-      { name: 'CD19', fluorophore: 'Spark NIR 685', cellType: 'B cells' },
-      { name: 'CD20', fluorophore: 'Pacific Orange', cellType: 'B cells' },
-      { name: 'CD24', fluorophore: 'PE-Alexa Fluor 610', cellType: 'B cells' },
-      { name: 'CD39', fluorophore: 'BUV661' },
-      { name: 'IgD', fluorophore: 'BV480', cellType: 'B cells' },
-      { name: 'IgG', fluorophore: 'BV605', cellType: 'B cells' },
-      { name: 'IgM', fluorophore: 'BV570', cellType: 'B cells' },
-      { name: 'CD141', fluorophore: 'BB515', cellType: 'Dendritic cells' },
-      { name: 'CD1c', fluorophore: 'Alexa Fluor 647', cellType: 'Dendritic cells' },
-      { name: 'CD123', fluorophore: 'Super Bright 436', cellType: 'Dendritic cells' },
-      { name: 'CD2', fluorophore: 'PerCP-Cy5.5', cellType: 'T cells' },
-      { name: 'CD56', fluorophore: 'BUV737', cellType: 'NK cells' },
-      { name: 'CCR7', fluorophore: 'BV421', cellType: 'T cells' },
-      { name: 'CD27', fluorophore: 'APC-H7' },
-      { name: 'CD28', fluorophore: 'BV650', cellType: 'T cells' },
-      { name: 'CD45RA', fluorophore: 'BUV395', cellType: 'T cells' },
-      { name: 'CD95', fluorophore: 'PE-Cy5', cellType: 'T cells' },
-      { name: 'CD127', fluorophore: 'APC-R700', cellType: 'T cells' },
-      { name: 'CD337', fluorophore: 'PE-Dazzle 594', cellType: 'NK cells' },
-      { name: 'CCR6', fluorophore: 'BV711', cellType: 'T cells' },
-      { name: 'CCR5', fluorophore: 'BUV563', cellType: 'T cells' },
-      { name: 'CXCR5', fluorophore: 'BV750', cellType: 'T cells' },
-      { name: 'CXCR3', fluorophore: 'PE-Cy7', cellType: 'T cells' },
-      { name: 'HLA-DR', fluorophore: 'PE-Fire 810' },
-      { name: 'CD38', fluorophore: 'APC-Fire 810' },
-      { name: 'CD57', fluorophore: 'FITC' },
-      { name: 'PD-1', fluorophore: 'BV785', cellType: 'T cells' },
-      { name: 'CD159a', fluorophore: 'APC', cellType: 'NK cells' },
-      { name: 'CD159c', fluorophore: 'PE', cellType: 'NK cells' },
-      { name: 'CD314', fluorophore: 'BUV615', cellType: 'NK cells' },
-    ],
   },
   {
     id: 'omip-077',
@@ -528,22 +429,6 @@ const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
       population: 'myeloid',
       condition: 'baseline',
     },
-    markers: [
-      { name: 'CD1c', fluorophore: 'PE', cellType: 'Dendritic cells' },
-      { name: 'CD3', fluorophore: 'BV605', cellType: 'T cells', frequency: 'high' },
-      { name: 'CD14', fluorophore: 'BV711', cellType: 'Monocytes' },
-      { name: 'CD15', fluorophore: 'PerCP-Cy5.5', cellType: 'Neutrophils' },
-      { name: 'CD16', cellType: 'Monocytes' },
-      { name: 'CD19', fluorophore: 'APC-R700', cellType: 'B cells' },
-      { name: 'CD34', fluorophore: 'FITC', cellType: 'Hematopoietic stem/progenitor cells', frequency: 'low' },
-      { name: 'CD38', fluorophore: 'BV421' },
-      { name: 'CD45', fluorophore: 'BV480', frequency: 'high' },
-      { name: 'CD56', fluorophore: 'PE-Cy7', cellType: 'NK cells' },
-      { name: 'CD123', fluorophore: 'BV650', cellType: 'Dendritic cells' },
-      { name: 'CD141', fluorophore: 'APC', cellType: 'Dendritic cells', frequency: 'low' },
-      { name: 'CCR3', fluorophore: 'PE-CF594', cellType: 'Eosinophils' },
-      { name: 'HLA-DR', fluorophore: 'BV786' },
-    ],
   },
   {
     id: 'omip-090',
@@ -556,26 +441,6 @@ const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
       population: 't-cells',
       condition: 'baseline',
     },
-    markers: [
-      { name: 'CD3', fluorophore: 'Alexa Fluor 700', cellType: 'T cells', frequency: 'high' },
-      { name: 'CD4', fluorophore: 'BUV395', cellType: 'CD4 T cells', frequency: 'high' },
-      { name: 'CD25', fluorophore: 'PE-CF594', cellType: 'Regulatory T cells' },
-      { name: 'CD127', fluorophore: 'BV786', cellType: 'T cells' },
-      { name: 'CD45RA', fluorophore: 'BUV496', cellType: 'T cells' },
-      { name: 'CD28', fluorophore: 'BV711', cellType: 'T cells' },
-      { name: 'CD95', fluorophore: 'BUV737', cellType: 'T cells' },
-      { name: 'CCR3', fluorophore: 'BV510', cellType: 'T cells', frequency: 'low' },
-      { name: 'CCR4', fluorophore: 'BV605', cellType: 'T cells' },
-      { name: 'CCR5', fluorophore: 'PE-Cy7', cellType: 'T cells' },
-      { name: 'CCR6', fluorophore: 'APC', cellType: 'T cells' },
-      { name: 'CCR7', fluorophore: 'BV421', cellType: 'T cells' },
-      { name: 'CCR10', fluorophore: 'PerCP-Cy5.5', cellType: 'T cells', frequency: 'low' },
-      { name: 'CXCR3', fluorophore: 'PE-Cy5', cellType: 'T cells' },
-      { name: 'CXCR5', fluorophore: 'PE', cellType: 'T cells' },
-      { name: 'Integrin β7', fluorophore: 'BV650', cellType: 'T cells' },
-      { name: 'CLA', fluorophore: 'FITC', cellType: 'T cells' },
-      { name: 'Live/Dead', fluorophore: 'LIVE DEAD NIR', frequency: 'low' },
-    ],
   },
   {
     id: 'omip-101',
@@ -588,40 +453,11 @@ const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
       population: 'all',
       condition: 'baseline',
     },
-    markers: [
-      { name: 'CD45', fluorophore: 'BV785', frequency: 'high' },
-      { name: 'CD66b', fluorophore: 'BV750', cellType: 'Neutrophils' },
-      { name: 'CD33', fluorophore: 'PE-Cy5', cellType: 'Monocytes' },
-      { name: 'CD14', fluorophore: 'BB660', cellType: 'Monocytes' },
-      { name: 'CD11c', fluorophore: 'BUV661', cellType: 'Dendritic cells' },
-      { name: 'CD19', fluorophore: 'R718', cellType: 'B cells' },
-      { name: 'CD56', fluorophore: 'BV711', cellType: 'NK cells' },
-      { name: 'CD127', fluorophore: 'PE-Cy5.5', cellType: 'T cells' },
-      { name: 'CD3', fluorophore: 'BUV496', cellType: 'T cells', frequency: 'high' },
-      { name: 'CD4', fluorophore: 'BV480', cellType: 'CD4 T cells' },
-      { name: 'CD8', fluorophore: 'BV570', cellType: 'CD8 T cells' },
-      { name: 'TCR γ/δ', fluorophore: 'BUV395', cellType: 'T cells', frequency: 'low' },
-      { name: 'TRAV1.2', fluorophore: 'PE', cellType: 'T cells', frequency: 'low' },
-      { name: 'CD161', fluorophore: 'BV650' },
-      { name: 'CD38', fluorophore: 'BB700' },
-      { name: 'HLA-DR', fluorophore: 'BUV563' },
-      { name: 'CD32', fluorophore: 'BB630' },
-      { name: 'CD16', fluorophore: 'BV605' },
-      { name: 'IgD', fluorophore: 'BUV737', cellType: 'B cells' },
-      { name: 'CD27', fluorophore: 'BUV805' },
-      { name: 'CD57', fluorophore: 'BB515' },
-      { name: 'CD45RA', fluorophore: 'APC-eFluor 780', cellType: 'T cells' },
-      { name: 'CCR7', fluorophore: 'PE-CF594', cellType: 'T cells' },
-      { name: 'Vδ2', fluorophore: 'BB790', cellType: 'T cells', frequency: 'low' },
-      { name: 'Perforin', fluorophore: 'BV421', cellType: 'T cells' },
-      { name: 'Granzyme B', fluorophore: 'Alexa Fluor 647', cellType: 'T cells' },
-      { name: 'Ki-67', fluorophore: 'PE-Cy7' },
-    ],
   },
 ]
 
 const legacyOmipMetadataById = new Map(
-  LEGACY_OMIP_TEMPLATES.map((template) => [template.id, template]),
+  LEGACY_OMIP_METADATA.map((template) => [template.id, template]),
 )
 
 function omipSpecies(title: string, template: OmipTemplate | null): OmipCatalogEntry['species'] {
@@ -635,6 +471,33 @@ function omipSpecies(title: string, template: OmipTemplate | null): OmipCatalogE
     return 'non-human-primate'
   }
   return 'other'
+}
+
+export function inferOmipCellTypes(description: string): string[] {
+  const normalized = description.toLocaleLowerCase()
+  const cellTypes = new Set<string>()
+  const addWhen = (label: string, pattern: RegExp) => {
+    if (pattern.test(normalized)) cellTypes.add(label)
+  }
+
+  addWhen('T cells', /\bt[\s-]?cells?\b|\btregs?\b|regulatory t|\bthymop|\bthymocytes?\b|\bth(?:1|2|17)\b|γδ/)
+  addWhen('Regulatory T cells', /regulatory t|\btregs?\b/)
+  addWhen('B cells', /\bb[\s-]?cells?\b|plasma cells?|antibody secreting/)
+  addWhen('NK cells', /natural killer|\bnk[\s-]?cells?\b/)
+  addWhen('Dendritic cells', /dendritic/)
+  addWhen('Monocytes', /monocytes?/)
+  addWhen('Macrophages', /macrophages?/)
+  addWhen('Granulocytes', /granulocytes?|neutrophils?|eosinophils?|basophils?/)
+  addWhen('Platelets', /platelets?|megakaryocytes?/)
+  addWhen('Innate lymphoid cells', /innate lymphoid/)
+  addWhen('Stem / progenitor cells', /stem cells?|progenitors?|hematopoiesis/)
+  addWhen('Tumor cells', /tumou?r cells?|cancer cells?/)
+
+  if (/major immune|immune cell landscape|comprehensive immunophenotyping|major leukocyte|major lineages|peripheral blood leukocytes|human immune system|lymphoid subsets/.test(normalized)) {
+    cellTypes.add('Mixed immune cells')
+  }
+  if (cellTypes.size === 0) cellTypes.add('Mixed immune cells')
+  return [...cellTypes]
 }
 
 // PubMed title/abstract query:
@@ -708,6 +571,7 @@ export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
         summary: template?.summary ?? title,
         year,
         species: omipSpecies(title, template),
+        cellTypes: inferOmipCellTypes(title),
         method: 'spectral',
         sourceUrl: template?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
         template,

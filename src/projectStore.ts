@@ -2,7 +2,7 @@ import { openDB } from 'idb'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import type { TabId } from './panelBuilderShared'
 import type {
-  MarkerFrequency,
+  AntigenDensity,
   WizardPanelResult,
   WizardProjectState,
   WizardResults,
@@ -77,24 +77,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-function isMarkerFrequency(value: unknown): value is MarkerFrequency {
+function isAntigenDensity(value: unknown): value is AntigenDensity {
   return value === 'low' || value === 'medium' || value === 'high'
 }
 
-function isWizardPanelResult(value: unknown): value is WizardPanelResult {
-  if (!isRecord(value)) return false
-  if (value.kind !== 'recommended' && value.kind !== 'best-fit') return false
-  if (!Array.isArray(value.rows) || !Array.isArray(value.alternatives)) return false
-  return value.rows.every((row) => (
+function normalizeWizardPanelResult(value: unknown): WizardPanelResult | null {
+  if (!isRecord(value)) return null
+  if (value.kind !== 'recommended' && value.kind !== 'best-fit') return null
+  if (!Array.isArray(value.rows) || !Array.isArray(value.alternatives)) return null
+  const validRows = value.rows.every((row) => (
     isRecord(row)
     && typeof row.markerId === 'string'
     && typeof row.markerName === 'string'
     && typeof row.slotIndex === 'number'
-    && isMarkerFrequency(row.frequency)
+    && (isAntigenDensity(row.antigenDensity) || isAntigenDensity(row.frequency))
     && typeof row.fluorophore === 'string'
-  )) && value.alternatives.every((row) => (
+  ))
+  const validAlternatives = value.alternatives.every((row) => (
     isRecord(row) && typeof row.fluorophore === 'string'
   ))
+  if (!validRows || !validAlternatives) return null
+
+  return {
+    ...value,
+    rows: value.rows.map((row) => {
+      const record = row as Record<string, unknown>
+      const current = { ...record }
+      delete current.frequency
+      return {
+        ...current,
+        antigenDensity: isAntigenDensity(record.antigenDensity)
+          ? record.antigenDensity
+          : record.frequency as AntigenDensity,
+      }
+    }),
+  } as unknown as WizardPanelResult
 }
 
 function normalizeWizardState(value: unknown): WizardProjectState | null {
@@ -105,8 +122,9 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
       id: typeof marker.id === 'string' && marker.id ? marker.id : `marker-${index}`,
       slotIndex: Number.isFinite(Number(marker.slotIndex)) ? Math.max(0, Math.round(Number(marker.slotIndex))) : index,
       name: typeof marker.name === 'string' ? marker.name : '',
-      cellType: typeof marker.cellType === 'string' ? marker.cellType : '',
-      frequency: isMarkerFrequency(marker.frequency) ? marker.frequency : 'medium',
+      antigenDensity: isAntigenDensity(marker.antigenDensity)
+        ? marker.antigenDensity
+        : isAntigenDensity(marker.frequency) ? marker.frequency : 'medium',
       currentFluorophore: typeof marker.currentFluorophore === 'string'
         ? canonicalizeFluorophoreName(marker.currentFluorophore)
         : '',
@@ -127,10 +145,14 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
     && ['baseline', 'inflammatory', 'tumor'].includes(String(rawContext.condition))
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
-  const rawResults = isRecord(value.results)
-    && isWizardPanelResult(value.results.recommended)
-    && isWizardPanelResult(value.results.bestFit)
-    ? value.results as unknown as WizardResults
+  const recommended = isRecord(value.results)
+    ? normalizeWizardPanelResult(value.results.recommended)
+    : null
+  const bestFit = isRecord(value.results)
+    ? normalizeWizardPanelResult(value.results.bestFit)
+    : null
+  const rawResults: WizardResults | null = recommended && bestFit
+    ? { recommended, bestFit }
     : null
   const activeTab = value.activeTab === 'coexpression' || value.activeTab === 'recommendations'
     ? value.activeTab

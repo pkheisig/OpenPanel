@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { buildPanelPayload } from '../src/spectralEngine'
 import {
+  antigenDensityScore,
   coexpressionKey,
   fluorophoreBrightnessLevel,
   fluorophoreAvailability,
@@ -10,11 +11,10 @@ import {
   isViabilityMarkerName,
   isWizardFluorophoreAllowed,
   markerFluorophoreBrightnessScore,
-  markerFrequencyScore,
   recommendationScore,
 } from '../src/panelWizardEngine'
 import { loadPanelWizardReferences } from '../src/panelWizardReferences'
-import { markerOptionsForPanel, OMIP_CATALOG } from '../src/panelWizardKnowledge'
+import { inferOmipCellTypes, markerOptionsForPanel, OMIP_CATALOG } from '../src/panelWizardKnowledge'
 import type { CoexpressionLevel, WizardMarker } from '../src/panelWizardEngine'
 import { mockBundledData } from './helpers'
 
@@ -37,6 +37,13 @@ describe('panel wizard recommendation engine', () => {
       species: 'mouse',
       method: 'spectral',
     })
+    expect(inferOmipCellTypes('T cells and dendritic cells')).toEqual([
+      'T cells',
+      'Dendritic cells',
+    ])
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-102')?.cellTypes).toEqual(
+      expect.arrayContaining(['T cells', 'Dendritic cells']),
+    )
   })
 
   test('distinguishes common dyes from estimated limited dyes', () => {
@@ -83,8 +90,7 @@ describe('panel wizard recommendation engine', () => {
       id: `marker-${index}`,
       slotIndex: index,
       name: `Marker ${index + 1}`,
-      cellType: '',
-      frequency: index < 2 ? 'low' : index < 4 ? 'medium' : 'high',
+      antigenDensity: index < 2 ? 'low' : index < 4 ? 'medium' : 'high',
       currentFluorophore: index === 0 ? 'FITC' : index === 1 ? 'PE' : '',
     }))
     const coexpression: Record<string, CoexpressionLevel> = {
@@ -144,16 +150,14 @@ describe('panel wizard recommendation engine', () => {
         id: 'antibody',
         slotIndex: 0,
         name: 'CD3',
-        cellType: 'T cells',
-        frequency: 'high',
+        antigenDensity: 'high',
         currentFluorophore: '',
       },
       {
         id: 'viability',
         slotIndex: 1,
         name: 'Live/Dead',
-        cellType: '',
-        frequency: 'low',
+        antigenDensity: 'low',
         currentFluorophore: '',
       },
     ]
@@ -174,8 +178,7 @@ describe('panel wizard recommendation engine', () => {
       id: 'invalid-live-color',
       slotIndex: 0,
       name: 'Viability',
-      cellType: '',
-      frequency: 'medium',
+      antigenDensity: 'medium',
       currentFluorophore: 'FITC',
     }], {}, 1)
     expect(invalidExistingColor.recommended.rows[0].fluorophore).not.toBe('FITC')
@@ -183,7 +186,7 @@ describe('panel wizard recommendation engine', () => {
     expect(invalidExistingColor.recommended.rows[0].isExisting).toBe(false)
   })
 
-  test('uses bundled antigen density and brightness only when both references exist', async () => {
+  test('uses explicit antigen density with bundled fluorophore brightness', async () => {
     const references = await loadPanelWizardReferences('aurora', '5l_uv_v_b_yg_r')
     expect(fluorophoreBrightnessLevel('BUV395', references)).toBe(3)
     expect(fluorophoreBrightnessLevel('BUV805', references)).toBe(1)
@@ -194,8 +197,7 @@ describe('panel wizard recommendation engine', () => {
       id: 'cd40',
       slotIndex: 0,
       name: 'CD40',
-      cellType: 'B cells',
-      frequency: 'low',
+      antigenDensity: 'low',
       currentFluorophore: '',
     }
     expect(markerFluorophoreBrightnessScore(lowDensityMarker, 'PE', references)).toBe(100)
@@ -204,7 +206,7 @@ describe('panel wizard recommendation engine', () => {
       { ...lowDensityMarker, name: 'Unknown antigen' },
       'PE',
       references,
-    )).toBeNull()
+    )).toBe(100)
     expect(markerFluorophoreBrightnessScore(
       lowDensityMarker,
       'Unknown fluorophore',
@@ -229,7 +231,7 @@ describe('panel wizard recommendation engine', () => {
     expect(references.markerOptions.find((option) => option.value === 'Live/Dead')?.searchText).toContain('Viability')
 
     const contextual = markerOptionsForPanel(
-      'NK cells',
+      'nk-cells',
       [],
       'human',
       references.markerOptions,
@@ -250,8 +252,7 @@ describe('panel wizard recommendation engine', () => {
       id: `marker-${index}`,
       slotIndex: index,
       name: `CD${index + 3}`,
-      cellType: '',
-      frequency: 'medium',
+      antigenDensity: 'medium',
       currentFluorophore: '',
     }))
 
@@ -265,9 +266,9 @@ describe('panel wizard recommendation engine', () => {
     expect(coexpressionKey('CD3', 'CD4')).toBe(coexpressionKey('CD4', 'CD3'))
   })
 
-  test('prioritizes high-frequency markers when assigning optimized colors', async () => {
-    expect(markerFrequencyScore('low')).toBeLessThan(markerFrequencyScore('medium'))
-    expect(markerFrequencyScore('medium')).toBeLessThan(markerFrequencyScore('high'))
+  test('prioritizes high-density markers when assigning spectrally clean colors', async () => {
+    expect(antigenDensityScore('low')).toBeLessThan(antigenDensityScore('medium'))
+    expect(antigenDensityScore('medium')).toBeLessThan(antigenDensityScore('high'))
 
     const catalog = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r')
     const payload = await buildPanelPayload(
@@ -279,17 +280,15 @@ describe('panel wizard recommendation engine', () => {
       {
         id: 'low-marker',
         slotIndex: 0,
-        name: 'Low frequency',
-        cellType: '',
-        frequency: 'low',
+        name: 'Low density',
+        antigenDensity: 'low',
         currentFluorophore: '',
       },
       {
         id: 'high-marker',
         slotIndex: 1,
-        name: 'High frequency',
-        cellType: '',
-        frequency: 'high',
+        name: 'High density',
+        antigenDensity: 'high',
         currentFluorophore: '',
       },
     ]
@@ -297,8 +296,8 @@ describe('panel wizard recommendation engine', () => {
     const results = generateWizardResults(payload, markers, {}, 2)
 
     expect(results.recommended.rows.map((row) => row.markerName)).toEqual([
-      'High frequency',
-      'Low frequency',
+      'High density',
+      'Low density',
     ])
   })
 })
