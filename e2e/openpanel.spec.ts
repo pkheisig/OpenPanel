@@ -238,6 +238,7 @@ test('selects the instrument and configuration before opening a clean workspace'
 
 test('migrates the previous single active autosave into the named panel library', async ({ page }) => {
   await page.goto(APP_PATH)
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
   await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('openpanel', 1)
@@ -504,6 +505,42 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   const recommendationsTab = page.getByRole('button', { name: /Recommendations/ })
   await expect(recommendationsTab).toBeDisabled()
   await expect(page.getByLabel('Marker setup complete')).toHaveCount(0)
+  const markerSelectStyle = await page.getByRole('combobox', { name: 'Marker 1 name' }).evaluate((trigger) => {
+    const style = getComputedStyle(trigger)
+    return { borderRadius: style.borderRadius, paddingLeft: style.paddingLeft }
+  })
+
+  await page.getByRole('button', { name: 'OMIP templates' }).click()
+  const templateDialog = page.getByRole('dialog', { name: 'OMIP templates' })
+  await expect(templateDialog).toBeVisible()
+  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(6)
+  await templateDialog.getByRole('button', { name: 'Preview OMIP-069' }).click()
+  await expect(page.getByRole('dialog', { name: 'OMIP-069' })).toBeVisible()
+  await expect(page.locator('.wizard-template-table tbody tr')).toHaveCount(40)
+  await expect(page.getByRole('link', { name: 'View source paper' })).toHaveAttribute(
+    'href',
+    'https://pmc.ncbi.nlm.nih.gov/articles/PMC8132182/',
+  )
+  await page.getByRole('button', { name: 'Back to OMIP templates' }).click()
+  await templateDialog.getByRole('button', { name: 'Preview OMIP-077' }).click()
+  await expect(page.getByRole('dialog', { name: 'OMIP-077' })).toBeVisible()
+  await expect(page.locator('.wizard-template-table tbody tr')).toHaveCount(14)
+  await expect(page.getByRole('link', { name: 'View source paper' })).toHaveAttribute(
+    'href',
+    'https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/',
+  )
+  await page.getByRole('button', { name: 'Use template' }).click()
+  await expect(panelSizeInput).toHaveValue('14')
+  await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('CD1c')
+  await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('PE')
+
+  await page.getByRole('button', { name: 'Clear marker setup' }).click()
+  await expect(panelSizeInput).toHaveValue('16')
+  await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('Select marker')
+  await expect(page.getByRole('combobox', { name: 'Cell type for marker 1', exact: true })).toContainText('Select cell type')
+  await expect(page.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('Alexa Fluor 488')
+  await expect(page.getByRole('combobox', { name: 'Color for marker 2' })).toContainText('Auto-select')
+  await expect(recommendationsTab).toBeDisabled()
 
   await panelSizeInput.fill('6')
   for (const [index, name] of ['CD3', 'CD4', 'CD8', 'CD19', 'CD25', 'Live/Dead'].entries()) {
@@ -583,6 +620,19 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Finalize/ })).toHaveCount(0)
 
   await page.getByRole('button', { name: /Co-expression/ }).click()
+  await page.getByRole('button', { name: 'Auto-fill', exact: true }).click()
+  const autofillDialog = page.getByRole('dialog', { name: 'Auto-fill co-expression' })
+  await expect(autofillDialog).toBeVisible()
+  await expect(autofillDialog.locator('.wizard-context-select')).toHaveCount(4)
+  const contextSelectStyle = await autofillDialog.getByRole('combobox', { name: 'Species' }).evaluate((trigger) => {
+    const style = getComputedStyle(trigger)
+    return { borderRadius: style.borderRadius, paddingLeft: style.paddingLeft }
+  })
+  expect(contextSelectStyle.borderRadius).toBe(markerSelectStyle.borderRadius)
+  expect(Number.parseFloat(contextSelectStyle.paddingLeft)).toBeGreaterThan(
+    Number.parseFloat(markerSelectStyle.paddingLeft),
+  )
+  await autofillDialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page.getByLabel('Co-expression complete')).toHaveCount(0)
   await expect(page.locator('.coexpression-cell')).toHaveCount(15)
   expect(Math.round(await page.locator('.coexpression-matrix thead th').first().evaluate((cell) => (

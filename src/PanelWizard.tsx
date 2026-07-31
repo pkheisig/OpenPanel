@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  ArrowLeft,
   ArrowRight,
   BookOpen,
   Check,
   ChevronRight,
+  Eraser,
+  ExternalLink,
   Info,
   LoaderCircle,
   Minus,
@@ -283,6 +286,10 @@ export function PanelWizard({
   onApply,
 }: PanelWizardProps) {
   const lockedCount = slots.filter(Boolean).length
+  const defaultSize = Math.max(
+    lockedCount,
+    Math.min(maxPanelSize, slots.length),
+  )
   const initialSize = Math.max(
     lockedCount,
     Math.min(maxPanelSize, initialState?.desiredSize ?? slots.length),
@@ -315,6 +322,7 @@ export function PanelWizard({
   const [error, setError] = useState('')
   const [applying, setApplying] = useState(false)
   const [dialog, setDialog] = useState<'coexpression' | 'templates' | null>(null)
+  const [templatePreview, setTemplatePreview] = useState<OmipTemplate | null>(null)
 
   const frequencyReady = desiredSize > 0
     && markers.length === desiredSize
@@ -513,6 +521,20 @@ export function PanelWizard({
     setActiveTab('frequency')
     invalidateResults()
     setDialog(null)
+    setTemplatePreview(null)
+    setTemplatePreview(null)
+  }
+
+  const clearMarkerSetup = () => {
+    setDesiredSize(defaultSize)
+    setMarkers(initialMarkerSettings(defaultSize, slots, {}))
+    setCoexpression({})
+    setCoexpressionContext(DEFAULT_COEXPRESSION_CONTEXT)
+    setCoexpressionVisited(false)
+    setCoexpressionCompleted(false)
+    setActiveTab('frequency')
+    invalidateResults()
+    setDialog(null)
   }
 
   const calculate = async () => {
@@ -667,10 +689,21 @@ export function PanelWizard({
                   <button
                     type="button"
                     className="wizard-tool-button"
-                    onClick={() => setDialog('templates')}
+                    onClick={() => {
+                      setTemplatePreview(null)
+                      setDialog('templates')
+                    }}
                   >
                     <BookOpen size={15} />
                     OMIP templates
+                  </button>
+                  <button
+                    type="button"
+                    className="wizard-tool-button"
+                    onClick={clearMarkerSetup}
+                  >
+                    <Eraser size={15} />
+                    Clear marker setup
                   </button>
                   {panelSizeControl}
                 </div>
@@ -1015,24 +1048,28 @@ export function PanelWizard({
               </header>
               <div className="wizard-subdialog-fields">
                 <UiSelect
+                  className="wizard-context-select"
                   label="Species"
                   value={coexpressionContext.species}
                   options={SPECIES_OPTIONS}
                   onChange={(value) => setCoexpressionContext((current) => ({ ...current, species: value as CoexpressionContext['species'] }))}
                 />
                 <UiSelect
-                  label="Sample"
+                  className="wizard-context-select"
+                  label="Tissue"
                   value={coexpressionContext.tissue}
                   options={TISSUE_OPTIONS}
                   onChange={(value) => setCoexpressionContext((current) => ({ ...current, tissue: value as CoexpressionContext['tissue'] }))}
                 />
                 <UiSelect
+                  className="wizard-context-select"
                   label="Population"
                   value={coexpressionContext.population}
                   options={POPULATION_OPTIONS}
                   onChange={(value) => setCoexpressionContext((current) => ({ ...current, population: value as CoexpressionContext['population'] }))}
                 />
                 <UiSelect
+                  className="wizard-context-select"
                   label="Condition"
                   value={coexpressionContext.condition}
                   options={CONDITION_OPTIONS}
@@ -1050,27 +1087,129 @@ export function PanelWizard({
 
         {dialog === 'templates' && (
           <div className="wizard-subdialog-backdrop" role="presentation">
-            <section className="wizard-subdialog wizard-template-dialog" role="dialog" aria-modal="true" aria-labelledby="omip-template-title">
+            <section
+              className={`wizard-subdialog wizard-template-dialog${templatePreview ? ' is-preview' : ''}`}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="omip-template-title"
+            >
               <header>
-                <div>
-                  <h3 id="omip-template-title">OMIP templates</h3>
+                <div className="wizard-template-heading">
+                  {templatePreview && (
+                    <button
+                      type="button"
+                      className="wizard-template-back"
+                      onClick={() => setTemplatePreview(null)}
+                      aria-label="Back to OMIP templates"
+                    >
+                      <ArrowLeft size={16} />
+                    </button>
+                  )}
+                  <h3 id="omip-template-title">{templatePreview?.name ?? 'OMIP templates'}</h3>
                 </div>
-                <button type="button" onClick={() => setDialog(null)} aria-label="Close"><X size={17} /></button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTemplatePreview(null)
+                    setDialog(null)
+                  }}
+                  aria-label="Close"
+                >
+                  <X size={17} />
+                </button>
               </header>
-              <div className="wizard-template-list">
-                {OMIP_TEMPLATES.map((template) => (
-                  <button
-                    type="button"
-                    key={template.id}
-                    onClick={() => applyTemplate(template)}
-                    disabled={template.markers.length > maxPanelSize}
-                  >
-                    <strong>{template.name}</strong>
-                    <span>{template.summary}</span>
-                    <ChevronRight size={17} />
-                  </button>
-                ))}
-              </div>
+              {templatePreview ? (
+                <>
+                  <div className="wizard-template-preview">
+                    <div className="wizard-template-overview">
+                      <div>
+                        <p>{templatePreview.summary}</p>
+                        <a href={templatePreview.sourceUrl} target="_blank" rel="noreferrer">
+                          View source paper
+                          <ExternalLink size={14} aria-hidden="true" />
+                        </a>
+                      </div>
+                      <dl>
+                        <div>
+                          <dt>Markers</dt>
+                          <dd>{templatePreview.markers.length}</dd>
+                        </div>
+                        <div>
+                          <dt>Species</dt>
+                          <dd>{SPECIES_OPTIONS.find((option) => option.value === templatePreview.context.species)?.label}</dd>
+                        </div>
+                        <div>
+                          <dt>Tissue</dt>
+                          <dd>{TISSUE_OPTIONS.find((option) => option.value === templatePreview.context.tissue)?.label}</dd>
+                        </div>
+                        <div>
+                          <dt>Population</dt>
+                          <dd>{POPULATION_OPTIONS.find((option) => option.value === templatePreview.context.population)?.label}</dd>
+                        </div>
+                        <div>
+                          <dt>Condition</dt>
+                          <dd>{CONDITION_OPTIONS.find((option) => option.value === templatePreview.context.condition)?.label}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <div className="wizard-template-table-wrap">
+                      <table className="wizard-template-table">
+                        <thead>
+                          <tr>
+                            <th>Marker</th>
+                            <th>Color</th>
+                            <th>Cell type</th>
+                            <th>Frequency</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {templatePreview.markers.map((marker, index) => (
+                            <tr key={`${marker.name}-${index}`}>
+                              <td><strong>{marker.name}</strong></td>
+                              <td>{marker.fluorophore || 'Auto-select'}</td>
+                              <td>{marker.cellType || '—'}</td>
+                              <td>{marker.frequency ? marker.frequency.replace(/^\w/, (letter) => letter.toLocaleUpperCase()) : 'Medium'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <footer className="wizard-template-footer">
+                    <span>
+                      {templatePreview.markers.length > maxPanelSize
+                        ? `${templatePreview.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
+                        : `${templatePreview.markers.length} markers`}
+                    </span>
+                    <button
+                      type="button"
+                      className="wizard-primary"
+                      onClick={() => applyTemplate(templatePreview)}
+                      disabled={templatePreview.markers.length > maxPanelSize}
+                    >
+                      Use template
+                    </button>
+                  </footer>
+                </>
+              ) : (
+                <div className="wizard-template-list">
+                  {OMIP_TEMPLATES.map((template) => (
+                    <button
+                      type="button"
+                      key={template.id}
+                      onClick={() => setTemplatePreview(template)}
+                      aria-label={`Preview ${template.name}`}
+                    >
+                      <span className="wizard-template-name">
+                        <strong>{template.name}</strong>
+                        <small>{template.markers.length} markers</small>
+                      </span>
+                      <span>{template.summary}</span>
+                      <ChevronRight size={17} />
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         )}

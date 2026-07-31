@@ -321,6 +321,7 @@ export type OmipTemplate = {
   id: string
   name: string
   summary: string
+  sourceUrl: string
   context: CoexpressionContext
   markers: OmipTemplateMarker[]
 }
@@ -330,6 +331,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
     id: 'omip-042',
     name: 'OMIP-042',
     summary: '21-color human blood immunophenotyping',
+    sourceUrl: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6077845/',
     context: {
       species: 'human',
       tissue: 'peripheral-blood',
@@ -364,6 +366,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
     id: 'omip-051',
     name: 'OMIP-051',
     summary: '28-color human B-cell and myeloid panel',
+    sourceUrl: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6546165/',
     context: {
       species: 'human',
       tissue: 'pbmc',
@@ -405,6 +408,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
     id: 'omip-069',
     name: 'OMIP-069',
     summary: '40-color human blood deep immunophenotyping',
+    sourceUrl: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8132182/',
     context: {
       species: 'human',
       tissue: 'peripheral-blood',
@@ -458,6 +462,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
     id: 'omip-077',
     name: 'OMIP-077',
     summary: '14-color human myeloid panel',
+    sourceUrl: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/',
     context: {
       species: 'human',
       tissue: 'peripheral-blood',
@@ -485,6 +490,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
     id: 'omip-090',
     name: 'OMIP-090',
     summary: '18-color human T-cell trafficking panel',
+    sourceUrl: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10952450/',
     context: {
       species: 'human',
       tissue: 'pbmc',
@@ -516,6 +522,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
     id: 'omip-101',
     name: 'OMIP-101',
     summary: '27-color fixed human whole-blood panel',
+    sourceUrl: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10958279/',
     context: {
       species: 'human',
       tissue: 'peripheral-blood',
