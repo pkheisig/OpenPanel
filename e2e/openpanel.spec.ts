@@ -539,6 +539,10 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'https://isac-net.org/omip-and-flow-repository-database/',
   )
   await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(23)
+  await templateDialog.evaluate(async (dialog) => {
+    await Promise.all(dialog.getAnimations().map((animation) => animation.finished))
+  })
+  const libraryHeight = await templateDialog.evaluate((dialog) => dialog.getBoundingClientRect().height)
   const templateSearch = templateDialog.getByRole('searchbox', { name: 'Search OMIP Library' })
   await expect(templateDialog.getByRole('combobox', { name: 'Method' })).toHaveCount(0)
   await chooseOption(page, 'Cell type', 'Dendritic cells')
@@ -547,6 +551,9 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await chooseOption(page, 'Cell type', 'All cell types')
   await templateSearch.fill('OMIP-120')
   await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(1)
+  expect(Math.abs(await templateDialog.evaluate((dialog) => (
+    dialog.getBoundingClientRect().height
+  )) - libraryHeight)).toBeLessThan(1)
   await templateDialog.getByRole('button', { name: 'Preview OMIP-120' }).click()
   await expect(page.getByRole('dialog', { name: 'OMIP-120' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open OMIP database' })).toHaveCount(0)

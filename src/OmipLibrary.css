@@ -34,7 +34,7 @@
 
 .omip-library-window {
   width: min(820px, 100%);
-  max-height: min(760px, calc(100dvh - 56px));
+  height: min(760px, calc(100dvh - 56px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -246,10 +246,11 @@
 
 .omip-library-list {
   min-height: 0;
-  max-height: min(560px, 65dvh);
+  flex: 1;
   padding: 9px 12px 12px;
   display: grid;
   gap: 7px;
+  align-content: start;
   overflow: auto;
 }
 
@@ -454,6 +455,10 @@
 @media (max-width: 760px) {
   .omip-library-backdrop {
     padding: 12px;
+  }
+
+  .omip-library-window {
+    height: calc(100dvh - 24px);
   }
 
   .omip-library-tools {
