@@ -147,9 +147,18 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.locator('.panel-primary-actions')).toContainText('Import from OMIP')
   await page.getByRole('button', { name: 'Import from OMIP' }).click()
   const projectOmipLibrary = page.getByRole('dialog', { name: 'OMIP Library' })
+  await expect(projectOmipLibrary.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(23)
   await expect(projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-097' })).toBeVisible()
   const sonyOmip = projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-111' })
   await expect(sonyOmip).toContainText('Sony ID7000')
+  expect(await sonyOmip.locator('.omip-library-entry-cytometer').evaluate((label) => {
+    const style = getComputedStyle(label)
+    return {
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      overflows: label.scrollWidth > label.clientWidth,
+    }
+  })).toEqual({ fontSize: '11px', fontWeight: '500', overflows: false })
   await sonyOmip.click()
   await expect(page.getByRole('dialog', { name: 'OMIP-111' }).getByText('Sony ID7000', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Apply to panel' }).click()
