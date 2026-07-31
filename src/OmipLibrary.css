@@ -467,7 +467,7 @@
 }
 
 .omip-compatibility-confirm {
-  width: min(440px, 100%);
+  width: min(590px, 100%);
   padding: 23px;
   border: 1px solid var(--omip-border);
   border-radius: 13px;
@@ -487,14 +487,24 @@
   font-size: 18px;
 }
 
-.omip-compatibility-confirm p {
-  margin: 0;
+.omip-compatibility-message {
   color: var(--omip-muted);
   font-size: 14px;
   line-height: 1.55;
 }
 
-.omip-compatibility-confirm > div {
+.omip-compatibility-message p {
+  margin: 0 0 8px;
+}
+
+.omip-compatibility-message strong {
+  display: block;
+  margin-top: 15px;
+  color: var(--omip-text);
+  font-size: 15px;
+}
+
+.omip-compatibility-actions {
   margin-top: 21px;
   display: flex;
   justify-content: flex-end;
@@ -516,10 +526,29 @@
   background: var(--omip-surface);
 }
 
-.omip-compatibility-submit {
+.omip-compatibility-current {
   border-color: #b96318 !important;
   color: #fff;
   background: #b96318;
+}
+
+.omip-compatibility-recommended {
+  border-color: var(--omip-accent) !important;
+  color: #fff;
+  background: var(--omip-accent);
+}
+
+.omip-compatibility-recommended:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.25);
+  opacity: 0.48;
+}
+
+@media (max-width: 620px) {
+  .omip-compatibility-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 @keyframes omip-library-backdrop-in {

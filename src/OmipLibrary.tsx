@@ -27,11 +27,10 @@ type OmipLibraryProps = {
   maxPanelSize?: number
   actionLabel?: string
   actionDisabled?: boolean
-  compatibilityTitle?: string
-  compatibilityActionLabel?: string
-  activeWorkspaceDescription?: string
   activeCytometerLabel?: string
   activeConfigurationLabel?: string
+  canUseRecommendedConfiguration?: (entry: OmipCatalogEntry) => boolean
+  onUseRecommendedConfiguration?: (template: OmipTemplate, entry: OmipCatalogEntry) => void
 }
 
 const SPECIES_OPTIONS = [
@@ -88,11 +87,10 @@ export function OmipLibrary({
   maxPanelSize,
   actionLabel = 'Apply to panel',
   actionDisabled = false,
-  compatibilityTitle = 'Apply this panel anyway?',
-  compatibilityActionLabel = 'Apply anyway',
-  activeWorkspaceDescription = 'This project uses',
   activeCytometerLabel,
   activeConfigurationLabel = '',
+  canUseRecommendedConfiguration,
+  onUseRecommendedConfiguration,
 }: OmipLibraryProps) {
   const [preview, setPreview] = useState<OmipCatalogEntry | null>(null)
   const [query, setQuery] = useState('')
@@ -382,28 +380,45 @@ export function OmipLibrary({
               aria-describedby="omip-compatibility-description"
             >
               <AlertTriangle size={24} aria-hidden="true" />
-              <h3 id="omip-compatibility-title">{compatibilityTitle}</h3>
-              <p id="omip-compatibility-description">
-                {pendingIncompatibleEntry.name} was designed for {pendingIncompatibleEntry.cytometers.join(' / ')}.
+              <h3 id="omip-compatibility-title">Warning</h3>
+              <div id="omip-compatibility-description" className="omip-compatibility-message">
+                <p>{pendingIncompatibleEntry.name} was designed for {pendingIncompatibleEntry.cytometers.join(' / ')}.</p>
                 {activeCytometerLabel && (
-                  <> {activeWorkspaceDescription} {activeCytometerLabel}{activeConfigurationLabel ? ` · ${activeConfigurationLabel}` : ''}.</>
+                  <p>The selected setup uses {activeCytometerLabel}{activeConfigurationLabel ? ` · ${activeConfigurationLabel}` : ''}.</p>
                 )}
-                {' '}Its published marker–color assignments may not perform as intended. Unsupported colors will remain unassigned. Proceed at your own risk.
-              </p>
-              <div>
+                <p>The panel may therefore not perform as intended. Unsupported colors will remain unassigned.</p>
+                <strong>Proceed anyway?</strong>
+              </div>
+              <div className="omip-compatibility-actions">
                 <button type="button" className="omip-compatibility-cancel" onClick={() => setPendingIncompatibleEntry(null)}>
                   Cancel
                 </button>
                 <button
                   type="button"
-                  className="omip-compatibility-submit"
+                  className="omip-compatibility-current"
                   onClick={() => {
                     const template = pendingIncompatibleEntry.template
                     setPendingIncompatibleEntry(null)
                     if (template) onApplyTemplate?.(template)
                   }}
                 >
-                  {compatibilityActionLabel}
+                  Use current config
+                </button>
+                <button
+                  type="button"
+                  className="omip-compatibility-recommended"
+                  disabled={!canUseRecommendedConfiguration?.(pendingIncompatibleEntry)}
+                  title={canUseRecommendedConfiguration?.(pendingIncompatibleEntry)
+                    ? undefined
+                    : 'This configuration is not available in OpenPanel'}
+                  onClick={() => {
+                    const template = pendingIncompatibleEntry.template
+                    const entry = pendingIncompatibleEntry
+                    setPendingIncompatibleEntry(null)
+                    if (template) onUseRecommendedConfiguration?.(template, entry)
+                  }}
+                >
+                  Use recommended config
                 </button>
               </div>
             </section>

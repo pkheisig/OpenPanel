@@ -128,7 +128,7 @@
 
 .launch-card {
   display: grid;
-  grid-template-columns: minmax(170px, 0.8fr) minmax(190px, 1fr) minmax(250px, 1.35fr) minmax(155px, auto);
+  grid-template-columns: minmax(160px, 0.8fr) minmax(180px, 1fr) minmax(220px, 1.25fr) minmax(300px, 1.3fr);
   align-items: end;
   gap: 10px;
   padding: 13px;
@@ -186,8 +186,14 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--launch-accent) 10%, transparent);
 }
 
-.launch-submit {
+.launch-card-actions {
   grid-column: 4;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.launch-submit {
   display: flex;
   min-height: 64px;
   align-items: center;
@@ -666,9 +672,12 @@
     grid-column: auto;
   }
 
-  .launch-submit {
+  .launch-card-actions {
     grid-column: 1 / -1;
     grid-row: auto;
+  }
+
+  .launch-submit {
     min-height: 54px;
   }
 }
@@ -691,7 +700,11 @@
   }
 
   .launch-card > *,
-  .launch-submit {
+  .launch-card-actions {
     grid-column: 1;
+  }
+
+  .launch-card-actions {
+    grid-template-columns: 1fr;
   }
 }

@@ -26,7 +26,7 @@ import {
   omipTemplateAssignmentsForPanel,
   omipTemplateAssignmentsForPanelBestEffort,
 } from './panelWizardKnowledge'
-import type { OmipTemplate } from './panelWizardKnowledge'
+import type { OmipCatalogEntry, OmipTemplate } from './panelWizardKnowledge'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
 import { OmipLibrary } from './OmipLibrary'
@@ -75,6 +75,51 @@ function formatUpdatedAt(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+type InstrumentSetup = {
+  cytometer: string
+  configuration: string
+}
+
+function recommendedSetupForOmip(entry: OmipCatalogEntry): InstrumentSetup | null {
+  for (const reported of entry.cytometers) {
+    const normalized = reported.toLocaleLowerCase()
+    let setup: InstrumentSetup | null = null
+
+    if (normalized.includes('aurora') && !normalized.includes('northern lights')) {
+      const configuration = normalized.includes('5l')
+        ? '5l_uv_v_b_yg_r'
+        : normalized.includes('4l') && normalized.includes('yg')
+          ? '4l_v_b_yg_r'
+          : normalized.includes('4l')
+            ? '4l_uv_v_b_r'
+            : normalized.includes('3l')
+              ? '3l_v_b_r'
+              : null
+      if (configuration) setup = { cytometer: 'aurora', configuration }
+    } else if (normalized.includes('id7000') && !normalized.includes('7l')) {
+      const configuration = normalized.includes('4l')
+        ? 'id7000_4l'
+        : normalized.includes('3l')
+          ? 'id7000_3l'
+          : 'id7000_5l'
+      setup = { cytometer: 'id7000', configuration }
+    } else if (normalized.includes('facsdiscover')) {
+      setup = {
+        cytometer: 'discover',
+        configuration: normalized.includes('a8') ? 'discover_a8' : 'discover_s8',
+      }
+    } else if (normalized.includes('xenith')) {
+      setup = { cytometer: 'xenith', configuration: 'full' }
+    }
+
+    if (setup && getSpectralPanelConfigurations(setup.cytometer).some(
+      (candidate) => candidate.id === setup.configuration,
+    )) return setup
+  }
+
+  return null
 }
 
 export function LandingPage({
@@ -161,29 +206,35 @@ export function LandingPage({
     }
   }
 
-  const startPanelFromOmip = async (template: OmipTemplate) => {
-    if (!omipPayload) return
-    const maxPanelSize = Math.min(omipPayload.fluorophores.length, omipPayload.detectors.length)
-    const availableFluorophores = omipPayload.fluorophores.map((item) => item.fluorophore)
-    const assignments = omipTemplateAssignmentsForPanel(
-      template,
-      availableFluorophores,
-      maxPanelSize,
-    ) ?? omipTemplateAssignmentsForPanelBestEffort(
-      template,
-      availableFluorophores,
-      maxPanelSize,
-    )
-    if (assignments.length === 0) return
-
-    localStorage.setItem('spectreasy_cytometer', cytometer)
-    localStorage.setItem('spectreasy_configuration', configuration)
+  const startPanelFromOmip = async (
+    template: OmipTemplate,
+    target: InstrumentSetup = { cytometer, configuration },
+  ) => {
     setCreatingFromOmip(true)
     try {
+      const payload = target.cytometer === cytometer && target.configuration === configuration
+        ? omipPayload
+        : await buildPanelPayload(target.cytometer, target.configuration)
+      if (!payload) return
+      const maxPanelSize = Math.min(payload.fluorophores.length, payload.detectors.length)
+      const availableFluorophores = payload.fluorophores.map((item) => item.fluorophore)
+      const assignments = omipTemplateAssignmentsForPanel(
+        template,
+        availableFluorophores,
+        maxPanelSize,
+      ) ?? omipTemplateAssignmentsForPanelBestEffort(
+        template,
+        availableFluorophores,
+        maxPanelSize,
+      )
+      if (assignments.length === 0) return
+
+      localStorage.setItem('spectreasy_cytometer', target.cytometer)
+      localStorage.setItem('spectreasy_configuration', target.configuration)
       await onStart({
         name: template.name,
-        cytometer,
-        configuration,
+        cytometer: target.cytometer,
+        configuration: target.configuration,
         slots: assignments.map((assignment) => assignment.fluorophore),
         markers: Object.fromEntries(
           assignments.map((assignment, index) => [index, assignment.marker]),
@@ -233,17 +284,6 @@ export function LandingPage({
           <span>OpenPanel</span>
         </a>
         <div className="launch-header-actions">
-          <button
-            type="button"
-            className="launch-secondary-button"
-            onClick={() => {
-              setOmipPayload(null)
-              setShowOmipLibrary(true)
-            }}
-          >
-            <BookOpen size={16} />
-            Start from OMIP
-          </button>
           <button
             type="button"
             className="launch-secondary-button"
@@ -322,11 +362,26 @@ export function LandingPage({
               />
             )}
 
-            <button className="launch-submit" type="submit" disabled={starting}>
-              <span className="launch-submit-icon"><FlaskConical size={18} /></span>
-              <span>{starting ? 'Opening…' : 'Build panel'}</span>
-              <ArrowRight size={17} />
-            </button>
+            <div className="launch-card-actions">
+              <button className="launch-submit" type="submit" disabled={starting || creatingFromOmip}>
+                <span className="launch-submit-icon"><FlaskConical size={18} /></span>
+                <span>{starting ? 'Opening…' : 'Build panel'}</span>
+                <ArrowRight size={17} />
+              </button>
+              <button
+                className="launch-submit"
+                type="button"
+                disabled={starting || creatingFromOmip}
+                onClick={() => {
+                  setOmipPayload(null)
+                  setShowOmipLibrary(true)
+                }}
+              >
+                <span className="launch-submit-icon"><BookOpen size={18} /></span>
+                <span>Use OMIP</span>
+                <ArrowRight size={17} />
+              </button>
+            </div>
           </form>
         </section>
 
@@ -416,14 +471,16 @@ export function LandingPage({
           activeConfigurationLabel={configurations.find((candidate) => candidate.id === configuration)?.label ?? configuration}
           actionLabel={creatingFromOmip ? 'Creating panel…' : 'Create panel from OMIP'}
           actionDisabled={!omipPayload || creatingFromOmip}
-          compatibilityTitle="Create this panel anyway?"
-          compatibilityActionLabel="Create anyway"
-          activeWorkspaceDescription="The selected setup uses"
           onClose={() => {
             setShowOmipLibrary(false)
             setOmipPayload(null)
           }}
           onApplyTemplate={(template) => void startPanelFromOmip(template)}
+          canUseRecommendedConfiguration={(entry) => recommendedSetupForOmip(entry) !== null}
+          onUseRecommendedConfiguration={(template, entry) => {
+            const recommended = recommendedSetupForOmip(entry)
+            if (recommended) void startPanelFromOmip(template, recommended)
+          }}
         />
       )}
     </main>

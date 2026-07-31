@@ -139,13 +139,48 @@ test('keeps panel wizard controls responsive without a render loop', async ({ pa
 
 test('selects the instrument and configuration before opening a clean workspace', async ({ page }) => {
   await page.goto(APP_PATH)
-  await page.getByRole('button', { name: 'Start from OMIP' }).click()
+  const buildPanelButton = page.getByRole('button', { name: 'Build panel' })
+  const useOmipButton = page.getByRole('button', { name: 'Use OMIP' })
+  await expect(useOmipButton).toBeVisible()
+  await expect(page.locator('.launch-header-actions').getByRole('button', { name: 'Use OMIP' })).toHaveCount(0)
+  const [buildButtonStyle, omipButtonStyle] = await Promise.all([
+    buildPanelButton.evaluate((button) => ({
+      background: getComputedStyle(button).backgroundColor,
+      radius: getComputedStyle(button).borderRadius,
+      height: button.getBoundingClientRect().height,
+    })),
+    useOmipButton.evaluate((button) => ({
+      background: getComputedStyle(button).backgroundColor,
+      radius: getComputedStyle(button).borderRadius,
+      height: button.getBoundingClientRect().height,
+    })),
+  ])
+  expect(omipButtonStyle).toEqual(buildButtonStyle)
+  await useOmipButton.click()
   const landingOmipLibrary = page.getByRole('dialog', { name: 'OMIP Library' })
   await expect(landingOmipLibrary).toBeVisible()
-  await landingOmipLibrary.getByRole('button', { name: 'Preview OMIP-111' }).click()
-  await expect(page.getByRole('dialog', { name: 'OMIP-111' })).toBeVisible()
+  await landingOmipLibrary.getByRole('button', { name: 'Preview OMIP-120' }).click()
+  await expect(page.getByRole('dialog', { name: 'OMIP-120' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Create panel from OMIP' })).toBeEnabled()
-  await page.getByRole('button', { name: 'Close OMIP Library' }).click()
+  await page.getByRole('button', { name: 'Create panel from OMIP' }).click()
+  const setupWarning = page.getByRole('alertdialog', { name: 'Warning' })
+  await expect(setupWarning).toContainText('OMIP-120 was designed for Cytek Aurora 4L (UV-V-B-R).')
+  await expect(setupWarning).toContainText('The selected setup uses Cytek Aurora · Aurora 5L: UV/V/B/YG/R.')
+  await expect(setupWarning).toContainText(
+    'The panel may therefore not perform as intended. Unsupported colors will remain unassigned.',
+  )
+  await expect(setupWarning).toContainText('Proceed anyway?')
+  await expect(setupWarning.getByRole('button', { name: 'Cancel' })).toBeVisible()
+  await expect(setupWarning.getByRole('button', { name: 'Use current config' })).toBeVisible()
+  await expect(setupWarning.getByRole('button', { name: 'Use recommended config' })).toBeEnabled()
+  const warningButtonColors = await setupWarning.locator('.omip-compatibility-actions button').evaluateAll(
+    (buttons) => buttons.map((button) => getComputedStyle(button).backgroundColor),
+  )
+  expect(new Set(warningButtonColors).size).toBe(3)
+  await setupWarning.getByRole('button', { name: 'Use recommended config' }).click()
+  await expect(page.getByLabel('Panel name')).toHaveValue('OMIP-120')
+  await page.getByRole('button', { name: 'Open panel library' }).click()
+  await expect(page.getByRole('button', { name: 'Open OMIP-120' })).toContainText('Aurora 4L: UV/V/B/R')
   await page.getByRole('button', { name: 'Use dark mode' }).click()
   await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
   await page.getByRole('combobox', { name: 'CYTOMETER' }).focus()
@@ -158,20 +193,21 @@ test('selects the instrument and configuration before opening a clean workspace'
   await chooseOption(page, 'CYTOMETER', 'Sony ID7000')
   await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText('ID7000 5L')
   await chooseOption(page, 'DETECTOR CONFIGURATION', 'ID7000 4L: V/B/YG/R')
-  await page.getByRole('button', { name: 'Start from OMIP' }).click()
+  await page.getByRole('button', { name: 'Use OMIP' }).click()
   const projectOmipLibrary = page.getByRole('dialog', { name: 'OMIP Library' })
   const templateSearch = projectOmipLibrary.getByRole('searchbox', { name: 'Search OMIP Library' })
   await templateSearch.fill('OMIP-097')
   await projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-097' }).click()
   await page.getByRole('button', { name: 'Create panel from OMIP' }).click()
-  const omipWarning = page.getByRole('alertdialog', { name: 'Create this panel anyway?' })
+  const omipWarning = page.getByRole('alertdialog', { name: 'Warning' })
   await expect(omipWarning).toContainText('OMIP-097 was designed for Cytek Northern Lights 3L (V-B-R)')
   await expect(omipWarning).toContainText('The selected setup uses Sony ID7000 · ID7000 4L: V/B/YG/R')
+  await expect(omipWarning.getByRole('button', { name: 'Use recommended config' })).toBeDisabled()
   await omipWarning.getByRole('button', { name: 'Cancel' }).click()
   await expect(omipWarning).toBeHidden()
   await page.getByRole('button', { name: 'Create panel from OMIP' }).click()
-  await page.getByRole('alertdialog', { name: 'Create this panel anyway?' })
-    .getByRole('button', { name: 'Create anyway' }).click()
+  await page.getByRole('alertdialog', { name: 'Warning' })
+    .getByRole('button', { name: 'Use current config' }).click()
   await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
   await expect(page.locator('.panel-primary-actions')).toContainText('Panel wizard')
   await expect(page.getByRole('button', { name: 'Import from OMIP' })).toHaveCount(0)
@@ -592,12 +628,12 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Close panel wizard' }).click()
   await page.getByRole('button', { name: 'Open panel library' }).click()
-  await page.getByRole('button', { name: 'Start from OMIP' }).click()
+  await page.getByRole('button', { name: 'Use OMIP' }).click()
   const templateDialog = page.getByRole('dialog', { name: 'OMIP Library' })
   await expect(templateDialog).toBeVisible()
   await page.locator('.omip-library-backdrop').click({ position: { x: 20, y: 20 } })
   await expect(templateDialog).toBeHidden()
-  await page.getByRole('button', { name: 'Start from OMIP' }).click()
+  await page.getByRole('button', { name: 'Use OMIP' }).click()
   await expect(templateDialog).toBeVisible()
   await expect(templateDialog.getByText(/of 121 panels/)).toHaveCount(0)
   await expect(templateDialog.getByRole('link', { name: 'Browse database' })).toHaveAttribute(
@@ -686,8 +722,8 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'https://pubmed.ncbi.nlm.nih.gov/37786346/',
   )
   await page.getByRole('button', { name: 'Create panel from OMIP' }).click()
-  await page.getByRole('alertdialog', { name: 'Create this panel anyway?' })
-    .getByRole('button', { name: 'Create anyway' }).click()
+  await page.getByRole('alertdialog', { name: 'Warning' })
+    .getByRole('button', { name: 'Use current config' }).click()
   await expect(page.getByRole('dialog', { name: 'OMIP-097' })).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: 'Panel wizard' })).toHaveCount(0)
   await expect(page.getByPlaceholder('Select fluorophore')).toHaveCount(16)
