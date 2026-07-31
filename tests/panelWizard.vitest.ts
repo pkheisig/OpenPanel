@@ -14,12 +14,25 @@ import {
   recommendationScore,
 } from '../src/panelWizardEngine'
 import { loadPanelWizardReferences } from '../src/panelWizardReferences'
+import { OMIP_CATALOG } from '../src/panelWizardKnowledge'
 import type { CoexpressionLevel, WizardMarker } from '../src/panelWizardEngine'
 import { mockBundledData } from './helpers'
 
 beforeEach(mockBundledData)
 
 describe('panel wizard recommendation engine', () => {
+  test('bundles the complete OMIP bibliography and marks editable templates', () => {
+    expect(OMIP_CATALOG).toHaveLength(121)
+    expect(new Set(OMIP_CATALOG.map((entry) => entry.id)).size).toBe(121)
+    expect(OMIP_CATALOG[0]).toMatchObject({ name: 'OMIP-121', year: '2026' })
+    expect(OMIP_CATALOG.at(-1)).toMatchObject({ name: 'OMIP-001', year: '2010' })
+    expect(OMIP_CATALOG.filter((entry) => entry.template)).toHaveLength(6)
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-120')).toMatchObject({
+      species: 'mouse',
+      method: 'spectral',
+    })
+  })
+
   test('distinguishes common dyes from estimated limited dyes', () => {
     expect(fluorophoreAvailability('FITC')).toMatchObject({
       score: 100,

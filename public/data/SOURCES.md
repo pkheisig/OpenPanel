@@ -41,7 +41,10 @@ Marker names and aliases used by wizard autocomplete are based on the
 The bundled list is used only for local lookup and never sends marker searches
 to a server.
 
-The built-in templates reproduce the marker/fluorochrome tables from
+The bundled OMIP bibliography covers OMIP-001 through OMIP-121 from the
+PubMed title query `OMIP[Title]` (refreshed 2026-07-31). Every entry can be
+searched and previewed locally, with links to the OMIP database and its paper.
+Six built-in editable templates reproduce the marker/fluorochrome tables from
 [OMIP-042](https://pmc.ncbi.nlm.nih.gov/articles/PMC6077845/),
 [OMIP-051](https://pmc.ncbi.nlm.nih.gov/articles/PMC6546165/),
 [OMIP-069](https://pmc.ncbi.nlm.nih.gov/articles/PMC8132182/),

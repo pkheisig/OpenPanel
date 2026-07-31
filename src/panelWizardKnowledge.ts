@@ -4,6 +4,7 @@ import type {
   MarkerFrequency,
   WizardMarker,
 } from './panelWizardEngine'
+import { OMIP_CATALOG_RECORDS } from './omipCatalog'
 import type { UiSelectOption } from './UiSelect'
 
 type MarkerEntry = {
@@ -326,7 +327,18 @@ export type OmipTemplate = {
   markers: OmipTemplateMarker[]
 }
 
-export const OMIP_DATABASE_URL = 'https://public.tableau.com/app/profile/fanny2212/viz/OMIP_ISAC/Menu'
+export type OmipCatalogEntry = {
+  id: string
+  name: string
+  summary: string
+  year: string
+  species: 'human' | 'mouse' | 'non-human-primate' | 'other'
+  method: 'spectral' | 'mass' | 'imaging' | 'conventional'
+  sourceUrl: string
+  template: OmipTemplate | null
+}
+
+export const OMIP_DATABASE_URL = 'https://isac-net.org/omip-and-flow-repository-database/'
 
 export const OMIP_TEMPLATES: OmipTemplate[] = [
   {
@@ -562,3 +574,45 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
     ],
   },
 ]
+
+const omipTemplatesById = new Map(OMIP_TEMPLATES.map((template) => [template.id, template]))
+
+function omipSpecies(title: string, template: OmipTemplate | null): OmipCatalogEntry['species'] {
+  if (template?.context.species === 'human' || template?.context.species === 'mouse') {
+    return template.context.species
+  }
+  const normalized = title.toLocaleLowerCase()
+  if (/\b(human|people|patient|pbmc)\b/.test(normalized)) return 'human'
+  if (/\b(mouse|mice|murine)\b/.test(normalized)) return 'mouse'
+  if (/\b(macaque|baboon|rhesus|nonhuman primate|non-human primate)\b/.test(normalized)) {
+    return 'non-human-primate'
+  }
+  return 'other'
+}
+
+function omipMethod(title: string): OmipCatalogEntry['method'] {
+  const normalized = title.toLocaleLowerCase()
+  if (/\b(imaging mass cytometry|multiplex(?:ed)? imaging|image cytometry)\b/.test(normalized)) return 'imaging'
+  if (/\b(mass cytometry|cytof)\b/.test(normalized)) return 'mass'
+  if (/\b(spectral|full spectrum|full-spectrum)\b/.test(normalized)) return 'spectral'
+  return 'conventional'
+}
+
+export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS.map(
+  ([number, pmid, year, title]) => {
+    const paddedNumber = String(number).padStart(3, '0')
+    const id = `omip-${paddedNumber}`
+    const template = omipTemplatesById.get(id) ?? null
+
+    return {
+      id,
+      name: `OMIP-${paddedNumber}`,
+      summary: template?.summary ?? title,
+      year,
+      species: omipSpecies(title, template),
+      method: omipMethod(title),
+      sourceUrl: template?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+      template,
+    }
+  },
+)

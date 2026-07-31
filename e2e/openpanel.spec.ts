@@ -513,19 +513,34 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await page.getByRole('button', { name: 'OMIP templates' }).click()
   const templateDialog = page.getByRole('dialog', { name: 'OMIP templates' })
   await expect(templateDialog).toBeVisible()
-  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(6)
-  await templateDialog.getByRole('button', { name: 'Preview OMIP-069' }).click()
-  await expect(page.getByRole('dialog', { name: 'OMIP-069' })).toBeVisible()
-  await expect(page.locator('.wizard-template-table tbody tr')).toHaveCount(40)
-  await expect(page.getByRole('link', { name: 'Open OMIP database' })).toHaveAttribute(
+  await page.locator('.wizard-subdialog-backdrop').click({ position: { x: 30, y: 30 } })
+  await expect(templateDialog).toBeHidden()
+  await page.getByRole('button', { name: 'OMIP templates' }).click()
+  await expect(templateDialog).toBeVisible()
+  await expect(templateDialog.getByText('121 of 121 panels')).toBeVisible()
+  await expect(templateDialog.getByRole('link', { name: 'Browse database' })).toHaveAttribute(
     'href',
-    'https://public.tableau.com/app/profile/fanny2212/viz/OMIP_ISAC/Menu',
+    'https://isac-net.org/omip-and-flow-repository-database/',
   )
+  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(121)
+  const templateSearch = templateDialog.getByRole('searchbox', { name: 'Search OMIP templates' })
+  await templateDialog.getByRole('combobox', { name: 'Method' }).click()
+  await page.getByRole('option', { name: 'Spectral', exact: true }).click()
+  await expect(templateDialog.getByText(/of 121 panels/)).toBeVisible()
+  await templateDialog.getByRole('button', { name: 'Clear' }).click()
+  await expect(templateDialog.getByText('121 of 121 panels')).toBeVisible()
+  await templateSearch.fill('OMIP-120')
+  await expect(templateDialog.getByText('1 of 121 panels')).toBeVisible()
+  await templateDialog.getByRole('button', { name: 'Preview OMIP-120' }).click()
+  await expect(page.getByRole('dialog', { name: 'OMIP-120' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open OMIP database' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'View paper' })).toHaveAttribute(
     'href',
-    'https://pmc.ncbi.nlm.nih.gov/articles/PMC8132182/',
+    'https://pubmed.ncbi.nlm.nih.gov/42230532/',
   )
+  await expect(page.getByRole('button', { name: 'Use template' })).toBeDisabled()
   await page.getByRole('button', { name: 'Back to OMIP templates' }).click()
+  await templateSearch.fill('OMIP-077')
   await templateDialog.getByRole('button', { name: 'Preview OMIP-077' }).click()
   await expect(page.getByRole('dialog', { name: 'OMIP-077' })).toBeVisible()
   await expect(page.locator('.wizard-template-table tbody tr')).toHaveCount(14)
