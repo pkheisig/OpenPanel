@@ -351,6 +351,7 @@ test('keeps independent panel workspaces for each cytometer', async ({ page }) =
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
   await page.waitForTimeout(650)
   await page.getByRole('button', { name: 'Open panel library' }).click()
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
 
   await page.getByLabel('Panel name').fill('Sony panel')
   await chooseOption(page, 'CYTOMETER', 'Sony ID7000')
