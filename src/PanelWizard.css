@@ -1320,9 +1320,11 @@
 }
 
 .wizard-template-list {
+  max-height: min(520px, 70dvh);
   padding: 10px;
   display: grid;
   gap: 7px;
+  overflow: auto;
 }
 
 .wizard-template-list > button {
@@ -1348,6 +1350,11 @@
   color: var(--accent);
   background: var(--accent-soft);
   outline: none;
+}
+
+.wizard-template-list > button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 .wizard-template-list strong {

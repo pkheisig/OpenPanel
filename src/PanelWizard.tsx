@@ -480,7 +480,8 @@ export function PanelWizard({
   }
 
   const applyTemplate = (template: OmipTemplate) => {
-    const templateMarkers = template.markers.slice(0, maxPanelSize)
+    if (template.markers.length > maxPanelSize) return
+    const templateMarkers = template.markers
     const nextSize = Math.max(lockedCount, templateMarkers.length)
     const usedColors = new Set<string>()
     const nextMarkers = Array.from({ length: nextSize }, (_, slotIndex) => {
@@ -1058,7 +1059,12 @@ export function PanelWizard({
               </header>
               <div className="wizard-template-list">
                 {OMIP_TEMPLATES.map((template) => (
-                  <button type="button" key={template.id} onClick={() => applyTemplate(template)}>
+                  <button
+                    type="button"
+                    key={template.id}
+                    onClick={() => applyTemplate(template)}
+                    disabled={template.markers.length > maxPanelSize}
+                  >
                     <strong>{template.name}</strong>
                     <span>{template.summary}</span>
                     <ChevronRight size={17} />

@@ -42,8 +42,12 @@ The bundled list is used only for local lookup and never sends marker searches
 to a server.
 
 The built-in templates reproduce the marker/fluorochrome tables from
-[OMIP-077](https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/) and
-[OMIP-090](https://pmc.ncbi.nlm.nih.gov/articles/PMC10952450/). Suggestions
+[OMIP-042](https://pmc.ncbi.nlm.nih.gov/articles/PMC6077845/),
+[OMIP-051](https://pmc.ncbi.nlm.nih.gov/articles/PMC6546165/),
+[OMIP-069](https://pmc.ncbi.nlm.nih.gov/articles/PMC8132182/),
+[OMIP-077](https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/),
+[OMIP-090](https://pmc.ncbi.nlm.nih.gov/articles/PMC10952450/), and
+[OMIP-101](https://pmc.ncbi.nlm.nih.gov/articles/PMC10958279/). Suggestions
 that are unavailable on the selected cytometer remain unassigned for the
 wizard to optimize.
 

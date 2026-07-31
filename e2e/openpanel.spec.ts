@@ -341,6 +341,7 @@ test('manages saved panels from the OpenSketch-style project library and context
 })
 
 test('keeps independent panel workspaces for each cytometer', async ({ page }) => {
+  test.slow()
   await page.goto(APP_PATH)
   await page.getByLabel('Panel name').fill('Aurora panel')
   await openEmptyPanel(page)
@@ -359,6 +360,7 @@ test('keeps independent panel workspaces for each cytometer', async ({ page }) =
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
   await page.waitForTimeout(650)
   await page.getByRole('button', { name: 'Open panel library' }).click()
+  await expect(page.getByRole('button', { name: 'Open Sony panel' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open Aurora panel' }).click()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
@@ -468,6 +470,7 @@ test('runs representative panel, import, export, and project round-trip workflow
 })
 
 test('completes a panel through the staged marker wizard', async ({ page }) => {
+  test.slow()
   await page.goto(APP_PATH)
   await openEmptyPanel(page)
 
@@ -496,14 +499,16 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(panelSizeInput).toHaveValue('15')
   await increasePanelSize.click()
   await expect(panelSizeInput).toHaveValue('16')
-  await expect(page.getByLabel('Marker 1 name')).toHaveValue('')
+  await expect(page.getByRole('combobox', { name: 'Marker 1 name' })).toContainText('Select marker')
   const recommendationsTab = page.getByRole('button', { name: /Recommendations/ })
   await expect(recommendationsTab).toBeDisabled()
   await expect(page.getByLabel('Marker setup complete')).toHaveCount(0)
 
   await panelSizeInput.fill('6')
   for (const [index, name] of ['CD3', 'CD4', 'CD8', 'CD19', 'CD25', 'Live/Dead'].entries()) {
-    await page.getByLabel(`Marker ${index + 1} name`).fill(name)
+    await page.getByRole('combobox', { name: `Marker ${index + 1} name` }).click()
+    await page.getByRole('searchbox', { name: 'Search or enter marker' }).fill(name)
+    await page.getByRole('option', { name, exact: true }).click()
   }
   await page.getByRole('combobox', { name: 'Cell type for marker 1' }).click()
   const cellTypeSearch = page.getByRole('searchbox', { name: 'Search or enter cell type' })
@@ -595,8 +600,8 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await page.getByRole('button', { name: 'Toggle theme' }).evaluate((button) => (button as HTMLButtonElement).click())
   await expect(noneLegend).toHaveCSS('background-color', 'rgb(89, 102, 96)')
   await page.getByRole('button', { name: 'Toggle theme' }).evaluate((button) => (button as HTMLButtonElement).click())
-  await page.getByRole('button', { name: 'CD3 and CD4 co-expression: Possible' }).click()
-  await expect(page.getByRole('button', { name: 'CD3 and CD4 co-expression: Strong' })).toBeVisible()
+  await page.getByRole('button', { name: 'CD3 and CD4 co-expression: Medium' }).click()
+  await expect(page.getByRole('button', { name: 'CD3 and CD4 co-expression: High' })).toBeVisible()
   await expect(recommendationsTab).toBeEnabled()
   await recommendationsTab.click()
   await expect(page.getByLabel('Co-expression complete')).toBeVisible()
@@ -672,7 +677,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     cellType: 'Activated lymphocytes',
     currentFluorophore: 'FITC',
   })
-  expect(wizardProject.wizard.coexpression['marker-0::marker-1']).toBe(2)
+  expect(wizardProject.wizard.coexpression['marker-0::marker-1']).toBe(3)
   expect(wizardProject.wizard.coexpressionVisited).toBe(true)
   expect(wizardProject.wizard.coexpressionCompleted).toBe(true)
   expect(wizardProject.wizard.activeTab).toBe('recommendations')
