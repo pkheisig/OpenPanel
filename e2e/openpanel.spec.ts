@@ -270,6 +270,8 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(savedPanel).toContainText('ID7000 4L: V/B/YG/R')
   const savedCard = page.locator('.panel-library-card').filter({ has: savedPanel })
   await expect(savedCard.getByRole('img', { name: 'Saved panel spectrum preview' }).locator('path')).toHaveCount(16)
+  await expect(savedCard.getByRole('img', { name: 'Saved panel spectrum preview' }).locator('path').first())
+    .toHaveAttribute('stroke-width', '0.9')
   await expect(savedCard.locator('.panel-preview-complexity')).toHaveText('44.00')
   await expect(savedCard.locator('.panel-preview-grid')).toHaveCount(0)
   expect(await savedPanel.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(255, 255, 255)')

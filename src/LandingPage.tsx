@@ -480,7 +480,7 @@ function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
               d={path}
               fill="none"
               stroke={colors.get(row.fluorophore) ?? '#157e7c'}
-              strokeWidth="1.8"
+              strokeWidth="0.9"
               strokeLinecap="round"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
