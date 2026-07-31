@@ -544,8 +544,28 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   })
   const libraryHeight = await templateDialog.evaluate((dialog) => dialog.getBoundingClientRect().height)
   const templateSearch = templateDialog.getByRole('searchbox', { name: 'Search OMIP Library' })
+  const libraryTypography = await templateDialog.evaluate((dialog) => {
+    const fontSize = (selector: string) => Number.parseFloat(
+      getComputedStyle(dialog.querySelector<HTMLElement>(selector)!).fontSize,
+    )
+    return {
+      search: fontSize('.omip-library-search input'),
+      databaseLink: fontSize('.omip-library-tools > a'),
+      filterLabel: fontSize('.omip-library-filter > span:not(.ui-select-label-hidden)'),
+      filterValue: fontSize('.omip-library-filter .ui-select-trigger'),
+    }
+  })
+  expect(libraryTypography).toEqual({
+    search: 16.5,
+    databaseLink: 13.5,
+    filterLabel: 10.5,
+    filterValue: 13.5,
+  })
   await expect(templateDialog.getByRole('combobox', { name: 'Method' })).toHaveCount(0)
   await chooseOption(page, 'Cell type', 'Dendritic cells')
+  expect(await templateDialog.getByRole('button', { name: 'Clear' }).evaluate((button) => (
+    Number.parseFloat(getComputedStyle(button).fontSize)
+  ))).toBe(13.5)
   await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-102' })).toBeVisible()
   await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-118' })).toHaveCount(0)
   await chooseOption(page, 'Cell type', 'All cell types')
@@ -555,12 +575,38 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     dialog.getBoundingClientRect().height
   )) - libraryHeight)).toBeLessThan(1)
   await templateDialog.getByRole('button', { name: 'Preview OMIP-120' }).click()
-  await expect(page.getByRole('dialog', { name: 'OMIP-120' })).toBeVisible()
+  const previewDialog = page.getByRole('dialog', { name: 'OMIP-120' })
+  await expect(previewDialog).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open OMIP database' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'View paper' })).toHaveAttribute(
     'href',
     'https://pubmed.ncbi.nlm.nih.gov/42230532/',
   )
+  const previewTypography = await previewDialog.evaluate((dialog) => {
+    const fontSize = (selector: string) => Number.parseFloat(
+      getComputedStyle(dialog.querySelector<HTMLElement>(selector)!).fontSize,
+    )
+    return {
+      title: fontSize('.omip-library-overview p'),
+      paperLink: fontSize('.omip-library-overview a'),
+      cardLabel: fontSize('.omip-library-overview dt'),
+      cardValue: fontSize('.omip-library-overview dd'),
+      tableHeader: fontSize('.omip-library-table th'),
+      tableCell: fontSize('.omip-library-table td'),
+      markerCount: fontSize('footer > span'),
+      action: fontSize('.omip-library-primary'),
+    }
+  })
+  expect(previewTypography).toEqual({
+    title: 18,
+    paperLink: 15,
+    cardLabel: 10.5,
+    cardValue: 15,
+    tableHeader: 12,
+    tableCell: 15,
+    markerCount: 13.5,
+    action: 15,
+  })
   await expect(page.locator('.omip-library-table tbody tr')).toHaveCount(22)
   await expect(page.getByRole('button', { name: 'Open in panel wizard' })).toBeEnabled()
   await page.getByRole('button', { name: 'Back to OMIP Library' }).click()
