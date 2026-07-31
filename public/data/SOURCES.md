@@ -58,18 +58,19 @@ their aliases remain searchable and their cell-type prioritization remains
 intact. The list is used only for local lookup and never sends marker searches
 to a server.
 
-The bundled OMIP bibliography covers OMIP-001 through OMIP-121 from the
-PubMed title query `OMIP[Title]` (refreshed 2026-07-31). Every entry can be
-searched and previewed locally, with links to the OMIP database and its paper.
-Six built-in editable templates reproduce the marker/fluorochrome tables from
-[OMIP-042](https://pmc.ncbi.nlm.nih.gov/articles/PMC6077845/),
-[OMIP-051](https://pmc.ncbi.nlm.nih.gov/articles/PMC6546165/),
-[OMIP-069](https://pmc.ncbi.nlm.nih.gov/articles/PMC8132182/),
-[OMIP-077](https://pmc.ncbi.nlm.nih.gov/articles/PMC9292053/),
-[OMIP-090](https://pmc.ncbi.nlm.nih.gov/articles/PMC10952450/), and
-[OMIP-101](https://pmc.ncbi.nlm.nih.gov/articles/PMC10958279/). Suggestions
-that are unavailable on the selected cytometer remain unassigned for the
-wizard to optimize.
+The bundled OMIP Library contains the 23 spectral OMIPs returned by the PubMed
+query `OMIP[Title] AND (spectral[Title/Abstract] OR "full spectrum"[Title/Abstract]
+OR "full-spectrum"[Title/Abstract] OR "Cytek Aurora"[Title/Abstract] OR
+"spectral cytometer"[Title/Abstract])`, refreshed 2026-07-31. Conventional,
+mass-cytometry, and imaging panels are excluded.
+
+Every visible OMIP has an offline, editable marker–fluorophore table. The
+assignments were transcribed from the public
+[FluoroFinder OMIP registry](https://admin.fluorofinder.com/omips), which
+reproduces the published reagent tables. OMIP-084 was transcribed directly
+from its [published Table 2](https://doi.org/10.1002/cyto.a.24564) because its
+registry detail endpoint was unavailable. Suggestions that are unavailable on
+the selected cytometer remain unassigned for the wizard to optimize.
 
 Spectral spread risk uses the Hotspot Matrix / spreading-inflation-factor
 formulation described in

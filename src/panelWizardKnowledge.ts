@@ -5,6 +5,7 @@ import type {
   WizardMarker,
 } from './panelWizardEngine'
 import { OMIP_CATALOG_RECORDS } from './omipCatalog'
+import { SPECTRAL_OMIP_TEMPLATE_ROWS } from './omipSpectralTemplateData'
 import type { UiSelectOption } from './UiSelect'
 
 type MarkerEntry = {
@@ -384,7 +385,7 @@ export type OmipCatalogEntry = {
 
 export const OMIP_DATABASE_URL = 'https://isac-net.org/omip-and-flow-repository-database/'
 
-export const OMIP_TEMPLATES: OmipTemplate[] = [
+const LEGACY_OMIP_TEMPLATES: OmipTemplate[] = [
   {
     id: 'omip-042',
     name: 'OMIP-042',
@@ -619,7 +620,9 @@ export const OMIP_TEMPLATES: OmipTemplate[] = [
   },
 ]
 
-const omipTemplatesById = new Map(OMIP_TEMPLATES.map((template) => [template.id, template]))
+const legacyOmipMetadataById = new Map(
+  LEGACY_OMIP_TEMPLATES.map((template) => [template.id, template]),
+)
 
 function omipSpecies(title: string, template: OmipTemplate | null): OmipCatalogEntry['species'] {
   if (template?.context.species === 'human' || template?.context.species === 'mouse') {
@@ -634,29 +637,80 @@ function omipSpecies(title: string, template: OmipTemplate | null): OmipCatalogE
   return 'other'
 }
 
-function omipMethod(title: string): OmipCatalogEntry['method'] {
+// PubMed title/abstract query:
+// OMIP[Title] AND (spectral OR full spectrum OR Cytek Aurora OR spectral cytometer)
+const SPECTRAL_OMIP_NUMBERS = new Set([
+  120, 119, 118, 117, 116, 115, 114, 112, 111, 110, 109, 105,
+  104, 102, 99, 97, 95, 94, 93, 86, 84, 83, 69,
+])
+
+function spectralOmipContext(title: string): CoexpressionContext {
   const normalized = title.toLocaleLowerCase()
-  if (/\b(imaging mass cytometry|multiplex(?:ed)? imaging|image cytometry)\b/.test(normalized)) return 'imaging'
-  if (/\b(mass cytometry|cytof)\b/.test(normalized)) return 'mass'
-  if (/\b(spectral|full spectrum|full-spectrum)\b/.test(normalized)) return 'spectral'
-  return 'conventional'
+  const species: CoexpressionContext['species'] = /\b(mouse|mice|murine)\b/.test(normalized)
+    ? 'mouse'
+    : 'human'
+  const tissue: CoexpressionContext['tissue'] = /\b(tumou?r|cancer|osteosarcoma)\b/.test(normalized)
+    ? 'tumor'
+    : /\bbone marrow\b/.test(normalized)
+      ? 'bone-marrow'
+      : /\b(spleen|splenocyte|lymphoid tissue)\b/.test(normalized)
+        ? 'spleen'
+        : /\b(peripheral blood|whole blood|platelet)\b/.test(normalized)
+          ? 'peripheral-blood'
+          : 'pbmc'
+  const population: CoexpressionContext['population'] = /\bnatural killer\b|\bnk cell\b/.test(normalized)
+    ? 'nk-cells'
+    : /\bt cell\b|\bt-cell\b|\bthymop/.test(normalized)
+      ? 't-cells'
+      : 'all'
+
+  return {
+    species,
+    tissue,
+    population,
+    condition: /\b(tumou?r|cancer|osteosarcoma)\b/.test(normalized) ? 'tumor' : 'baseline',
+  }
 }
 
-export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS.map(
-  ([number, pmid, year, title]) => {
+export const OMIP_TEMPLATES: OmipTemplate[] = OMIP_CATALOG_RECORDS
+  .filter(([number]) => SPECTRAL_OMIP_NUMBERS.has(number))
+  .map(([number, pmid, , title]) => {
     const paddedNumber = String(number).padStart(3, '0')
     const id = `omip-${paddedNumber}`
-    const template = omipTemplatesById.get(id) ?? null
+    const legacyMetadata = legacyOmipMetadataById.get(id)
 
     return {
       id,
       name: `OMIP-${paddedNumber}`,
-      summary: template?.summary ?? title,
-      year,
-      species: omipSpecies(title, template),
-      method: omipMethod(title),
-      sourceUrl: template?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-      template,
+      summary: legacyMetadata?.summary ?? title,
+      sourceUrl: legacyMetadata?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+      context: legacyMetadata?.context ?? spectralOmipContext(title),
+      markers: (SPECTRAL_OMIP_TEMPLATE_ROWS[number] ?? []).map(([name, fluorophore]) => ({
+        name,
+        fluorophore,
+      })),
     }
-  },
-)
+  })
+
+const omipTemplatesById = new Map(OMIP_TEMPLATES.map((template) => [template.id, template]))
+
+export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
+  .filter(([number]) => SPECTRAL_OMIP_NUMBERS.has(number))
+  .map(
+    ([number, pmid, year, title]) => {
+      const paddedNumber = String(number).padStart(3, '0')
+      const id = `omip-${paddedNumber}`
+      const template = omipTemplatesById.get(id) ?? null
+
+      return {
+        id,
+        name: `OMIP-${paddedNumber}`,
+        summary: template?.summary ?? title,
+        year,
+        species: omipSpecies(title, template),
+        method: 'spectral',
+        sourceUrl: template?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+        template,
+      }
+    },
+  )

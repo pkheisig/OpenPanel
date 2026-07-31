@@ -21,12 +21,18 @@ import { mockBundledData } from './helpers'
 beforeEach(mockBundledData)
 
 describe('panel wizard recommendation engine', () => {
-  test('bundles the complete OMIP bibliography and marks editable templates', () => {
-    expect(OMIP_CATALOG).toHaveLength(121)
-    expect(new Set(OMIP_CATALOG.map((entry) => entry.id)).size).toBe(121)
-    expect(OMIP_CATALOG[0]).toMatchObject({ name: 'OMIP-121', year: '2026' })
-    expect(OMIP_CATALOG.at(-1)).toMatchObject({ name: 'OMIP-001', year: '2010' })
-    expect(OMIP_CATALOG.filter((entry) => entry.template)).toHaveLength(6)
+  test('bundles only spectral OMIPs and makes every entry editable', () => {
+    expect(OMIP_CATALOG).toHaveLength(23)
+    expect(new Set(OMIP_CATALOG.map((entry) => entry.id)).size).toBe(23)
+    expect(OMIP_CATALOG[0]).toMatchObject({ name: 'OMIP-120', year: '2026' })
+    expect(OMIP_CATALOG.at(-1)).toMatchObject({ name: 'OMIP-069', year: '2020' })
+    expect(OMIP_CATALOG.every((entry) => entry.method === 'spectral')).toBe(true)
+    expect(OMIP_CATALOG.every((entry) => entry.template)).toBe(true)
+    expect(OMIP_CATALOG.every((entry) => (
+      entry.template?.markers.every((marker) => (
+        marker.name.trim() && marker.fluorophore?.trim()
+      ))
+    ))).toBe(true)
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-120')).toMatchObject({
       species: 'mouse',
       method: 'spectral',

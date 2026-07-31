@@ -75,9 +75,10 @@
 }
 
 .omip-library-heading p {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   color: var(--omip-muted);
-  font-size: 10px;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .omip-library-back,
@@ -141,13 +142,6 @@
   font-size: 11px;
 }
 
-.omip-library-tools > span {
-  flex: none;
-  color: var(--omip-muted);
-  font-size: 9px;
-  font-weight: 750;
-}
-
 .omip-library-tools > a {
   display: inline-flex;
   flex: none;
@@ -169,7 +163,7 @@
 .omip-library-filters {
   padding: 10px 12px 3px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
   gap: 8px;
   align-items: end;
 }
@@ -260,8 +254,8 @@
 }
 
 .omip-library-list > button {
-  min-height: 64px;
-  padding: 11px 14px;
+  min-height: 76px;
+  padding: 13px 14px;
   display: grid;
   grid-template-columns: 105px 1fr auto;
   gap: 14px;
@@ -293,7 +287,8 @@
 .omip-library-entry-name small,
 .omip-library-list > button > span:nth-child(2) {
   color: var(--omip-muted);
-  font-size: 9px;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .omip-library-empty {
@@ -345,7 +340,7 @@
 .omip-library-overview dl {
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -410,24 +405,6 @@
 
 .omip-library-table td:first-child {
   color: var(--omip-text);
-}
-
-.omip-library-paper-only {
-  min-height: 210px;
-  padding: 32px;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 11px;
-  color: var(--omip-muted);
-  text-align: center;
-}
-
-.omip-library-paper-only p {
-  max-width: 460px;
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.55;
 }
 
 .omip-library-window > footer {

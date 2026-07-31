@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
   ArrowLeft,
-  BookOpen,
   ChevronRight,
   ExternalLink,
   Search,
@@ -34,20 +33,6 @@ const SPECIES_OPTIONS = [
   { value: 'other', label: 'Other species' },
 ]
 
-const METHOD_OPTIONS = [
-  { value: 'all', label: 'All methods' },
-  { value: 'spectral', label: 'Spectral' },
-  { value: 'conventional', label: 'Conventional' },
-  { value: 'mass', label: 'Mass cytometry' },
-  { value: 'imaging', label: 'Imaging' },
-]
-
-const AVAILABILITY_OPTIONS = [
-  { value: 'all', label: 'All entries' },
-  { value: 'template', label: 'Editable templates' },
-  { value: 'paper', label: 'Papers only' },
-]
-
 const YEAR_OPTIONS = [
   { value: 'all', label: 'All years' },
   ...Array.from(new Set(OMIP_CATALOG.map((entry) => entry.year)))
@@ -60,13 +45,6 @@ const SPECIES_LABELS: Record<OmipCatalogEntry['species'], string> = {
   mouse: 'Mouse',
   'non-human-primate': 'Non-human primate',
   other: 'Other',
-}
-
-const METHOD_LABELS: Record<OmipCatalogEntry['method'], string> = {
-  spectral: 'Spectral',
-  conventional: 'Conventional',
-  mass: 'Mass cytometry',
-  imaging: 'Imaging',
 }
 
 function titleCase(value: string): string {
@@ -83,20 +61,13 @@ export function OmipLibrary({
   const [preview, setPreview] = useState<OmipCatalogEntry | null>(null)
   const [query, setQuery] = useState('')
   const [species, setSpecies] = useState('all')
-  const [method, setMethod] = useState('all')
   const [year, setYear] = useState('all')
-  const [availability, setAvailability] = useState('all')
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     return OMIP_CATALOG.filter((entry) => (
       (species === 'all' || entry.species === species)
-      && (method === 'all' || entry.method === method)
       && (year === 'all' || entry.year === year)
-      && (
-        availability === 'all'
-        || (availability === 'template' ? Boolean(entry.template) : !entry.template)
-      )
       && (
         !normalizedQuery
         || [
@@ -104,7 +75,6 @@ export function OmipLibrary({
           entry.summary,
           entry.year,
           entry.species,
-          entry.method,
           ...(entry.template?.markers.flatMap((marker) => [
             marker.name,
             marker.fluorophore ?? '',
@@ -113,22 +83,18 @@ export function OmipLibrary({
         ].join(' ').toLocaleLowerCase().includes(normalizedQuery)
       )
     ))
-  }, [availability, method, query, species, year])
+  }, [query, species, year])
 
   const filtersActive = Boolean(
     query.trim()
     || species !== 'all'
-    || method !== 'all'
-    || year !== 'all'
-    || availability !== 'all',
+    || year !== 'all',
   )
 
   const clearFilters = () => {
     setQuery('')
     setSpecies('all')
-    setMethod('all')
     setYear('all')
-    setAvailability('all')
   }
 
   const exceedsWorkspace = Boolean(
@@ -194,17 +160,13 @@ export function OmipLibrary({
                     <dd>{SPECIES_LABELS[preview.species]}</dd>
                   </div>
                   <div>
-                    <dt>Method</dt>
-                    <dd>{METHOD_LABELS[preview.method]}</dd>
-                  </div>
-                  <div>
                     <dt>Markers</dt>
                     <dd>{preview.template?.markers.length ?? '—'}</dd>
                   </div>
                 </dl>
               </div>
 
-              {preview.template ? (
+              {preview.template && (
                 <div className="omip-library-table-wrap">
                   <table className="omip-library-table">
                     <thead>
@@ -227,11 +189,6 @@ export function OmipLibrary({
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <div className="omip-library-paper-only">
-                  <BookOpen size={24} aria-hidden="true" />
-                  <p>This publication can be inspected here, but its marker–color table is not yet bundled as an editable template.</p>
-                </div>
               )}
             </div>
 
@@ -239,9 +196,7 @@ export function OmipLibrary({
               <span>
                 {exceedsWorkspace
                   ? `${preview.template?.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
-                  : preview.template
-                    ? `${preview.template.markers.length} markers`
-                    : `${preview.year} publication`}
+                    : `${preview.template?.markers.length ?? 0} markers`}
               </span>
               {onUseTemplate && preview.template && (
                 <button
@@ -268,7 +223,6 @@ export function OmipLibrary({
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </div>
-              <span>{visibleEntries.length} of {OMIP_CATALOG.length} panels</span>
               <a href={OMIP_DATABASE_URL} target="_blank" rel="noreferrer">
                 Browse database
                 <ExternalLink size={13} aria-hidden="true" />
@@ -287,28 +241,10 @@ export function OmipLibrary({
               />
               <UiSelect
                 className="omip-library-filter"
-                label="Method"
-                value={method}
-                options={METHOD_OPTIONS}
-                onChange={setMethod}
-                portalMenu
-                menuClassName="omip-library-filter-menu"
-              />
-              <UiSelect
-                className="omip-library-filter"
                 label="Year"
                 value={year}
                 options={YEAR_OPTIONS}
                 onChange={setYear}
-                portalMenu
-                menuClassName="omip-library-filter-menu"
-              />
-              <UiSelect
-                className="omip-library-filter"
-                label="Availability"
-                value={availability}
-                options={AVAILABILITY_OPTIONS}
-                onChange={setAvailability}
                 portalMenu
                 menuClassName="omip-library-filter-menu"
               />
@@ -329,7 +265,7 @@ export function OmipLibrary({
                 >
                   <span className="omip-library-entry-name">
                     <strong>{entry.name}</strong>
-                    <small>{entry.template ? `${entry.template.markers.length} markers` : entry.year}</small>
+                    <small>{entry.year}</small>
                   </span>
                   <span>{entry.summary}</span>
                   <ChevronRight size={18} />
