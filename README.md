@@ -66,4 +66,7 @@ The repository is a single Vite, React, and TypeScript application with a `/Open
 - [GitHub Pages workflow](.github/workflows/pages.yml)
 - [License](LICENSE)
 
-OpenPanel is available under the MIT License.
+OpenPanel is licensed under [AGPL-3.0-or-later](LICENSE).
+
+OpenPanel is maintained by Paul Heisig
+([ORCID 0000-0002-8529-7944](https://orcid.org/0000-0002-8529-7944)).
