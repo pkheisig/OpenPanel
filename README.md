@@ -1,29 +1,41 @@
-# OpenPanel
+<p align="center">
+  <img src="public/favicon-light.svg" width="72" height="72" alt="OpenPanel logo">
+</p>
 
-OpenPanel is a private, browser-native spectral flow cytometry panel builder for:
+<h1 align="center">OpenPanel</h1>
 
-- Cytek Aurora
-- BD FACSDiscover
-- Sony ID7000
-- Thermo Fisher Attune Xenith
+<p align="center">Design and evaluate spectral flow cytometry panels entirely in your browser.</p>
 
-Use the hosted application at **https://pkheisig.github.io/OpenPanel/**.
+<p align="center">
+  <a href="https://pkheisig.github.io/OpenPanel/"><strong>Open OpenPanel →</strong></a>
+</p>
 
-The application is fully static. Spectral calculations, project persistence, imports, CSV exports, and PDF reports all run on your device. After the first successful visit, the installed service worker keeps the application and bundled spectral libraries available offline.
+OpenPanel combines instrument-aware spectral plots, panel matrices, similarity and complexity calculations, a guided Panel Wizard, and published OMIP templates. It supports Cytek Aurora, BD FACSDiscover, Sony ID7000, and Thermo Fisher Attune Xenith configurations without requiring an account, installation, or application server.
 
-## Privacy
+## What you can do
 
-OpenPanel has no application server and makes no API requests. GitHub Pages serves the application code and read-only bundled spectral reference CSVs; selected fluorophores, marker names, imported files, saved projects, and generated reports remain in the browser.
+- Build and compare panels against the selected cytometer configuration.
+- Inspect combined signatures, detector assignments, spectral similarity, and panel complexity.
+- Use the Panel Wizard to balance antigen density, co-expression, availability, brightness, and spectral conflicts.
+- Browse published spectral OMIP panels and apply compatible marker-color templates.
+- Keep named projects with separate workspaces for each cytometer.
+- Exchange panel CSVs and complete OpenPanel JSON projects, or create a local PDF report.
+- Reopen the app and cached reference data offline after the first successful visit.
 
-- Settings are stored in `localStorage`.
-- The active project is stored in IndexedDB, with a localStorage fallback for restricted browser contexts.
-- Imports are read with browser file APIs.
-- Exports are written with the File System Access API where available, with ordinary browser downloads as the fallback.
-- No user file or project content is uploaded by OpenPanel.
+## Private by design
 
-As with any GitHub Pages site, GitHub may receive standard web request metadata when it serves the static files. Once cached, the PWA can be reopened offline.
+Your markers, panels, imported files, projects, and reports stay on your device. Settings are stored in `localStorage`; projects use IndexedDB with a localStorage fallback. Imports and exports use browser file APIs, with ordinary uploads and downloads where direct file access is unavailable.
 
-## Local development
+GitHub Pages only serves the static application and bundled reference data. OpenPanel has no application backend and does not upload project contents. GitHub may receive standard request metadata while serving the site; once cached, the PWA can reopen offline.
+
+## Project files
+
+- Panel CSV import accepts comma-, tab-, and semicolon-delimited files and exports `Marker,Fluorophore` CSVs.
+- Complete projects export as `[project name]_OpenPanel.json`, including instrument workspaces, Panel Wizard data, and editor state.
+- Older `.openpanel.json` projects and the previous `gui_state` JSON format remain importable.
+- PDF overview reports are generated locally and include panel metadata, complexity, similarity, and spectral signatures.
+
+## Run locally
 
 Node.js 22 and npm are recommended.
 
@@ -34,65 +46,24 @@ npm ci
 npm run dev
 ```
 
-Vite serves the project at `http://127.0.0.1:5174/OpenPanel/`.
-
-Run the complete local validation:
+Vite serves OpenPanel at `http://127.0.0.1:5174/OpenPanel/`. Run the full validation suite with:
 
 ```sh
-npm test
-npm run lint
-npm run build
 npx playwright install chromium
-npm run test:e2e
+npm run check
 ```
 
-`npm run build` writes the production site to `dist/`. The configured Vite base is `/OpenPanel/`, matching the GitHub repository path.
+## Browser support and deployment
 
-## Files and compatibility
+OpenPanel targets current Chrome, Edge, Firefox, and Safari releases. Chromium browsers can use native open/save pickers; Firefox and Safari receive upload/download fallbacks. Persistence and offline reopening require JavaScript, browser storage, and service workers. Private browsing or hardened storage policies may limit saved state, so JSON export is recommended for durable backups.
 
-Panel CSV import accepts comma-, tab-, and semicolon-delimited files. It detects marker/target and fluorophore/dye columns even when columns are reordered, and preserves the existing `Marker,Fluorophore` export format.
+The repository is a single Vite, React, and TypeScript application with a `/OpenPanel/` production base. Calculations and reference libraries are bundled into the static `dist/` site, while `vite-plugin-pwa` supplies offline caching. [The GitHub Pages workflow](.github/workflows/pages.yml) tests, lints, builds, and runs browser workflows on every push, then deploys only `dist/` from `main`. No R runtime or server-side API is involved.
 
-OpenPanel projects are exported as `[project name]_OpenPanel.json`. The importer continues to accept older `.openpanel.json` files and the prior panel-builder `gui_state` JSON envelope. Each project keeps an independent workspace for every cytometer used in that project, including its last detector configuration, selected fluorophores, markers, and complete Panel Wizard state. Switching to a cytometer without a saved workspace starts with an empty panel; switching back restores that cytometer's panel. Project-level state also includes the active view, theme, sidebar settings, and plot scale. Wizard persistence includes marker frequencies, assigned colors, co-expression settings, desired panel size, completion state, calculated rankings, ranking mode, and sorting.
+## Project links
 
-The editor provides one Import menu and one Export menu. Each menu offers a compact panel CSV exchange or a complete OpenPanel project JSON exchange.
+- [Hosted application](https://pkheisig.github.io/OpenPanel/)
+- [Spectral data sources](public/data/SOURCES.md)
+- [GitHub Pages workflow](.github/workflows/pages.yml)
+- [License](LICENSE)
 
-PDF overview reports are generated locally in the browser and contain the panel metadata, complexity index, spectral similarity matrix, and selected spectral signatures.
-
-## Browser support
-
-OpenPanel targets current stable releases of Chrome, Edge, Firefox, and Safari.
-
-- Chromium browsers can use native open/save pickers when the File System Access API is available.
-- Firefox and Safari use the equivalent upload/download fallback.
-- IndexedDB, localStorage, service workers, and JavaScript must be enabled.
-- Private browsing or hardened storage policies may limit persistence, but project import/export remains available.
-- PWA installation presentation varies by browser and operating system; offline reopening is tested in Chromium.
-
-## Deployment architecture
-
-The repository contains one Vite/React/TypeScript application:
-
-1. Vite bundles the UI and browser calculation engine.
-2. Static reference libraries under `public/data/` are copied into `dist/`.
-3. `vite-plugin-pwa` generates the web manifest and service worker and precaches the application, reference libraries, and visual assets.
-4. [The Pages workflow](.github/workflows/pages.yml) runs unit/parity tests, lint, a production build, and Playwright browser workflows on every change to `main`.
-5. Only the resulting `dist/` artifact is deployed to GitHub Pages.
-
-There is no R runtime, local launcher, Plumber/httpuv API, server-side persistence, or server-side report generation.
-
-## Regression coverage
-
-The test suite checks:
-
-- browser calculations against recorded outputs from the former R implementation for all four cytometers;
-- detector/configuration aliases, detector counts, available fluorophore counts, cosine similarity, peak detectors, and panel complexity;
-- project serialization and legacy `gui_state` round-trips;
-- CSV/TSV/semicolon imports and CSV exports;
-- local PDF creation;
-- representative browser selection, marker, matrix, project, import, and export workflows;
-- offline reopening after the initial load; and
-- absence of application requests to non-local servers during browser workflows.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+OpenPanel is available under the MIT License.
