@@ -438,7 +438,7 @@ export function LandingPage({
       </div>
 
       <footer className="launch-footer">
-        Projects stay in this browser unless you export them.
+        All data and operations stay local on your computer.
       </footer>
 
       {menu && (
