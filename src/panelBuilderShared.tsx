@@ -153,23 +153,20 @@ const getSimilarityStyle = (value: number, isDiag: boolean, currentTheme: 'light
         };
     }
 
+    const intensity = Math.max(0, Math.min(1, value));
+    const hue = 38 - intensity * 63;
+
     if (currentTheme === 'dark') {
-        const opacity = Math.max(0.12, Math.min(0.92, value));
-        const r = Math.round(15 + value * 124); // 15 -> 139
-        const g = Math.round(23 + value * 69);  // 23 -> 92
-        const b = Math.round(42 + value * 204); // 42 -> 246
         return {
-            background: `rgba(${r}, ${g}, ${b}, ${opacity})`,
-            color: '#fff',
-            textShadow: value > 0.5 ? '0 0 4px rgba(255, 255, 255, 0.4)' : 'none'
+            background: `hsl(${hue.toFixed(1)} 72% ${Math.round(18 + intensity * 30)}%)`,
+            color: '#fff8f1',
+            textShadow: intensity > 0.55 ? '0 1px 3px rgba(50, 10, 20, 0.45)' : 'none'
         };
     } else {
-        const alpha = Math.max(0.08, Math.min(0.82, value));
-        const blue = Math.round(245 - alpha * 120);
-        const rgbStr = `rgb(${blue}, ${Math.round(248 - alpha * 90)}, ${Math.round(252 - alpha * 35)})`;
         return {
-            background: rgbStr,
-            color: value > 0.4 ? '#fff' : '#1e293b'
+            background: `hsl(${hue.toFixed(1)} 88% ${Math.round(95 - intensity * 48)}%)`,
+            color: intensity > 0.52 ? '#fffaf4' : '#4b241d',
+            textShadow: intensity > 0.65 ? '0 1px 2px rgba(70, 10, 20, 0.35)' : 'none'
         };
     }
 };

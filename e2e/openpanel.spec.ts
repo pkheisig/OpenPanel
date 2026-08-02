@@ -318,8 +318,15 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByLabel('Panel name')).toHaveValue('OMIP-097')
   await expect(page.getByRole('combobox', { name: 'Cytometer' })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Detector configuration' })).toHaveCount(0)
-  expect(await page.getByRole('button', { name: 'PANEL MATRIX' }).evaluate((element) => getComputedStyle(element).fontSize)).toBe('12px')
-  const spectrum = page.getByRole('img', { name: 'Combined spectral signatures' })
+  expect(await page.getByRole('button', { name: 'PANEL OVERVIEW' }).evaluate((element) => getComputedStyle(element).fontSize)).toBe('12px')
+  expect(await page.getByRole('columnheader', { name: 'Fluorophore' }).count()).toBeGreaterThan(0)
+  const laserColorsMatch = await page.locator('.laser-head').evaluateAll((headers) => headers.every((header) => {
+    const laserKey = header.getAttribute('data-laser-key')
+    const band = document.querySelector(`.detector-laser-band[data-laser-key="${laserKey}"]`)
+    return band !== null && getComputedStyle(header).backgroundColor === getComputedStyle(band).fill
+  }))
+  expect(laserColorsMatch).toBe(true)
+  const spectrum = page.getByRole('img', { name: 'Combined spectra' })
   const baseViewBox = await spectrum.getAttribute('viewBox')
   const [, , viewBoxWidth, viewBoxHeight] = String(baseViewBox).split(' ').map(Number)
   await expect(spectrum).toHaveAttribute('width', String(viewBoxWidth))
@@ -348,8 +355,8 @@ test('selects the instrument and configuration before opening a clean workspace'
   await selectFluorophore(page, 0, 'Alexa Fluor 488')
   await page.waitForTimeout(650)
   await page.getByRole('button', { name: 'Decrease plot size' }).click()
-  await page.getByRole('button', { name: 'SIGNATURES' }).click()
-  const signature = page.getByRole('img', { name: 'Alexa Fluor 488 signature' })
+  await page.getByRole('button', { name: 'SPECTRA' }).click()
+  const signature = page.getByRole('img', { name: 'Alexa Fluor 488 spectrum' })
   await expect(signature).toBeVisible()
   await page.waitForTimeout(220)
   const signatureBox = await signature.boundingBox()
@@ -359,11 +366,11 @@ test('selects the instrument and configuration before opening a clean workspace'
   })
   expect(signatureBox!.width).toBeCloseTo(signatureContentWidth, 0)
   const anchoredTabsY = (await page.locator('.tabs-bar').boundingBox())!.y
-  await page.getByRole('button', { name: 'SIMILARITY MATRIX' }).click()
+  await page.getByRole('button', { name: 'SIMILARITY INDICES' }).click()
   expect((await page.locator('.tabs-bar').boundingBox())!.y).toBeCloseTo(anchoredTabsY, 0)
-  await page.getByRole('button', { name: 'PANEL MATRIX' }).click()
+  await page.getByRole('button', { name: 'PANEL OVERVIEW' }).click()
   expect((await page.locator('.tabs-bar').boundingBox())!.y).toBeCloseTo(anchoredTabsY, 0)
-  await page.getByRole('button', { name: 'SIGNATURES' }).click()
+  await page.getByRole('button', { name: 'SPECTRA' }).click()
   expect((await page.locator('.tabs-bar').boundingBox())!.y).toBeCloseTo(anchoredTabsY, 0)
   await page.getByRole('button', { name: 'Increase plot size' }).click()
   await page.waitForTimeout(220)
@@ -402,7 +409,7 @@ test('selects the instrument and configuration before opening a clean workspace'
   await savedPanel.click()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(16 colors)')
   await page.waitForTimeout(220)
-  const reopenedSpectrumBox = await page.getByRole('img', { name: 'Combined spectral signatures' }).boundingBox()
+  const reopenedSpectrumBox = await page.getByRole('img', { name: 'Combined spectra' }).boundingBox()
   expect(reopenedSpectrumBox!.width).toBeCloseTo(expandedBox!.width, 0)
   expect(reopenedSpectrumBox!.height).toBeCloseTo(expandedBox!.height, 0)
   await page.reload()
@@ -410,7 +417,7 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByLabel('Panel name')).toHaveValue('OMIP-097')
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(16 colors)')
   await page.waitForTimeout(220)
-  const reloadedSpectrumBox = await page.getByRole('img', { name: 'Combined spectral signatures' }).boundingBox()
+  const reloadedSpectrumBox = await page.getByRole('img', { name: 'Combined spectra' }).boundingBox()
   expect(reloadedSpectrumBox!.width).toBeCloseTo(expandedBox!.width, 0)
   expect(reloadedSpectrumBox!.height).toBeCloseTo(expandedBox!.height, 0)
 })
@@ -467,8 +474,8 @@ test('migrates the previous single active autosave into the named panel library'
   await expect(page.getByLabel('Panel name')).toBeVisible()
   await expect(page.getByLabel('Panel name')).toHaveValue('Recovered panel')
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
-  await expect(page.getByRole('button', { name: 'SIMILARITY MATRIX' })).toHaveClass(/active/)
-  const migratedSpectrumWidth = (await page.getByRole('img', { name: 'Combined spectral signatures' }).boundingBox())!.width
+  await expect(page.getByRole('button', { name: 'SIMILARITY INDICES' })).toHaveClass(/active/)
+  const migratedSpectrumWidth = (await page.getByRole('img', { name: 'Combined spectra' }).boundingBox())!.width
   const migratedSpectrumContainerWidth = await page.locator('.top-spectrum').evaluate((element) => {
     const style = getComputedStyle(element)
     return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
@@ -589,9 +596,15 @@ test('runs representative panel, import, export, and project round-trip workflow
   await expect(page.locator('.complexity-badge')).toContainText('1.02')
 
   await page.locator('.matrix-marker-input').first().fill('CD3')
-  await page.getByRole('button', { name: 'SIMILARITY MATRIX' }).click()
+  await page.getByRole('button', { name: 'SIMILARITY INDICES' }).click()
   await expect(page.locator('.similarity-table')).toContainText('Alexa Fluor 488')
   await expect(page.locator('.similarity-table')).toContainText('Alexa Fluor 647')
+  const sunsetCellColor = await page.locator('.similarity-table tr').nth(1).locator('td').first().evaluate((cell) => (
+    getComputedStyle(cell).backgroundColor
+  ))
+  const sunsetRgb = sunsetCellColor.match(/[\d.]+/g)?.slice(0, 3).map(Number) || []
+  expect(sunsetRgb).toHaveLength(3)
+  expect(sunsetRgb[0]).toBeGreaterThan(sunsetRgb[2])
   expect(Math.round(await page.locator('.file-action-trigger svg').first().evaluate((icon) => (
     icon.getBoundingClientRect().width
   )))).toBe(16)
@@ -644,7 +657,7 @@ test('runs representative panel, import, export, and project round-trip workflow
     buffer: Buffer.from(projectText),
   })
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(2 colors)')
-  await page.getByRole('button', { name: 'PANEL MATRIX' }).click()
+  await page.getByRole('button', { name: 'PANEL OVERVIEW' }).click()
   await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD3')
 
   await page.locator('input[accept^=".csv"]').setInputFiles({

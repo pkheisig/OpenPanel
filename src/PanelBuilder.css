@@ -843,11 +843,11 @@
 }
 
 .tab-button {
-  height: 60px;
-  border: 0;
-  border-bottom: 3px solid transparent;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
-  padding: 0 8px;
+  padding: 0 14px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -858,16 +858,20 @@
 
 .tab-button:hover {
   color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 
 .tab-button.active {
   color: var(--accent);
-  border-bottom-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .panel-builder.dark .tab-button.active {
   color: var(--accent);
-  border-bottom-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  background: var(--accent-soft);
 }
 
 .complexity-badge {
@@ -933,7 +937,6 @@
 }
 
 .laser-head {
-  color: #fff !important;
   font-weight: 800;
   font-size: 13px !important;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);

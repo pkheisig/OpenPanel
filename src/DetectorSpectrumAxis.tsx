@@ -83,7 +83,16 @@ export function DetectorSpectrumAxis({
       const width = Math.max(1, x2 - x1)
       return <g key={`${segment.key}-${segment.startIndex}`}>
         {segment.startIndex > 0 && <line x1={x1} y1={plotTop} x2={x1} y2={laserY + laserHeight} stroke={segment.color} strokeWidth={1.5} strokeOpacity={0.52} />}
-        <rect x={x1 + 1} y={laserY} width={Math.max(1, width - 2)} height={laserHeight} rx={3} fill={segment.color} />
+        <rect
+          className="detector-laser-band"
+          data-laser-key={segment.key}
+          x={x1 + 1}
+          y={laserY}
+          width={Math.max(1, width - 2)}
+          height={laserHeight}
+          rx={3}
+          fill={segment.color}
+        />
         <text x={x1 + width / 2} y={laserY + 12.5} textAnchor="middle" fontSize={10.5} fontWeight={800} fill={segment.textColor}>
           {segment.label} <tspan fontWeight={600} opacity={0.82}>{segment.wavelength}</tspan>
         </text>

@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, PointerEvent as ReactPointerEvent, SetStateAction } from 'react';
 import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
-import { detectorAxisChartWidth, detectorAxisFooterHeight } from './detectorAxis';
+import {
+    detectorAxisChartWidth,
+    detectorAxisFooterHeight,
+    detectorLaserKey,
+    detectorLaserMeta,
+} from './detectorAxis';
 import { DEFAULT_PLOT_SCALE } from './projectStore';
 import {
     bandColor,
@@ -127,7 +132,7 @@ export function PanelVisualizations({
     return (
 <main className="main-panel" style={{ '--plot-zoom': plotZoom } as CSSProperties}>
     <div className="top-spectrum" ref={spectrumContainerRef}>
-        <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label="Combined spectral signatures">
+        <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label="Combined spectra">
             {[0, 25, 50, 75, 100].map(tick => {
                 const y = chartHeight - (tick / 100) * (chartHeight - 32) - 24;
                 return (
@@ -213,9 +218,9 @@ export function PanelVisualizations({
     </div>
 
     <div className="tabs-bar">
-        <button className={`tab-button ${tab === 'panel' ? 'active' : ''}`} onClick={() => setTab('panel')}>PANEL MATRIX</button>
-        <button className={`tab-button ${tab === 'similarity' ? 'active' : ''}`} onClick={() => setTab('similarity')}>SIMILARITY MATRIX</button>
-        <button className={`tab-button ${tab === 'signatures' ? 'active' : ''}`} onClick={() => setTab('signatures')}>SIGNATURES</button>
+        <button className={`tab-button ${tab === 'panel' ? 'active' : ''}`} onClick={() => setTab('panel')}>PANEL OVERVIEW</button>
+        <button className={`tab-button ${tab === 'similarity' ? 'active' : ''}`} onClick={() => setTab('similarity')}>SIMILARITY INDICES</button>
+        <button className={`tab-button ${tab === 'signatures' ? 'active' : ''}`} onClick={() => setTab('signatures')}>SPECTRA</button>
         <div style={{ flex: 1 }} />
         <div className="complexity-badge">Complexity Index: {formatMetric(payload.complexity_index)}</div>
     </div>
@@ -229,17 +234,27 @@ export function PanelVisualizations({
                     <thead>
                         <tr>
                             <th className="emission-head" />
-                            {lasers.map(laser => (
-                                <th className="laser-head" key={laser} colSpan={2} style={{ background: payload.detectors.find(d => d.laser === laser)?.color || '#64748b' }}>
-                                    {laserLabel(laser)}
-                                </th>
-                            ))}
+                            {lasers.map(laser => {
+                                const laserKey = detectorLaserKey({ detector: laser, laser });
+                                const laserMeta = detectorLaserMeta(laserKey, payload.cytometer);
+                                return (
+                                    <th
+                                        className="laser-head"
+                                        data-laser-key={laserKey}
+                                        key={laser}
+                                        colSpan={2}
+                                        style={{ background: laserMeta.color, color: laserMeta.textColor }}
+                                    >
+                                        {laserLabel(laser)}
+                                    </th>
+                                );
+                            })}
                         </tr>
                         <tr>
                             <th className="emission-head">Emission</th>
                             {lasers.flatMap(laser => [
                                 <th key={`${laser}-marker`}>Marker</th>,
-                                <th key={`${laser}-fluor`}>Fluor</th>,
+                                <th key={`${laser}-fluor`}>Fluorophore</th>,
                             ])}
                         </tr>
                     </thead>
@@ -298,7 +313,7 @@ export function PanelVisualizations({
             <div>
                 <div className="similarity-wrap">
                     {selected.length === 0 ? (
-                        <div className="empty-state">Select fluorophores to calculate the similarity matrix.</div>
+                        <div className="empty-state">Select fluorophores to calculate similarity indices.</div>
                     ) : (
                         <table className="similarity-table">
                             <tbody>
@@ -333,7 +348,7 @@ export function PanelVisualizations({
         {tab === 'signatures' && (
             <div className="signatures-wrap">
                 {selected.length === 0 ? (
-                    <div className="empty-state">Select fluorophores to view signatures.</div>
+                    <div className="empty-state">Select fluorophores to view spectra.</div>
                 ) : selected.map(fluor => {
                     const row = spectraByName.get(fluor);
                     if (!row) return null;
@@ -348,7 +363,7 @@ export function PanelVisualizations({
                     return (
                         <div className="signature-card" key={fluor}>
                             <h3>{fluor}</h3>
-                            <svg className="signature-band-svg" width={chartWidth} height={signatureHeight} viewBox={`0 0 ${chartWidth} ${signatureHeight}`} role="img" aria-label={`${fluor} signature`}>
+                            <svg className="signature-band-svg" width={chartWidth} height={signatureHeight} viewBox={`0 0 ${chartWidth} ${signatureHeight}`} role="img" aria-label={`${fluor} spectrum`}>
                                 <rect x={signatureLeft} y={signatureTop} width={signaturePlotWidth} height={signaturePlotHeight} fill={plotBg} stroke={plotStroke} />
                                 {[0, 1, 2, 3, 4, 5, 6].map(tick => {
                                     const y = signatureY(tick, signatureTop, signaturePlotHeight);
