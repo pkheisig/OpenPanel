@@ -1024,6 +1024,11 @@
   border: none;
 }
 
+.similarity-table .axis-corner {
+  background: transparent;
+  border: none;
+}
+
 .rotated-label {
   display: inline-block;
   writing-mode: vertical-rl;

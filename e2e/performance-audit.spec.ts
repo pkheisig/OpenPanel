@@ -77,8 +77,8 @@ test('audit editor interaction rendering', async ({ page }) => {
   const result = {
     initialNodes,
     spectra,
-    similarity: await measureTab('SIMILARITY INDICES'),
-    overview: await measureTab('PANEL OVERVIEW'),
+    similarity: await measureTab('SIMILARITY'),
+    overview: await measureTab('PANEL'),
   }
   expect(result.spectra.nodes).toBeLessThan(2_500)
   expect(result.spectra.svgNodes).toBeLessThan(2_000)

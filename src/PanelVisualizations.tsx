@@ -207,8 +207,8 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     </div>
 
     <div className="tabs-bar">
-        <button className={`tab-button ${tab === 'panel' ? 'active' : ''}`} onClick={() => setTab('panel')}>PANEL OVERVIEW</button>
-        <button className={`tab-button ${tab === 'similarity' ? 'active' : ''}`} onClick={() => setTab('similarity')}>SIMILARITY INDICES</button>
+        <button className={`tab-button ${tab === 'panel' ? 'active' : ''}`} onClick={() => setTab('panel')}>PANEL</button>
+        <button className={`tab-button ${tab === 'similarity' ? 'active' : ''}`} onClick={() => setTab('similarity')}>SIMILARITY</button>
         <button className={`tab-button ${tab === 'signatures' ? 'active' : ''}`} onClick={() => setTab('signatures')}>SPECTRA</button>
         <div style={{ flex: 1 }} />
         <div className="complexity-badge">Complexity Index: {formatMetric(payload.complexity_index)}</div>
@@ -302,7 +302,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
             <div>
                 <div className="similarity-wrap">
                     {selected.length === 0 ? (
-                        <div className="empty-state">Select fluorophores to calculate similarity indices.</div>
+                        <div className="empty-state">Select fluorophores to calculate similarity.</div>
                     ) : (
                         <table className="similarity-table">
                             <tbody>
@@ -322,7 +322,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                                     </tr>
                                 ))}
                                 <tr>
-                                    <th />
+                                    <th className="axis-corner" aria-hidden="true" />
                                     {selected.map(name => (
                                         <th className="col-label" key={name}><span className="rotated-label">{name}</span></th>
                                     ))}
