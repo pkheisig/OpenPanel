@@ -141,10 +141,22 @@ const LASER_PALETTE: Record<string, string> = {
 
 const LASER_ORDER = ['DeepUV', 'UV', 'Violet', 'Blue', 'YellowGreen', 'Red', 'IR', 'Other']
 
-let initialization: Promise<void> | null = null
+let dictionaryInitialization: Promise<void> | null = null
 const libraries = new Map<CytometerId, SpectralLibrary>()
+const libraryInitializations = new Map<CytometerId, Promise<void>>()
 let cytometerDictionary: CsvRow[] = []
 let fluorophoreDictionary: CsvRow[] = []
+const configurationBases = new Map<string, PanelConfigurationBase>()
+const panelPayloadCache = new Map<string, PanelPayload>()
+const MAX_PANEL_PAYLOAD_CACHE = 32
+
+type PanelConfigurationBase = {
+  detectorInfo: DetectorInfo[]
+  fluorophores: FluorInfo[]
+  retainedSignal: number[]
+  normalizedRowsByLibraryIndex: Map<number, number[]>
+  lookup: Map<string, number>
+}
 
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = []
@@ -218,25 +230,37 @@ function parseLibrary(rows: string[][]): SpectralLibrary {
   return { detectors, fluorophores, values }
 }
 
-export function initializeSpectralEngine(): Promise<void> {
-  if (initialization) return initialization
-  initialization = (async () => {
-    const [aurora, discover, id7000, xenith, cytometers, fluorophores] = await Promise.all([
-      loadCsv(LIBRARY_FILES.aurora),
-      loadCsv(LIBRARY_FILES.discover),
-      loadCsv(LIBRARY_FILES.id7000),
-      loadCsv(LIBRARY_FILES.xenith),
-      loadCsv('cytometer_dictionary.csv'),
-      loadCsv('fluorophore_dictionary.csv'),
-    ])
-    libraries.set('aurora', parseLibrary(aurora))
-    libraries.set('discover', parseLibrary(discover))
-    libraries.set('id7000', parseLibrary(id7000))
-    libraries.set('xenith', parseLibrary(xenith))
+function initializeDictionaries(): Promise<void> {
+  if (dictionaryInitialization) return dictionaryInitialization
+  dictionaryInitialization = Promise.all([
+    loadCsv('cytometer_dictionary.csv'),
+    loadCsv('fluorophore_dictionary.csv'),
+  ]).then(([cytometers, fluorophores]) => {
     cytometerDictionary = rowsToObjects(cytometers)
     fluorophoreDictionary = rowsToObjects(fluorophores)
-  })()
-  return initialization
+  })
+  return dictionaryInitialization
+}
+
+function initializeLibrary(cytometer: CytometerId): Promise<void> {
+  const existing = libraryInitializations.get(cytometer)
+  if (existing) return existing
+  const pending = loadCsv(LIBRARY_FILES[cytometer]).then((rows) => {
+    libraries.set(cytometer, parseLibrary(rows))
+  })
+  libraryInitializations.set(cytometer, pending)
+  return pending
+}
+
+async function initializeCytometer(cytometer: CytometerId): Promise<void> {
+  await Promise.all([initializeDictionaries(), initializeLibrary(cytometer)])
+}
+
+export async function initializeSpectralEngine(): Promise<void> {
+  await Promise.all([
+    initializeDictionaries(),
+    ...LIBRARIES.map((library) => initializeLibrary(library.id as CytometerId)),
+  ])
 }
 
 function normalizeToken(value: unknown): string {
@@ -430,16 +454,14 @@ function namedRows(names: string[], detectors: string[], values: number[][]): Nu
   }))
 }
 
-export async function buildPanelPayload(
-  cytometer: unknown = 'aurora',
-  configuration?: unknown,
-  requestedFluorophores: string[] = [],
-): Promise<PanelPayload> {
-  await initializeSpectralEngine()
-  const id = resolveCytometer(cytometer)
-  const config = resolveConfiguration(id, configuration)
-  const library = libraries.get(id)
-  if (!library) throw new Error(`Spectral library file is missing for cytometer '${id}'.`)
+function configurationBase(
+  id: CytometerId,
+  config: string,
+  library: SpectralLibrary,
+): PanelConfigurationBase {
+  const cacheKey = `${id}:${config}`
+  const cached = configurationBases.get(cacheKey)
+  if (cached) return cached
 
   const detectorIndices = configurationDetectorIndices(library, id, config)
   if (detectorIndices.length === 0) throw new Error('Selected spectral panel configuration has no matching detectors.')
@@ -447,7 +469,6 @@ export async function buildPanelPayload(
   const detectorInfo = detectorMetadata(id, detectors)
   const sortedDetectorIndex = new Map(detectors.map((detector, index) => [detector, index]))
   const outputIndices = detectorInfo.map((detector) => detectorIndices[sortedDetectorIndex.get(detector.detector) ?? 0])
-
   const retainedSignal = library.values.map((row) => outputIndices.reduce(
     (maximum, detectorIndex) => Math.max(maximum, Math.abs(row[detectorIndex])),
     0,
@@ -455,11 +476,14 @@ export async function buildPanelPayload(
   const availableIndices = library.fluorophores
     .map((_, index) => index)
     .filter((index) => retainedSignal[index] >= 0.02)
-
-  const availableRows = availableIndices.map((index) => normalizeRow(outputIndices.map((detectorIndex) => library.values[index][detectorIndex])))
-  const fluorophores: FluorInfo[] = availableIndices.map((libraryIndex, availableIndex) => {
-    const peakIndex = availableRows[availableIndex].reduce(
-      (best, value, index, row) => value > row[best] ? index : best,
+  const normalizedRowsByLibraryIndex = new Map(availableIndices.map((libraryIndex) => [
+    libraryIndex,
+    normalizeRow(outputIndices.map((detectorIndex) => library.values[libraryIndex][detectorIndex])),
+  ]))
+  const fluorophores: FluorInfo[] = availableIndices.map((libraryIndex) => {
+    const row = normalizedRowsByLibraryIndex.get(libraryIndex) ?? []
+    const peakIndex = row.reduce(
+      (best, value, index, values) => value > values[best] ? index : best,
       0,
     )
     const peak = detectorInfo[peakIndex]
@@ -472,42 +496,86 @@ export async function buildPanelPayload(
     }
   }).sort((left, right) => left.peak_laser.localeCompare(right.peak_laser) || left.fluorophore.localeCompare(right.fluorophore))
 
-  const lookup = fluorophoreLookup(library)
+  const base = {
+    detectorInfo,
+    fluorophores,
+    retainedSignal,
+    normalizedRowsByLibraryIndex,
+    lookup: fluorophoreLookup(library),
+  }
+  configurationBases.set(cacheKey, base)
+  return base
+}
+
+function rememberPanelPayload(key: string, payload: PanelPayload): PanelPayload {
+  panelPayloadCache.delete(key)
+  panelPayloadCache.set(key, payload)
+  if (panelPayloadCache.size > MAX_PANEL_PAYLOAD_CACHE) {
+    const oldestKey = panelPayloadCache.keys().next().value
+    if (oldestKey !== undefined) panelPayloadCache.delete(oldestKey)
+  }
+  return payload
+}
+
+export async function buildPanelPayload(
+  cytometer: unknown = 'aurora',
+  configuration?: unknown,
+  requestedFluorophores: string[] = [],
+): Promise<PanelPayload> {
+  const id = resolveCytometer(cytometer)
+  const config = resolveConfiguration(id, configuration)
+  await initializeCytometer(id)
+  const library = libraries.get(id)
+  if (!library) throw new Error(`Spectral library file is missing for cytometer '${id}'.`)
   const uniqueRequested = Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean)))
+  const payloadCacheKey = `${id}:${config}:${uniqueRequested.join('\u0000')}`
+  const cachedPayload = panelPayloadCache.get(payloadCacheKey)
+  if (cachedPayload) {
+    panelPayloadCache.delete(payloadCacheKey)
+    panelPayloadCache.set(payloadCacheKey, cachedPayload)
+    return cachedPayload
+  }
+
+  const base = configurationBase(id, config, library)
   const selectedLabels: string[] = []
   const selectedValues: number[][] = []
   uniqueRequested.forEach((requested) => {
-    const libraryIndex = lookup.get(normalizeToken(requested))
-    if (libraryIndex === undefined || retainedSignal[libraryIndex] < 0.02) return
+    const libraryIndex = base.lookup.get(normalizeToken(requested))
+    if (libraryIndex === undefined || base.retainedSignal[libraryIndex] < 0.02) return
+    const values = base.normalizedRowsByLibraryIndex.get(libraryIndex)
+    if (!values) return
     selectedLabels.push(requested)
-    selectedValues.push(normalizeRow(outputIndices.map((detectorIndex) => library.values[libraryIndex][detectorIndex])))
+    selectedValues.push(values)
   })
 
   const similarityValues = calculateSimilarityMatrix(selectedValues)
   const similarity = namedRows(selectedLabels, selectedLabels, similarityValues)
-  const peaks = selectedValues.map((row) => detectorInfo[row.reduce(
+  const peaks = selectedValues.map((row) => base.detectorInfo[row.reduce(
     (best, value, index, values) => value > values[best] ? index : best,
     0,
   )]?.detector ?? '')
 
-  return {
+  return rememberPanelPayload(payloadCacheKey, {
     cytometer: id,
     configuration: config,
     libraries: LIBRARIES,
     configurations: CONFIGURATIONS[id],
-    detectors: detectorInfo,
-    fluorophores,
+    detectors: base.detectorInfo,
+    fluorophores: base.fluorophores,
     selected: selectedLabels,
-    spectra: namedRows(selectedLabels, detectorInfo.map((detector) => detector.detector), selectedValues),
+    spectra: namedRows(selectedLabels, base.detectorInfo.map((detector) => detector.detector), selectedValues),
     similarity,
     complexity_index: calculatePanelComplexity(selectedValues),
     peak_detectors: peaks,
-  }
+  })
 }
 
 export function resetSpectralEngineForTests(): void {
-  initialization = null
+  dictionaryInitialization = null
   libraries.clear()
+  libraryInitializations.clear()
+  configurationBases.clear()
+  panelPayloadCache.clear()
   cytometerDictionary = []
   fluorophoreDictionary = []
 }

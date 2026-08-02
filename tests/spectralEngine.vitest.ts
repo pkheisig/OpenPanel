@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildPanelPayload,
   calculatePanelComplexity,
@@ -87,6 +87,27 @@ describe('browser spectral engine parity', () => {
     expect(resolveCytometer('Thermo Fisher Attune Xenith')).toBe('xenith')
     expect(resolveConfiguration('aurora', '4L UV')).toBe('4l_uv_v_b_r')
     expect(resolveConfiguration('id7000', 'ID7000 3 laser')).toBe('id7000_3l')
+  })
+
+  test('loads only the active cytometer library and reuses identical panel calculations', async () => {
+    const bundledFetch = globalThis.fetch
+    const requestedFiles: string[] = []
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      requestedFiles.push(new URL(source).pathname.split('/').at(-1) ?? '')
+      return bundledFetch(input)
+    })
+
+    const first = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['PE', 'APC'])
+    const requestCount = requestedFiles.length
+    const second = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['PE', 'APC'])
+
+    expect(second).toBe(first)
+    expect(requestedFiles).toContain('aurora_spectra.csv')
+    expect(requestedFiles).not.toContain('discover_spectra.csv')
+    expect(requestedFiles).not.toContain('id7000_spectra.csv')
+    expect(requestedFiles).not.toContain('xenith_spectra.csv')
+    expect(requestedFiles).toHaveLength(requestCount)
   })
 
   test('matches cosine and condition-number edge behavior', () => {

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, PointerEvent as ReactPointerEvent, SetStateAction } from 'react';
 import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
+import { SpectrumBandPlot } from './SpectrumBandPlot';
 import {
     detectorAxisChartWidth,
     detectorAxisFooterHeight,
@@ -9,17 +10,12 @@ import {
 } from './detectorAxis';
 import { DEFAULT_PLOT_SCALE } from './projectStore';
 import {
-    bandColor,
-    detectorColumnCenterX,
     detectorPointX,
     formatMetric,
     getSimilarityStyle,
     laserLabel,
     laserWavelength,
     linePath,
-    signatureBandBins,
-    signatureY,
-    toNumber,
     toSimilarityValue,
 } from './panelBuilderShared';
 import type { NumericRow, PanelPayload, TabId } from './panelBuilderShared';
@@ -51,7 +47,7 @@ interface PanelVisualizationsProps {
     plotScale: number;
 }
 
-export function PanelVisualizations({
+export const PanelVisualizations = memo(function PanelVisualizations({
     payload,
     selected,
     selectedEntries,
@@ -80,13 +76,6 @@ export function PanelVisualizations({
     const spectrumLeft = 42;
     const spectrumRight = chartWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
-    const signatureLeft = 58;
-    const signatureTop = 22;
-    const signaturePlotHeight = 265;
-    const signatureAxisBottom = signatureTop + signaturePlotHeight;
-    const signatureHeight = signatureAxisBottom + 82;
-    const signaturePlotWidth = chartWidth - signatureLeft - 18;
-    const signatureColumnWidth = signaturePlotWidth / Math.max(1, payload.detectors.length);
 
     useEffect(() => {
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });
@@ -349,57 +338,21 @@ export function PanelVisualizations({
             <div className="signatures-wrap">
                 {selected.length === 0 ? (
                     <div className="empty-state">Select fluorophores to view spectra.</div>
-                ) : selected.map(fluor => {
+                ) : selected.map((fluor, index) => {
                     const row = spectraByName.get(fluor);
                     if (!row) return null;
-
-                    const isDark = theme === 'dark';
-                    const plotBg = isDark ? '#0b1110' : '#f8f7f3';
-                    const plotStroke = isDark ? '#52615b' : '#c7c3ba';
-                    const textHeading = isDark ? '#f0f3f2' : '#17201d';
-                    const gridH = isDark ? 'rgba(169, 183, 177, 0.16)' : 'rgba(109, 117, 111, 0.14)';
-                    const gridV = isDark ? 'rgba(169, 183, 177, 0.1)' : 'rgba(109, 117, 111, 0.09)';
 
                     return (
                         <div className="signature-card" key={fluor}>
                             <h3>{fluor}</h3>
-                            <svg className="signature-band-svg" width={chartWidth} height={signatureHeight} viewBox={`0 0 ${chartWidth} ${signatureHeight}`} role="img" aria-label={`${fluor} spectrum`}>
-                                <rect x={signatureLeft} y={signatureTop} width={signaturePlotWidth} height={signaturePlotHeight} fill={plotBg} stroke={plotStroke} />
-                                {[0, 1, 2, 3, 4, 5, 6].map(tick => {
-                                    const y = signatureY(tick, signatureTop, signaturePlotHeight);
-                                    return (
-                                        <g key={tick}>
-                                            <line x1={signatureLeft} y1={y} x2={signatureLeft + signaturePlotWidth} y2={y} stroke={gridH} strokeWidth={1} />
-                                            <text x={signatureLeft - 9} y={y + 4} fontSize={11} textAnchor="end" className="chart-axis-text">{`10^${tick}`}</text>
-                                        </g>
-                                    );
-                                })}
-                                <text x={14} y={signatureTop + signaturePlotHeight / 2} fontSize={13} fontWeight={700} textAnchor="middle" transform={`rotate(-90 14 ${signatureTop + signaturePlotHeight / 2})`} fill={textHeading}>Intensity</text>
-                                {payload.detectors.map((det, index) => {
-                                    const centerX = detectorColumnCenterX(index, payload.detectors.length, signatureLeft, signaturePlotWidth);
-                                    const value = toNumber(row[det.detector]);
-                                    return (
-                                        <g key={det.detector}>
-                                            <line x1={centerX} y1={signatureTop} x2={centerX} y2={signatureAxisBottom} stroke={gridV} strokeWidth={1} />
-                                            {signatureBandBins(value).map((bin, bandIndex) => {
-                                                const y = signatureY(bin.logValue, signatureTop, signaturePlotHeight);
-                                                return (
-                                                    <rect
-                                                        key={`${det.detector}-${bandIndex}`}
-                                                        x={centerX - Math.max(3, signatureColumnWidth * 0.28)}
-                                                        y={y - 2.3}
-                                                        width={Math.max(4, signatureColumnWidth * 0.56)}
-                                                        height={4.6}
-                                                        fill={bandColor(bin.density)}
-                                                        opacity={0.95}
-                                                    />
-                                                );
-                                            })}
-                                            <text x={centerX} y={signatureAxisBottom + 12} fontSize={10} textAnchor="end" transform={`rotate(-90 ${centerX} ${signatureAxisBottom + 12})`} className="chart-axis-text">{det.label}</text>
-                                        </g>
-                                    );
-                                })}
-                            </svg>
+                            <SpectrumBandPlot
+                                fluorophore={fluor}
+                                row={row}
+                                detectors={payload.detectors}
+                                chartWidth={chartWidth}
+                                theme={theme}
+                                eager={index < 2}
+                            />
                         </div>
                     );
                 })}
@@ -408,4 +361,4 @@ export function PanelVisualizations({
     </section>
 </main>
     );
-}
+});

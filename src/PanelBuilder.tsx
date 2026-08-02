@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Trash2, Undo2, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ClearPanelConfirmation } from './ClearPanelConfirmation';
 import { ModuleLoadingState } from './ModuleLoadingState';
-import { PanelWizard } from './PanelWizard';
 import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
@@ -58,6 +57,8 @@ const MIN_SIDEBAR_WIDTH = 180;
 const MAX_SIDEBAR_WIDTH = 440;
 const SIDEBAR_KEYBOARD_STEP = 12;
 const MAX_PANEL_HISTORY = 100;
+const loadPanelWizard = () => import('./PanelWizard');
+const PanelWizard = lazy(() => loadPanelWizard().then((module) => ({ default: module.PanelWizard })));
 
 type PanelEditSnapshot = {
     slots: string[];
@@ -134,6 +135,15 @@ const PanelBuilder = ({
     const [bootAttempt, setBootAttempt] = useState(0);
 
     useEffect(() => () => sidebarResizeCleanupRef.current?.(), []);
+
+    useEffect(() => {
+        if (typeof window.requestIdleCallback === 'function') {
+            const idleCallback = window.requestIdleCallback(() => void loadPanelWizard(), { timeout: 1500 });
+            return () => window.cancelIdleCallback(idleCallback);
+        }
+        const timer = window.setTimeout(() => void loadPanelWizard(), 600);
+        return () => window.clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         localStorage.setItem('spectreasy_cytometer', getCytometerName(cytometer));
@@ -295,31 +305,31 @@ const PanelBuilder = ({
         return hit?.label || '';
     }, [configuration, payload]);
 
-    const capturePanelEdit = (): PanelEditSnapshot => ({
+    const capturePanelEdit = useCallback((): PanelEditSnapshot => ({
         slots: [...slotsRef.current],
         markers: { ...markersRef.current },
         wizard: wizardStateRef.current,
-    });
+    }), []);
 
-    const syncHistoryAvailability = () => {
+    const syncHistoryAvailability = useCallback(() => {
         setHistoryAvailability({
             canUndo: panelHistoryRef.current.past.length > 0,
             canRedo: panelHistoryRef.current.future.length > 0,
         });
-    };
+    }, []);
 
-    const recordPanelEdit = () => {
+    const recordPanelEdit = useCallback(() => {
         const history = panelHistoryRef.current;
         history.past.push(capturePanelEdit());
         if (history.past.length > MAX_PANEL_HISTORY) history.past.shift();
         history.future = [];
         syncHistoryAvailability();
-    };
+    }, [capturePanelEdit, syncHistoryAvailability]);
 
-    const clearPanelHistory = () => {
+    const clearPanelHistory = useCallback(() => {
         panelHistoryRef.current = { past: [], future: [] };
         syncHistoryAvailability();
-    };
+    }, [syncHistoryAvailability]);
 
     const requestPanel = useCallback((
         nextCytometer: string,
@@ -502,7 +512,7 @@ const PanelBuilder = ({
         });
     };
 
-    const updateMarkerWithHistory = (slotIndex: number, value: string) => {
+    const updateMarkerWithHistory = useCallback((slotIndex: number, value: string) => {
         if ((markersRef.current[slotIndex] ?? '') === value) return;
         recordPanelEdit();
         const nextMarkers = { ...markersRef.current };
@@ -511,7 +521,7 @@ const PanelBuilder = ({
         markersRef.current = nextMarkers;
         setMarkers(nextMarkers);
         localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
-    };
+    }, [recordPanelEdit]);
 
     const clearPanelContent = async () => {
         const hasContent = slotsRef.current.some(Boolean)
@@ -905,6 +915,8 @@ const PanelBuilder = ({
                         type="button"
                         className="export-button wizard-launch-button panel-wizard-header-action"
                         onClick={() => setShowPanelWizard(true)}
+                        onPointerEnter={() => void loadPanelWizard()}
+                        onFocus={() => void loadPanelWizard()}
                         aria-label="Open panel wizard"
                     >
                         <WandSparkles size={17} aria-hidden="true" />
@@ -1190,26 +1202,28 @@ const PanelBuilder = ({
                 />
             </div>
             {showPanelWizard && (
-                <PanelWizard
-                    cytometer={cytometer}
-                    configuration={configuration}
-                    configurationLabel={selectedConfigurationLabel}
-                    availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
-                    maxPanelSize={Math.max(
-                        selected.length,
-                        Math.min(payload.fluorophores.length, payload.detectors.length),
-                    )}
-                    slots={slots}
-                    markerNames={markers}
-                    theme={embedded && cockpitTheme ? cockpitTheme : theme}
-                    initialState={wizardState}
-                    onStateChange={handleWizardStateChange}
-                    onClearPanel={clearPanelContent}
-                    onClose={() => {
-                        setShowPanelWizard(false);
-                    }}
-                    onApply={applyWizardRecommendations}
-                />
+                <Suspense fallback={<div className={`panel-wizard-backdrop ${embedded && cockpitTheme ? cockpitTheme : theme}`} />}>
+                    <PanelWizard
+                        cytometer={cytometer}
+                        configuration={configuration}
+                        configurationLabel={selectedConfigurationLabel}
+                        availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
+                        maxPanelSize={Math.max(
+                            selected.length,
+                            Math.min(payload.fluorophores.length, payload.detectors.length),
+                        )}
+                        slots={slots}
+                        markerNames={markers}
+                        theme={embedded && cockpitTheme ? cockpitTheme : theme}
+                        initialState={wizardState}
+                        onStateChange={handleWizardStateChange}
+                        onClearPanel={clearPanelContent}
+                        onClose={() => {
+                            setShowPanelWizard(false);
+                        }}
+                        onApply={applyWizardRecommendations}
+                    />
+                </Suspense>
             )}
             {showClearConfirmation && (
                 <ClearPanelConfirmation

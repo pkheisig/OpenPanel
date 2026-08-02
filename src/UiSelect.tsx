@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search } from 'lucide-react'
@@ -12,13 +12,14 @@ export type UiSelectOption = {
 
 type UiSelectProps = {
   label: string
-  options: UiSelectOption[]
+  options: UiSelectOption[] | (() => UiSelectOption[])
   value: string
   onChange: (value: string) => void
   className?: string
   hideLabel?: boolean
   searchable?: boolean
   searchPlaceholder?: string
+  placeholder?: string
   portalMenu?: boolean
   menuClassName?: string
   allowCustomValue?: boolean
@@ -33,6 +34,7 @@ export function UiSelect({
   hideLabel = false,
   searchable = false,
   searchPlaceholder = 'Search options',
+  placeholder = '',
   portalMenu = false,
   menuClassName = '',
   allowCustomValue = false,
@@ -42,21 +44,35 @@ export function UiSelect({
   const menuRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const matchedIndex = options.findIndex((option) => option.value === value)
-  const selectedIndex = Math.max(0, matchedIndex)
   const [open, setOpen] = useState(false)
+  const resolvedOptions = useMemo(
+    () => typeof options === 'function' ? (open ? options() : []) : options,
+    [open, options],
+  )
+  const matchedIndex = resolvedOptions.findIndex((option) => option.value === value)
+  const selectedIndex = Math.max(0, matchedIndex)
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
   const [query, setQuery] = useState('')
   const [menuStyle, setMenuStyle] = useState<CSSProperties>()
   const [portalTarget, setPortalTarget] = useState<Element | null>(null)
-  const visibleOptions = rankUiSelectOptions(options, query)
-  const customValue = query.trim()
-  const customOption = allowCustomValue
-    && customValue
-    && !options.some((option) => normalizeSearchValue(option.value) === normalizeSearchValue(customValue))
-    ? { value: customValue, label: `Use “${customValue}”` }
-    : null
-  const displayedOptions = customOption ? [...visibleOptions, customOption] : visibleOptions
+  const displayedOptions = useMemo(() => {
+    if (!open) return []
+    const rankedOptions = rankUiSelectOptions(resolvedOptions, query)
+    let visibleOptions = searchable && rankedOptions.length > 120
+      ? rankedOptions.slice(0, 120)
+      : rankedOptions
+    const selectedOption = resolvedOptions[matchedIndex]
+    if (selectedOption && !visibleOptions.some((option) => option.value === selectedOption.value)) {
+      visibleOptions = [selectedOption, ...visibleOptions.slice(0, 119)]
+    }
+    const customValue = query.trim()
+    const customOption = allowCustomValue
+      && customValue
+      && !resolvedOptions.some((option) => normalizeSearchValue(option.value) === normalizeSearchValue(customValue))
+      ? { value: customValue, label: `Use “${customValue}”` }
+      : null
+    return customOption ? [...visibleOptions, customOption] : visibleOptions
+  }, [allowCustomValue, matchedIndex, open, query, resolvedOptions, searchable])
 
   useEffect(() => {
     if (!open) return
@@ -123,12 +139,14 @@ export function UiSelect({
   const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
+      const triggerOptions = typeof options === 'function' ? options() : options
+      const triggerSelectedIndex = Math.max(0, triggerOptions.findIndex((option) => option.value === value))
       setQuery('')
       setActiveIndex(searchable
         ? 0
         : event.key === 'ArrowDown'
-          ? (selectedIndex + 1) % options.length
-          : (selectedIndex - 1 + options.length) % options.length)
+          ? (triggerSelectedIndex + 1) % Math.max(1, triggerOptions.length)
+          : (triggerSelectedIndex - 1 + triggerOptions.length) % Math.max(1, triggerOptions.length))
       if (portalMenu) {
         setPortalTarget(event.currentTarget.closest('.panel-builder, .launch-screen') ?? document.body)
       }
@@ -170,7 +188,7 @@ export function UiSelect({
       move(0)
     } else if (event.key === 'End') {
       event.preventDefault()
-      move(options.length - 1)
+      move(displayedOptions.length - 1)
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       const option = displayedOptions[index]
@@ -181,7 +199,7 @@ export function UiSelect({
     }
   }
 
-  const selectedOption = matchedIndex >= 0 ? options[matchedIndex] : null
+  const selectedOption = matchedIndex >= 0 ? resolvedOptions[matchedIndex] : null
   const menu = open && (
     <div
       ref={menuRef}
@@ -265,7 +283,7 @@ export function UiSelect({
           }}
           onKeyDown={handleTriggerKeyDown}
         >
-          <span>{selectedOption?.label ?? value}</span>
+          <span>{selectedOption?.label ?? (value || placeholder)}</span>
           <ChevronDown size={17} aria-hidden="true" />
         </button>
 

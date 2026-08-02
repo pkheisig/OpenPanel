@@ -715,7 +715,8 @@ export function PanelWizard({
                             label={`Marker ${index + 1} name`}
                             hideLabel
                             value={marker.name}
-                            options={markerOptions(marker.id)}
+                            placeholder="Select marker"
+                            options={() => markerOptions(marker.id)}
                             onChange={(value) => updateMarker(marker.id, { name: value })}
                             searchable
                             searchPlaceholder="Search or enter marker"
@@ -730,7 +731,8 @@ export function PanelWizard({
                             label={`Color for marker ${index + 1}`}
                             hideLabel
                             value={marker.currentFluorophore}
-                            options={colorOptions(marker.id)}
+                            placeholder="Auto-select"
+                            options={() => colorOptions(marker.id)}
                             onChange={(value) => updateMarker(marker.id, { currentFluorophore: value })}
                             searchable
                             searchPlaceholder="Search colors"
