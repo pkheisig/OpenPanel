@@ -19,7 +19,6 @@ import {
   buildPanelPayload,
   getSpectralPanelConfigurations,
   getSpectralPanelLibraries,
-  resolveConfiguration,
 } from './spectralEngine'
 import type { PanelPayload } from './panelBuilderShared'
 import {
@@ -58,11 +57,6 @@ type ProjectMenuState = {
   panel: StoredPanelProject
   x: number
   y: number
-}
-
-function storedCytometer(fallback: string): string {
-  const value = localStorage.getItem('spectreasy_cytometer')
-  return getSpectralPanelLibraries().some((library) => library.id === value) ? String(value) : fallback
 }
 
 function formatUpdatedAt(value: string): string {
@@ -139,11 +133,13 @@ export function LandingPage({
   const [omipPayload, setOmipPayload] = useState<PanelPayload | null>(null)
   const [creatingFromOmip, setCreatingFromOmip] = useState(false)
   const [menu, setMenu] = useState<ProjectMenuState | null>(null)
-  const [cytometer, setCytometer] = useState(() => storedCytometer(libraries[0].id))
-  const configurations = useMemo(() => getSpectralPanelConfigurations(cytometer), [cytometer])
-  const [configuration, setConfiguration] = useState(
-    () => resolveConfiguration(cytometer, localStorage.getItem('spectreasy_configuration')),
+  const [cytometer, setCytometer] = useState('')
+  const configurations = useMemo(
+    () => cytometer ? getSpectralPanelConfigurations(cytometer) : [],
+    [cytometer],
   )
+  const [configuration, setConfiguration] = useState('')
+  const setupReady = Boolean(cytometer && (cytometer === 'xenith' || configuration))
 
   const activePanels = useMemo(
     () => panels.filter((panel) => !panel.archivedAt),
@@ -176,7 +172,7 @@ export function LandingPage({
   }, [])
 
   useEffect(() => {
-    if (!showOmipLibrary) return
+    if (!showOmipLibrary || !setupReady) return
     let cancelled = false
     void buildPanelPayload(cytometer, configuration).then((nextPayload) => {
       if (!cancelled) setOmipPayload(nextPayload)
@@ -186,9 +182,10 @@ export function LandingPage({
     return () => {
       cancelled = true
     }
-  }, [configuration, cytometer, showOmipLibrary])
+  }, [configuration, cytometer, setupReady, showOmipLibrary])
 
   const startPanel = async () => {
+    if (!setupReady) return
     localStorage.setItem('spectreasy_cytometer', cytometer)
     localStorage.setItem('spectreasy_configuration', configuration)
     setStarting(true)
@@ -332,10 +329,13 @@ export function LandingPage({
             <UiSelect
               label="CYTOMETER"
               value={cytometer}
-              options={libraries.map((library) => ({ value: library.id, label: library.label }))}
+              options={[
+                { value: '', label: 'Select cytometer' },
+                ...libraries.map((library) => ({ value: library.id, label: library.label })),
+              ]}
               onChange={(nextCytometer) => {
                 setCytometer(nextCytometer)
-                setConfiguration(getSpectralPanelConfigurations(nextCytometer)[0].id)
+                setConfiguration(nextCytometer === 'xenith' ? 'full' : '')
               }}
               portalMenu
               menuClassName="launch-select-menu"
@@ -345,10 +345,13 @@ export function LandingPage({
               <UiSelect
                 label="DETECTOR CONFIGURATION"
                 value={configuration}
-                options={configurations.map((candidate) => ({
-                  value: candidate.id,
-                  label: candidate.label,
-                }))}
+                options={[
+                  { value: '', label: 'Select configuration' },
+                  ...configurations.map((candidate) => ({
+                    value: candidate.id,
+                    label: candidate.label,
+                  })),
+                ]}
                 onChange={setConfiguration}
                 portalMenu
                 menuClassName="launch-select-menu"
@@ -356,7 +359,11 @@ export function LandingPage({
             )}
 
             <div className="launch-card-actions">
-              <button className="launch-submit" type="submit" disabled={starting || creatingFromOmip}>
+              <button
+                className="launch-submit"
+                type="submit"
+                disabled={!setupReady || starting || creatingFromOmip}
+              >
                 <span className="launch-submit-icon"><FlaskConical size={18} /></span>
                 <span>{starting ? 'Opening…' : 'Build panel'}</span>
                 <ArrowRight size={17} />
@@ -364,7 +371,7 @@ export function LandingPage({
               <button
                 className="launch-submit"
                 type="button"
-                disabled={starting || creatingFromOmip}
+                disabled={!setupReady || starting || creatingFromOmip}
                 onClick={() => {
                   setOmipPayload(null)
                   setShowOmipLibrary(true)

@@ -8,8 +8,14 @@ async function selectFluorophore(page: import('@playwright/test').Page, slot: nu
   await input.press('Enter')
 }
 
-async function openEmptyPanel(page: import('@playwright/test').Page) {
+async function openEmptyPanel(
+  page: import('@playwright/test').Page,
+  cytometer = 'Cytek Aurora',
+  configuration = 'Aurora 5L: UV/V/B/YG/R',
+) {
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+  await chooseOption(page, 'CYTOMETER', cytometer)
+  await chooseOption(page, 'DETECTOR CONFIGURATION', configuration)
   await page.getByRole('button', { name: 'Build panel' }).click()
   await expect(page.getByLabel('Panel name')).toBeVisible()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
@@ -166,6 +172,30 @@ test('selects the instrument and configuration before opening a clean workspace'
   const useOmipButton = page.getByRole('button', { name: 'Use OMIP' })
   await expect(useOmipButton).toBeVisible()
   await expect(page.locator('.launch-header-actions').getByRole('button', { name: 'Use OMIP' })).toHaveCount(0)
+  await expect(page.getByRole('combobox', { name: 'CYTOMETER' })).toContainText('Select cytometer')
+  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText(
+    'Select configuration',
+  )
+  await expect(buildPanelButton).toBeDisabled()
+  await expect(useOmipButton).toBeDisabled()
+
+  await page.getByRole('combobox', { name: 'CYTOMETER' }).click()
+  await expect(page.getByRole('option').first()).toHaveText('Select cytometer')
+  await page.keyboard.press('Escape')
+  await page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' }).click()
+  await expect(page.getByRole('option').first()).toHaveText('Select configuration')
+  await page.keyboard.press('Escape')
+
+  await chooseOption(page, 'CYTOMETER', 'Cytek Aurora')
+  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText(
+    'Select configuration',
+  )
+  await expect(buildPanelButton).toBeDisabled()
+  await expect(useOmipButton).toBeDisabled()
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Aurora 5L: UV/V/B/YG/R')
+  await expect(buildPanelButton).toBeEnabled()
+  await expect(useOmipButton).toBeEnabled()
+
   const [buildButtonStyle, omipButtonStyle] = await Promise.all([
     buildPanelButton.evaluate((button) => ({
       background: getComputedStyle(button).backgroundColor,
@@ -206,16 +236,26 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByRole('button', { name: 'Open OMIP-120' })).toContainText('Aurora 4L: UV/V/B/R')
   await page.getByRole('button', { name: 'Use dark mode' }).click()
   await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
-  await page.getByRole('combobox', { name: 'CYTOMETER' }).focus()
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('Enter')
-  await expect(page.getByRole('combobox', { name: 'CYTOMETER' })).toContainText('BD FACSDiscover')
+  await expect(page.getByRole('combobox', { name: 'CYTOMETER' })).toContainText('Select cytometer')
+  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText(
+    'Select configuration',
+  )
+  await expect(buildPanelButton).toBeDisabled()
+  await expect(useOmipButton).toBeDisabled()
   await chooseOption(page, 'CYTOMETER', 'Thermo Fisher Attune Xenith')
   await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toHaveCount(0)
   await expect(page.getByText('Detector layout', { exact: true })).toHaveCount(0)
+  await expect(buildPanelButton).toBeEnabled()
+  await expect(useOmipButton).toBeEnabled()
   await chooseOption(page, 'CYTOMETER', 'Sony ID7000')
-  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText('ID7000 5L')
+  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText(
+    'Select configuration',
+  )
+  await expect(buildPanelButton).toBeDisabled()
+  await expect(useOmipButton).toBeDisabled()
   await chooseOption(page, 'DETECTOR CONFIGURATION', 'ID7000 4L: V/B/YG/R')
+  await expect(buildPanelButton).toBeEnabled()
+  await expect(useOmipButton).toBeEnabled()
   await page.getByRole('button', { name: 'Use OMIP' }).click()
   const projectOmipLibrary = page.getByRole('dialog', { name: 'OMIP Library' })
   const templateSearch = projectOmipLibrary.getByRole('searchbox', { name: 'Search OMIP Library' })
@@ -375,6 +415,19 @@ test('selects the instrument and configuration before opening a clean workspace'
   expect(reloadedSpectrumBox!.height).toBeCloseTo(expandedBox!.height, 0)
 })
 
+test('starts a configuration-free Xenith panel after selecting only the cytometer', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Thermo Fisher Attune Xenith')
+
+  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Build panel' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Use OMIP' })).toBeEnabled()
+
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+  await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
+})
+
 test('migrates the previous single active autosave into the named panel library', async ({ page }) => {
   await page.goto(APP_PATH)
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
@@ -494,8 +547,7 @@ test('keeps independent panel workspaces for each cytometer', async ({ page }) =
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
 
   await page.getByLabel('Panel name').fill('Sony panel')
-  await chooseOption(page, 'CYTOMETER', 'Sony ID7000')
-  await openEmptyPanel(page)
+  await openEmptyPanel(page, 'Sony ID7000', 'ID7000 5L: UV/V/B/YG/R')
   await selectFluorophore(page, 0, 'APC')
   await page.locator('.matrix-marker-input').first().fill('CD19')
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(1 color)')
@@ -525,8 +577,10 @@ test('runs representative panel, import, export, and project round-trip workflow
 
   await page.goto(APP_PATH)
   await expect(page).toHaveTitle(/OpenPanel/)
-  await expect(page.getByRole('combobox', { name: 'CYTOMETER' })).toContainText('Cytek Aurora')
-  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText('Aurora 5L')
+  await expect(page.getByRole('combobox', { name: 'CYTOMETER' })).toContainText('Select cytometer')
+  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText(
+    'Select configuration',
+  )
   await openEmptyPanel(page)
 
   await selectFluorophore(page, 0, 'Alexa Fluor 488')
@@ -651,6 +705,8 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Close panel wizard' }).click()
   await page.getByRole('button', { name: 'Open panel library' }).click()
+  await chooseOption(page, 'CYTOMETER', 'Cytek Aurora')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Aurora 5L: UV/V/B/YG/R')
   await page.getByRole('button', { name: 'Use OMIP' }).click()
   const templateDialog = page.getByRole('dialog', { name: 'OMIP Library' })
   await expect(templateDialog).toBeVisible()
