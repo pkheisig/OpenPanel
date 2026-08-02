@@ -157,19 +157,11 @@ const getSimilarityStyle = (value: number, isDiag: boolean, currentTheme: 'light
     const sunsetIntensity = Math.pow(intensity, 1.55);
     const hue = 42 - sunsetIntensity * 67;
 
-    if (currentTheme === 'dark') {
-        return {
-            background: `hsl(${hue.toFixed(1)} 72% ${Math.round(27 + sunsetIntensity * 25)}%)`,
-            color: '#fff8f1',
-            textShadow: intensity > 0.62 ? '0 1px 3px rgba(50, 10, 20, 0.45)' : 'none'
-        };
-    } else {
-        return {
-            background: `hsl(${hue.toFixed(1)} 88% ${Math.round(97 - sunsetIntensity * 50)}%)`,
-            color: intensity > 0.62 ? '#fffaf4' : '#4b241d',
-            textShadow: intensity > 0.72 ? '0 1px 2px rgba(70, 10, 20, 0.35)' : 'none'
-        };
-    }
+    return {
+        background: `hsl(${hue.toFixed(1)} 88% ${Math.round(97 - sunsetIntensity * 50)}%)`,
+        color: intensity > 0.62 ? '#fffaf4' : '#4b241d',
+        textShadow: intensity > 0.72 ? '0 1px 2px rgba(70, 10, 20, 0.35)' : 'none'
+    };
 };
 
 const bandColor = (value: number) => {
