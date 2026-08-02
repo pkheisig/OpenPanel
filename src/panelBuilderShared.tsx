@@ -159,7 +159,7 @@ const getSimilarityStyle = (value: number, isDiag: boolean, currentTheme: 'light
 
     if (currentTheme === 'dark') {
         return {
-            background: `hsl(${hue.toFixed(1)} 72% ${Math.round(20 + sunsetIntensity * 28)}%)`,
+            background: `hsl(${hue.toFixed(1)} 72% ${Math.round(27 + sunsetIntensity * 25)}%)`,
             color: '#fff8f1',
             textShadow: intensity > 0.62 ? '0 1px 3px rgba(50, 10, 20, 0.45)' : 'none'
         };
