@@ -219,7 +219,10 @@ export function LandingPage({
   onRestore,
   onDelete,
 }: LandingPageProps) {
-  const libraries = useMemo(() => getSpectralPanelLibraries(), [])
+  const libraries = useMemo(
+    () => [...getSpectralPanelLibraries()].sort((left, right) => left.label.localeCompare(right.label)),
+    [],
+  )
   const importInput = useRef<HTMLInputElement>(null)
   const [theme, setTheme] = useState<'light' | 'dark'>(readThemePreference)
   const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
@@ -231,7 +234,11 @@ export function LandingPage({
   const [menu, setMenu] = useState<ProjectMenuState | null>(null)
   const [cytometer, setCytometer] = useState('')
   const configurations = useMemo(
-    () => cytometer ? getSpectralPanelConfigurations(cytometer) : [],
+    () => cytometer
+      ? [...getSpectralPanelConfigurations(cytometer)].sort(
+        (left, right) => left.label.localeCompare(right.label),
+      )
+      : [],
     [cytometer],
   )
   const [configuration, setConfiguration] = useState('')
@@ -471,6 +478,8 @@ export function LandingPage({
                                                 ? 'facsaria_fusion_buv'
                                           : '')
               }}
+              searchable
+              searchPlaceholder="Search cytometers"
               portalMenu
               menuClassName="launch-select-menu"
             />
@@ -487,6 +496,8 @@ export function LandingPage({
                   })),
                 ]}
                 onChange={setConfiguration}
+                searchable
+                searchPlaceholder="Search configurations"
                 portalMenu
                 menuClassName="launch-select-menu"
               />

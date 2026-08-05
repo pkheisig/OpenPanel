@@ -180,9 +180,18 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(useOmipButton).toBeDisabled()
 
   await page.getByRole('combobox', { name: 'CYTOMETER' }).click()
+  await expect(page.getByRole('searchbox', { name: 'Search cytometers' })).toBeVisible()
+  const cytometerLabels = await page.getByRole('option').allTextContents()
+  expect(cytometerLabels[0]).toBe('Select cytometer')
+  expect(cytometerLabels.slice(1)).toEqual(
+    [...cytometerLabels.slice(1)].sort((left, right) => left.localeCompare(right)),
+  )
   await expect(page.getByRole('option').first()).toHaveText('Select cytometer')
+  await page.getByRole('searchbox', { name: 'Search cytometers' }).fill('celesta')
+  await expect(page.getByRole('option', { name: 'BD FACSCelesta', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' }).click()
+  await expect(page.getByRole('searchbox', { name: 'Search configurations' })).toBeVisible()
   await expect(page.getByRole('option').first()).toHaveText('Select configuration')
   await page.keyboard.press('Escape')
 
@@ -192,6 +201,15 @@ test('selects the instrument and configuration before opening a clean workspace'
   )
   await expect(buildPanelButton).toBeDisabled()
   await expect(useOmipButton).toBeDisabled()
+  await page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' }).click()
+  const configurationLabels = await page.getByRole('option').allTextContents()
+  expect(configurationLabels[0]).toBe('Select configuration')
+  expect(configurationLabels.slice(1)).toEqual(
+    [...configurationLabels.slice(1)].sort((left, right) => left.localeCompare(right)),
+  )
+  await page.getByRole('searchbox', { name: 'Search configurations' }).fill('5l')
+  await expect(page.getByRole('option', { name: 'Aurora 5L: UV/V/B/YG/R', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
   await chooseOption(page, 'DETECTOR CONFIGURATION', 'Aurora 5L: UV/V/B/YG/R')
   await expect(buildPanelButton).toBeEnabled()
   await expect(useOmipButton).toBeEnabled()
