@@ -260,20 +260,25 @@ their aliases remain searchable and their cell-type prioritization remains
 intact. The list is used only for local lookup and never sends marker searches
 to a server.
 
-The bundled OMIP Library contains the 113 flow-cytometry records from the
+The bundled OMIP Library contains all 113 flow-cytometry records from the
 121-record PubMed OMIP bibliography snapshot, refreshed 2026-07-31. Mass
 cytometry and imaging applications are excluded because they are not flow
-cytometry workflows. The catalog includes both spectral and conventional flow
-panels; records without a verified local marker–fluorophore table are shown as
-paper-only references.
+cytometry workflows. Every included flow OMIP has an offline marker–reagent
+table: 2,372 marker rows in total, covering both spectral and conventional
+panels.
 
-The 23 currently editable entries have offline marker–fluorophore tables. The
-assignments were transcribed from the public
+The assignments were imported from the public
 [FluoroFinder OMIP registry](https://admin.fluorofinder.com/omips), which
-reproduces the published reagent tables. OMIP-084 was transcribed directly
-from its [published Table 2](https://doi.org/10.1002/cyto.a.24564) because its
-registry detail endpoint was unavailable. Suggestions that are unavailable on
-the selected cytometer remain unassigned for the wizard to optimize.
+reproduces the published reagent tables. OMIP-084 and OMIP-091 use their
+published Wiley tables because their registry detail endpoints were
+unavailable: [OMIP-084 Table 2](https://doi.org/10.1002/cyto.a.24564) and
+[OMIP-091](https://doi.org/10.1002/cyto.a.24738). Source cytometer labels and
+the table URL are bundled with each template for provenance. Published
+duplicate fluorophores are preserved; reagents not present in the local dye
+dictionary remain visible by their reported name, and colors unavailable on
+the selected cytometer remain unassigned for the wizard to optimize. These
+are literature assignments, not a claim that every imported panel has been
+validated on every OpenPanel configuration.
 
 Spectral-mode spread risk uses the Hotspot Matrix /
 spreading-inflation-factor formulation described in

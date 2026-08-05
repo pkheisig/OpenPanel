@@ -354,6 +354,12 @@
   outline: none;
 }
 
+.omip-library-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+
 .omip-library-overview dl {
   margin: 0;
   display: grid;

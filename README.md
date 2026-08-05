@@ -17,7 +17,7 @@ OpenPanel combines instrument-aware detector-response plots, panel matrices, sim
 - Build and compare panels against the selected cytometer configuration.
 - Inspect combined signatures, detector assignments, response similarity, and panel complexity.
 - Use the Panel Wizard to balance antigen density, co-expression, availability, brightness, and response conflicts.
-- Browse published flow-cytometry OMIPs, including conventional panels, and apply verified marker-color templates.
+- Browse all bundled flow-cytometry OMIPs, including conventional panels, and apply imported marker-color templates with source provenance.
 - Keep named projects with separate workspaces for each cytometer.
 - Exchange panel CSVs and complete OpenPanel JSON projects, or create a local PDF report.
 - Reopen the app and cached reference data offline after the first successful visit.

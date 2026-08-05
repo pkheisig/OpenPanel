@@ -264,10 +264,18 @@ export function OmipLibrary({
               <div className="omip-library-overview">
                 <div>
                   <p>{preview.summary}</p>
-                  <a href={preview.sourceUrl} target="_blank" rel="noreferrer">
-                    View paper
-                    <ExternalLink size={14} aria-hidden="true" />
-                  </a>
+                  <div className="omip-library-source-links">
+                    <a href={preview.sourceUrl} target="_blank" rel="noreferrer">
+                      View paper
+                      <ExternalLink size={14} aria-hidden="true" />
+                    </a>
+                    {preview.template?.tableSourceUrl && (
+                      <a href={preview.template.tableSourceUrl} target="_blank" rel="noreferrer">
+                        View marker table
+                        <ExternalLink size={14} aria-hidden="true" />
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <dl>
                   <div className="omip-library-cytometer-card">

@@ -4,8 +4,16 @@ import type {
   WizardMarker,
 } from './panelWizardEngine'
 import { OMIP_CATALOG_RECORDS } from './omipCatalog'
-import { SPECTRAL_OMIP_TEMPLATE_ROWS } from './omipSpectralTemplateData'
+import {
+  FLOW_OMIP_CYTOMETERS,
+  FLOW_OMIP_IMPORT_MANIFEST,
+  FLOW_OMIP_TABLE_SOURCE_URLS,
+  FLOW_OMIP_TEMPLATE_ROWS,
+  type ImportedOmipTemplateRow,
+} from './omipFlowTemplateData'
 import type { UiSelectOption } from './UiSelect'
+
+export { FLOW_OMIP_IMPORT_MANIFEST }
 
 type MarkerEntry = {
   name: string
@@ -361,8 +369,10 @@ export type OmipTemplate = {
   name: string
   summary: string
   sourceUrl: string
+  tableSourceUrl?: string
   context: CoexpressionContext
   markers: OmipTemplateMarker[]
+  allowDuplicateFluorophores?: boolean
 }
 
 export type OmipCatalogEntry = {
@@ -393,14 +403,17 @@ export function omipTemplateAssignmentsForPanel(
   const availableByName = new Map(
     availableFluorophores.map((fluorophore) => [normalizeOmipFluorophore(fluorophore), fluorophore]),
   )
+  const enforceUniqueFluorophores = template.allowDuplicateFluorophores !== true
   const usedFluorophores = new Set<string>()
   const assignments: { marker: string; fluorophore: string }[] = []
 
   for (const templateMarker of template.markers) {
     const key = normalizeOmipFluorophore(templateMarker.fluorophore ?? '')
     const fluorophore = availableByName.get(key)
-    if (!templateMarker.name.trim() || !fluorophore || usedFluorophores.has(key)) return null
-    usedFluorophores.add(key)
+    if (!templateMarker.name.trim() || !fluorophore || (enforceUniqueFluorophores && usedFluorophores.has(key))) {
+      return null
+    }
+    if (enforceUniqueFluorophores) usedFluorophores.add(key)
     assignments.push({ marker: templateMarker.name.trim(), fluorophore })
   }
 
@@ -415,6 +428,7 @@ export function omipTemplateAssignmentsForPanelBestEffort(
   const availableByName = new Map(
     availableFluorophores.map((fluorophore) => [normalizeOmipFluorophore(fluorophore), fluorophore]),
   )
+  const enforceUniqueFluorophores = template.allowDuplicateFluorophores !== true
   const usedFluorophores = new Set<string>()
   const markers = maxPanelSize === undefined
     ? template.markers
@@ -425,8 +439,10 @@ export function omipTemplateAssignmentsForPanelBestEffort(
     .map((marker) => {
       const key = normalizeOmipFluorophore(marker.fluorophore ?? '')
       const available = availableByName.get(key)
-      const fluorophore = available && !usedFluorophores.has(key) ? available : ''
-      if (fluorophore) usedFluorophores.add(key)
+      const fluorophore = available && (!enforceUniqueFluorophores || !usedFluorophores.has(key))
+        ? available
+        : ''
+      if (fluorophore && enforceUniqueFluorophores) usedFluorophores.add(key)
       return { marker: marker.name.trim(), fluorophore }
     })
 }
@@ -554,42 +570,17 @@ export function inferOmipCellTypes(description: string): string[] {
   return [...cellTypes]
 }
 
-// Verified offline marker-color tables currently cover this spectral subset.
-// The catalog below intentionally includes the complete bibliography; entries
-// without a verified table remain visible as paper-only references.
+// The current curated spectral entries retain their explicit instrument labels
+// and method classification; all flow entries now receive imported tables.
 const EDITABLE_SPECTRAL_OMIP_NUMBERS = new Set([
   120, 119, 118, 117, 116, 115, 114, 112, 111, 110, 109, 105,
   104, 102, 99, 97, 95, 94, 93, 86, 84, 83, 69,
 ])
 
-// Native acquisition systems reported by the OMIP publications. These labels
-// describe the validated source panel; import compatibility is checked
-// separately against the active OpenPanel detector configuration.
-const SPECTRAL_OMIP_CYTOMETERS: Record<number, string[]> = {
-  120: ['Cytek Aurora 4L (UV-V-B-R)'],
-  119: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  118: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  117: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  116: ['BD FACSymphony A5 SE'],
-  115: ['Sony ID7000'],
-  114: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  112: ['Sony ID7000 5L (UV-V-B-YG-R)'],
-  111: ['Sony ID7000'],
-  110: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  109: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  105: ['BD FACSymphony A5 SE'],
-  104: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  102: ['Sony ID7000 7L', 'BD FACSDiscover S8 5L'],
-  99: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  97: ['Cytek Northern Lights 3L (V-B-R)'],
-  95: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  94: ['Cytek Aurora 3L (V-B-R)'],
-  93: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  86: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  84: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-  83: ['Cytek Aurora 3L (V-B-R)'],
-  69: ['Cytek Aurora 5L (UV-V-B-YG-R)'],
-}
+const flowOmipTemplateRowsByNumber = FLOW_OMIP_TEMPLATE_ROWS as Readonly<Record<number, readonly ImportedOmipTemplateRow[]>>
+const FLOW_OMIP_NUMBERS = new Set(Object.keys(flowOmipTemplateRowsByNumber).map(Number))
+const flowOmipCytometersByNumber = FLOW_OMIP_CYTOMETERS as Readonly<Record<number, readonly string[]>>
+const flowOmipSourceUrlsByNumber = FLOW_OMIP_TABLE_SOURCE_URLS as Readonly<Record<number, string>>
 
 function spectralOmipContext(title: string): CoexpressionContext {
   const normalized = title.toLocaleLowerCase()
@@ -620,7 +611,7 @@ function spectralOmipContext(title: string): CoexpressionContext {
 }
 
 export const OMIP_TEMPLATES: OmipTemplate[] = OMIP_CATALOG_RECORDS
-  .filter(([number]) => EDITABLE_SPECTRAL_OMIP_NUMBERS.has(number))
+  .filter(([number]) => FLOW_OMIP_NUMBERS.has(number))
   .map(([number, pmid, , title]) => {
     const paddedNumber = String(number).padStart(3, '0')
     const id = `omip-${paddedNumber}`
@@ -631,11 +622,13 @@ export const OMIP_TEMPLATES: OmipTemplate[] = OMIP_CATALOG_RECORDS
       name: `OMIP-${paddedNumber}`,
       summary: legacyMetadata?.summary ?? title,
       sourceUrl: legacyMetadata?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+      tableSourceUrl: flowOmipSourceUrlsByNumber[number],
       context: legacyMetadata?.context ?? spectralOmipContext(title),
-      markers: (SPECTRAL_OMIP_TEMPLATE_ROWS[number] ?? []).map(([name, fluorophore]) => ({
+      markers: (flowOmipTemplateRowsByNumber[number] ?? []).map(([name, fluorophore]) => ({
         name,
         fluorophore,
       })),
+      allowDuplicateFluorophores: true,
     }
   })
 
@@ -661,7 +654,7 @@ export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
         name: `OMIP-${paddedNumber}`,
         summary: template?.summary ?? title,
         year,
-        cytometers: SPECTRAL_OMIP_CYTOMETERS[number] ?? ['Not reported in catalog'],
+        cytometers: [...(flowOmipCytometersByNumber[number] ?? ['Not reported in catalog'])],
         species: omipSpecies(title, template),
         cellTypes: inferOmipCellTypes(title),
         method: EDITABLE_SPECTRAL_OMIP_NUMBERS.has(number) ? 'spectral' : omipMethod(title),
@@ -671,3 +664,35 @@ export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
     },
   )
   .filter((entry) => entry.method === 'spectral' || entry.method === 'conventional')
+
+export function validateOmipFlowTemplateImport(): void {
+  const flowRecords = OMIP_CATALOG_RECORDS.filter(([number]) => FLOW_OMIP_NUMBERS.has(number))
+  const importedMarkerRowCount = Object.values(flowOmipTemplateRowsByNumber)
+    .reduce((total, rows) => total + rows.length, 0)
+  if (flowRecords.length !== FLOW_OMIP_IMPORT_MANIFEST.flowOmipCount) {
+    throw new Error(`OMIP flow record count mismatch: ${flowRecords.length}`)
+  }
+  if (FLOW_OMIP_NUMBERS.size !== flowRecords.length) {
+    throw new Error(`OMIP flow template count mismatch: ${FLOW_OMIP_NUMBERS.size}`)
+  }
+  if (importedMarkerRowCount !== FLOW_OMIP_IMPORT_MANIFEST.markerRowCount) {
+    throw new Error(`OMIP marker row count mismatch: ${importedMarkerRowCount}`)
+  }
+
+  const incomplete = flowRecords.filter(([number]) => {
+    const rows = flowOmipTemplateRowsByNumber[number]
+    const template = omipTemplatesById.get(`omip-${String(number).padStart(3, '0')}`)
+    return !rows
+      || rows.length === 0
+      || rows.some(([marker]) => !marker.trim())
+      || !flowOmipSourceUrlsByNumber[number]
+      || !(flowOmipCytometersByNumber[number]?.length)
+      || !template?.tableSourceUrl
+      || template.allowDuplicateFluorophores !== true
+  })
+  if (incomplete.length > 0) {
+    throw new Error(`Incomplete OMIP flow imports: ${incomplete.map(([number]) => number).join(', ')}`)
+  }
+}
+
+validateOmipFlowTemplateImport()

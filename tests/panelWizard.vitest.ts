@@ -15,11 +15,13 @@ import {
 } from '../src/panelWizardEngine'
 import { loadPanelWizardReferences } from '../src/panelWizardReferences'
 import {
+  FLOW_OMIP_IMPORT_MANIFEST,
   inferOmipCellTypes,
   markerOptionsForPanel,
   OMIP_CATALOG,
   omipTemplateAssignmentsForPanel,
   omipTemplateAssignmentsForPanelBestEffort,
+  validateOmipFlowTemplateImport,
 } from '../src/panelWizardKnowledge'
 import type { CoexpressionLevel, WizardMarker } from '../src/panelWizardEngine'
 import { mockBundledData } from './helpers'
@@ -27,7 +29,7 @@ import { mockBundledData } from './helpers'
 beforeEach(mockBundledData)
 
 describe('panel wizard recommendation engine', () => {
-  test('bundles flow OMIPs and keeps only verified templates editable', () => {
+  test('bundles every published flow OMIP as an editable template', () => {
     expect(OMIP_CATALOG).toHaveLength(113)
     expect(new Set(OMIP_CATALOG.map((entry) => entry.id)).size).toBe(113)
     expect(OMIP_CATALOG[0]).toMatchObject({ name: 'OMIP-120', year: '2026' })
@@ -36,14 +38,27 @@ describe('panel wizard recommendation engine', () => {
     expect(OMIP_CATALOG.some((entry) => entry.method === 'conventional')).toBe(true)
     expect(OMIP_CATALOG.some((entry) => entry.id === 'omip-121')).toBe(false)
     expect(OMIP_CATALOG.some((entry) => entry.id === 'omip-103')).toBe(false)
-    expect(OMIP_CATALOG.filter((entry) => entry.template)).toHaveLength(23)
-    expect(OMIP_CATALOG.filter((entry) => !entry.template)).toHaveLength(OMIP_CATALOG.length - 23)
+    expect(OMIP_CATALOG.filter((entry) => entry.template)).toHaveLength(113)
+    expect(OMIP_CATALOG.filter((entry) => !entry.template)).toHaveLength(0)
     expect(OMIP_CATALOG.every((entry) => entry.cytometers.length > 0)).toBe(true)
-    expect(OMIP_CATALOG.filter((entry) => entry.template).every((entry) => (
-      entry.template?.markers.every((marker) => (
-        marker.name.trim() && marker.fluorophore?.trim()
-      ))
+    expect(OMIP_CATALOG.every((entry) => entry.template?.markers.length)).toBeTruthy()
+    expect(OMIP_CATALOG.every((entry) => (
+      entry.template?.markers.every((marker) => marker.name.trim())
     ))).toBe(true)
+    expect(FLOW_OMIP_IMPORT_MANIFEST).toMatchObject({
+      flowOmipCount: 113,
+      markerRowCount: 2372,
+    })
+    expect(() => validateOmipFlowTemplateImport()).not.toThrow()
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-051')?.template?.markers).toHaveLength(28)
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-084')?.template?.markers).toHaveLength(28)
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-091')?.template?.markers).toHaveLength(27)
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-084')?.template?.tableSourceUrl).toBe(
+      'https://onlinelibrary.wiley.com/doi/10.1002/cyto.a.24564',
+    )
+    expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-091')?.template?.tableSourceUrl).toBe(
+      'https://onlinelibrary.wiley.com/doi/10.1002/cyto.a.24738',
+    )
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-120')).toMatchObject({
       species: 'mouse',
       method: 'spectral',
@@ -74,7 +89,7 @@ describe('panel wizard recommendation engine', () => {
     )).map((entry) => entry.name)
 
     expect(compatibleNames).toContain('OMIP-097')
-    expect(compatibleNames).not.toContain('OMIP-111')
+    expect(compatibleNames).toContain('OMIP-111')
     const omip97 = OMIP_CATALOG.find((entry) => entry.name === 'OMIP-097')?.template
     expect(omip97).toBeDefined()
     expect(omipTemplateAssignmentsForPanel(omip97!, auroraColors)?.[0]).toEqual({
@@ -83,6 +98,7 @@ describe('panel wizard recommendation engine', () => {
     })
     expect(omipTemplateAssignmentsForPanel({
       ...omip97!,
+      allowDuplicateFluorophores: false,
       markers: [
         { name: 'Marker A', fluorophore: 'BV711' },
         { name: 'Marker B', fluorophore: 'BV711' },
@@ -90,6 +106,7 @@ describe('panel wizard recommendation engine', () => {
     }, auroraColors)).toBeNull()
     expect(omipTemplateAssignmentsForPanelBestEffort({
       ...omip97!,
+      allowDuplicateFluorophores: false,
       markers: [
         { name: 'Marker A', fluorophore: 'BV711' },
         { name: 'Marker B', fluorophore: 'Unsupported dye' },
