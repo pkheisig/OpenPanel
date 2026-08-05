@@ -3,6 +3,8 @@ import {
   buildPanelPayload,
   calculatePanelComplexity,
   calculateSimilarityMatrix,
+  getSpectralPanelLibraries,
+  getSpectralPanelConfigurations,
   parseCsv,
   resolveConfiguration,
   resolveCytometer,
@@ -10,6 +12,15 @@ import {
 import { mockBundledData } from './helpers'
 
 beforeEach(mockBundledData)
+
+function declaredDetectorCount(description: string): number | null {
+  const directCount = description.match(/^(\d+) fluorescence detectors$/)
+  if (directCount) return Number(directCount[1])
+
+  const laserCounts = [...description.matchAll(/(\d+)(UV|YG|V|B|R)(?=-|$)/g)]
+  if (laserCounts.length === 0) return null
+  return laserCounts.reduce((sum, match) => sum + Number(match[1]), 0)
+}
 
 describe('browser spectral engine parity', () => {
   test.each([
@@ -126,6 +137,47 @@ describe('browser spectral engine parity', () => {
     expect(resolveConfiguration('navios', '2-laser 8-color')).toBe('navios_2l_8')
     expect(resolveConfiguration('dxflex', 'B5-R3-V5')).toBe('dxflex_b5_r3_v5')
     expect(resolveConfiguration('facsaria_fusion', 'BUV optimized')).toBe('facsaria_fusion_buv')
+  })
+
+  test('validates every declared configuration has a complete detector mapping', async () => {
+    const libraries = getSpectralPanelLibraries()
+
+    for (const library of libraries) {
+      const configurations = getSpectralPanelConfigurations(library.id)
+      expect(configurations.length).toBeGreaterThan(0)
+
+      for (const configuration of configurations) {
+        const expectedCount = declaredDetectorCount(configuration.description)
+        const payload = await buildPanelPayload(library.id, configuration.id)
+
+        if (configuration.id === 'full') {
+          expect(expectedCount).toBeNull()
+        } else {
+          expect(expectedCount).not.toBeNull()
+          expect(payload.detectors).toHaveLength(expectedCount as number)
+        }
+        expect(payload.detectors.length).toBeGreaterThan(0)
+        expect(payload.max_panel_size).toBe(payload.detectors.length)
+        expect(new Set(payload.detectors.map((detector) => detector.detector)).size)
+          .toBe(payload.detectors.length)
+        expect(payload.measurement_mode).toBe(library.measurement_mode)
+        expect(payload.fluorophores.length).toBeGreaterThan(0)
+
+        if (library.measurement_mode === 'conventional') {
+          expect(payload.detectors.some((detector) => /ssc/i.test(`${detector.detector} ${detector.label}`)))
+            .toBe(false)
+        }
+
+        const sampleFluorophore = payload.fluorophores[0].fluorophore
+        const sampledPayload = await buildPanelPayload(library.id, configuration.id, [sampleFluorophore])
+        expect(sampledPayload.selected).toEqual([sampleFluorophore])
+        expect(sampledPayload.spectra).toHaveLength(1)
+        expect(sampledPayload.peak_detectors[0]).toBeTruthy()
+        expect(sampledPayload.detectors.every((detector) => (
+          typeof sampledPayload.spectra[0][detector.detector] === 'number'
+        ))).toBe(true)
+      }
+    }
   })
 
   test('uses detector count as the physical panel-size ceiling', async () => {
