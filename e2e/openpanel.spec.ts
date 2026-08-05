@@ -238,11 +238,9 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByRole('button', { name: 'Create panel from OMIP' })).toBeEnabled()
   await page.getByRole('button', { name: 'Create panel from OMIP' }).click()
   const setupWarning = page.getByRole('alertdialog', { name: 'Warning' })
-  await expect(setupWarning).toContainText('OMIP-120 was designed for Cytek Aurora 4L (UV-V-B-R).')
+  await expect(setupWarning).toContainText('OMIP-120 was designed for Cytek Aurora 4L: UV/V/B/R.')
   await expect(setupWarning).toContainText('The selected setup uses Cytek Aurora · Aurora 5L: UV/V/B/YG/R.')
-  await expect(setupWarning).toContainText(
-    'The panel may therefore not perform as intended. Unsupported colors will remain unassigned.',
-  )
+  await expect(setupWarning).toContainText('The panel may therefore not perform as intended.')
   await expect(setupWarning).toContainText('Proceed anyway?')
   await expect(setupWarning.getByRole('button', { name: 'Cancel' })).toBeVisible()
   await expect(setupWarning.getByRole('button', { name: 'Use current config' })).toBeVisible()
@@ -284,7 +282,7 @@ test('selects the instrument and configuration before opening a clean workspace'
   await projectOmipLibrary.getByRole('button', { name: 'Preview OMIP-097' }).click()
   await page.getByRole('button', { name: 'Create panel from OMIP' }).click()
   const omipWarning = page.getByRole('alertdialog', { name: 'Warning' })
-  await expect(omipWarning).toContainText('OMIP-097 was designed for Cytek Northern Lights 3L (V-B-R)')
+  await expect(omipWarning).toContainText('OMIP-097 was designed for Cytek Northern Lights 3L: V/B/R')
   await expect(omipWarning).toContainText('The selected setup uses Sony ID7000 · ID7000 4L: V/B/YG/R')
   await expect(omipWarning.getByRole('button', { name: 'Use recommended config' })).toBeDisabled()
   await omipWarning.getByRole('button', { name: 'Cancel' }).click()
@@ -1088,7 +1086,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   )
   const firstOmipCard = templateDialog.getByRole('button', { name: 'Preview OMIP-119' })
   await expect(firstOmipCard.locator('.omip-library-entry-cytometer')).toHaveText(
-    'Cytek Aurora 5L (UV-V-B-YG-R)',
+    'Cytek Aurora 5L: UV/V/B/YG/R',
   )
   const firstOmipCardLayout = await firstOmipCard.evaluate((card) => {
     const cardRect = card.getBoundingClientRect()

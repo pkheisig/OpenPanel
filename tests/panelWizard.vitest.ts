@@ -62,11 +62,11 @@ describe('panel wizard recommendation engine', () => {
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-120')).toMatchObject({
       species: 'mouse',
       method: 'spectral',
-      cytometers: ['Cytek Aurora 4L (UV-V-B-R)'],
+      cytometers: ['Cytek Aurora 4L: UV/V/B/R'],
     })
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-102')?.cytometers).toEqual([
       'Sony ID7000 7L',
-      'BD FACSDiscover S8 5L',
+      'BD FACSDiscover S8 (5L)',
     ])
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-105')?.cytometers).toEqual([
       'BD FACSymphony A5 SE',

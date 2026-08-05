@@ -442,11 +442,22 @@ export function OmipLibrary({
               <AlertTriangle size={24} aria-hidden="true" />
               <h3 id="omip-compatibility-title">Warning</h3>
               <div id="omip-compatibility-description" className="omip-compatibility-message">
-                <p>{pendingIncompatibleEntry.name} was designed for {pendingIncompatibleEntry.cytometers.join(' / ')}.</p>
-                {activeCytometerLabel && (
-                  <p>The selected setup uses {activeCytometerLabel}{activeConfigurationLabel ? ` · ${activeConfigurationLabel}` : ''}.</p>
+                {!designedForActiveCytometer && (
+                  <>
+                    <p>{pendingIncompatibleEntry.name} was designed for {pendingIncompatibleEntry.cytometers.join(' / ')}.</p>
+                    {activeCytometerLabel && (
+                      <p>The selected setup uses {activeCytometerLabel}{activeConfigurationLabel ? ` · ${activeConfigurationLabel}` : ''}.</p>
+                    )}
+                  </>
                 )}
-                <p>The panel may therefore not perform as intended. Unsupported colors will remain unassigned.</p>
+                {exceedsWorkspace && (
+                  <p>{pendingIncompatibleEntry.template.markers.length} markers exceed the active configuration's {maxPanelSize}-color limit.</p>
+                )}
+                {incompatibleWithWorkspace && (
+                  <p>Some published fluorophores are unavailable in the active cytometer configuration.</p>
+                )}
+                <p>The panel may therefore not perform as intended.</p>
+                {incompatibleWithWorkspace && <p>Unsupported colors will remain unassigned.</p>}
                 <strong>Proceed anyway?</strong>
               </div>
               <div className="omip-compatibility-actions">

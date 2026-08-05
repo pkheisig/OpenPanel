@@ -11,6 +11,7 @@ import {
   FLOW_OMIP_TEMPLATE_ROWS,
   type ImportedOmipTemplateRow,
 } from './omipFlowTemplateData'
+import { canonicalizeOmipCytometerLabel } from './cytometerCompatibility'
 import type { UiSelectOption } from './UiSelect'
 
 export { FLOW_OMIP_IMPORT_MANIFEST }
@@ -654,7 +655,8 @@ export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
         name: `OMIP-${paddedNumber}`,
         summary: template?.summary ?? title,
         year,
-        cytometers: [...(flowOmipCytometersByNumber[number] ?? ['Not reported in catalog'])],
+        cytometers: [...(flowOmipCytometersByNumber[number] ?? ['Not reported in catalog'])]
+          .map(canonicalizeOmipCytometerLabel),
         species: omipSpecies(title, template),
         cellTypes: inferOmipCellTypes(title),
         method: EDITABLE_SPECTRAL_OMIP_NUMBERS.has(number) ? 'spectral' : omipMethod(title),
