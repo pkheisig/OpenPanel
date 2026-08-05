@@ -101,6 +101,102 @@ function recommendedSetupForOmip(entry: OmipCatalogEntry): InstrumentSetup | nul
       }
     } else if (normalized.includes('xenith')) {
       setup = { cytometer: 'xenith', configuration: 'full' }
+    } else if (normalized.includes('facsymphony') || normalized.includes('a5se')) {
+      setup = { cytometer: 'symphony', configuration: 'symphony_a5se' }
+    } else if (normalized.includes('fortessa')) {
+      setup = {
+        cytometer: 'fortessa',
+        configuration: normalized.includes('4l') ? 'fortessa_4l' : 'fortessa_3l',
+      }
+    } else if (normalized.includes('facscelesta') || normalized.includes('celesta')) {
+      const configuration = normalized.includes('bvuv')
+        ? 'celesta_bvuv'
+        : normalized.includes('bvyg')
+          ? 'celesta_bvyg'
+          : normalized.includes('bvr')
+            ? 'celesta_bvr'
+            : 'celesta_bv'
+      setup = { cytometer: 'celesta', configuration }
+    } else if (normalized.includes('attunenxt') || normalized.includes('attune nxt')) {
+      setup = { cytometer: 'attune_nxt', configuration: 'attune_nxt_4l' }
+    } else if (normalized.includes('facs canto') || normalized.includes('facscanto') || normalized.includes('canto ii')) {
+      const configuration = normalized.includes('3l')
+        ? 'canto_3l_4_2_2'
+        : normalized.includes('5-3') || normalized.includes('5 3')
+          ? 'canto_2l_5_3'
+          : 'canto_2l_4_2'
+      setup = { cytometer: 'canto', configuration }
+    } else if (normalized.includes('facslyric') || normalized.includes('facs lyric')) {
+      const configuration = normalized.includes('12')
+        ? 'lyric_3l_12'
+        : normalized.includes('10')
+          ? 'lyric_3l_10'
+          : normalized.includes('8')
+            ? 'lyric_3l_8'
+            : normalized.includes('6')
+              ? 'lyric_2l_6'
+              : 'lyric_2l_4'
+      setup = { cytometer: 'lyric', configuration }
+    } else if (normalized.includes('ze5')) {
+      const configuration = normalized.includes('5l')
+        ? 'ze5_5l_27'
+        : normalized.includes('4l')
+          ? 'ze5_4l_24'
+          : normalized.includes('20')
+            ? 'ze5_3l_20'
+            : normalized.includes('option 2') || normalized.includes('option2')
+              ? 'ze5_3l_17_option2'
+              : 'ze5_3l_17'
+      setup = { cytometer: 'ze5', configuration }
+    } else if (normalized.includes('cytpix')) {
+      const configuration = ['byrv6', 'byrv4', 'brv6x', 'byv4x', 'byrx', 'bv6xx', 'bv4xx', 'brxx', 'byxx']
+        .find((candidate) => normalized.includes(candidate))
+      setup = { cytometer: 'cytpix', configuration: configuration ? `cytpix_${configuration}` : 'cytpix_byrv6' }
+    } else if (normalized.includes('quanteon') || normalized.includes('novocyte')) {
+      setup = { cytometer: 'quanteon', configuration: 'quanteon_4025' }
+    } else if (normalized.includes('accuri')) {
+      setup = { cytometer: 'accuri_c6_plus', configuration: 'accuri_c6_plus_standard' }
+    } else if (normalized.includes('facscalibur') || normalized.includes('calibur')) {
+      setup = { cytometer: 'facscalibur', configuration: 'facscalibur_2l_4' }
+    } else if (normalized.includes('dxflex')) {
+      setup = { cytometer: 'dxflex', configuration: 'dxflex_b5_r3_v5' }
+    } else if (normalized.includes('macsquant')) {
+      const configuration = normalized.includes('16')
+        ? 'macsquant_analyzer16'
+        : normalized.includes('vyb')
+          ? 'macsquant_vyb'
+          : 'macsquant_analyzer10'
+      setup = { cytometer: 'macsquant', configuration }
+    } else if (normalized.includes('facsverse')) {
+      const configuration = normalized.includes('3l') || normalized.includes('8-color') || normalized.includes('8 color')
+        ? 'facsverse_3l_8'
+        : normalized.includes('2l') || normalized.includes('6-color') || normalized.includes('6 color')
+          ? 'facsverse_2l_6'
+          : 'facsverse_1l_4'
+      setup = { cytometer: 'facsverse', configuration }
+    } else if (normalized.includes('lsr ii') || normalized.includes('lsrii')) {
+      const configuration = normalized.includes('6b-6v-2uv-4r') || normalized.includes('6b6v2uv4r')
+        ? 'lsrii_6b_6v_2uv_4r'
+        : normalized.includes('6b-6v-2uv-3r') || normalized.includes('6b6v2uv3r')
+          ? 'lsrii_6b_6v_2uv_3r'
+          : normalized.includes('6b-6v-0uv-4r') || normalized.includes('6b6v0uv4r')
+            ? 'lsrii_6b_6v_0uv_4r'
+            : normalized.includes('6b-6v-0uv-3r') || normalized.includes('6b6v0uv3r')
+              ? 'lsrii_6b_6v_0uv_3r'
+              : normalized.includes('6b-2v-2uv-3r') || normalized.includes('6b2v2uv3r')
+                ? 'lsrii_6b_2v_2uv_3r'
+                : normalized.includes('6b-0v-2uv-3r') || normalized.includes('6b0v2uv3r')
+                  ? 'lsrii_6b_0v_2uv_3r'
+                  : normalized.includes('6b-2v-0uv-3r') || normalized.includes('6b2v0uv3r')
+                    ? 'lsrii_6b_2v_0uv_3r'
+                    : 'lsrii_6b_0v_0uv_3r'
+      setup = { cytometer: 'lsrii', configuration }
+    } else if (normalized.includes('cytoflex lx') || normalized.includes('cytoflex')) {
+      setup = { cytometer: 'cytoflex_lx', configuration: 'cytoflex_lx_u3_v5_b3_y5_r3_i0' }
+    } else if (normalized.includes('navios')) {
+      setup = { cytometer: 'navios', configuration: 'navios_2l_8' }
+    } else if (normalized.includes('facsaria fusion') || normalized.includes('aria fusion')) {
+      setup = { cytometer: 'facsaria_fusion', configuration: 'facsaria_fusion_buv' }
     }
 
     if (setup && getSpectralPanelConfigurations(setup.cytometer).some(
@@ -139,7 +235,7 @@ export function LandingPage({
     [cytometer],
   )
   const [configuration, setConfiguration] = useState('')
-  const setupReady = Boolean(cytometer && (cytometer === 'xenith' || configuration))
+  const setupReady = Boolean(cytometer && (cytometer === 'xenith' || cytometer === 'symphony' || configuration))
 
   const activePanels = useMemo(
     () => panels.filter((panel) => !panel.archivedAt),
@@ -206,7 +302,7 @@ export function LandingPage({
         ? omipPayload
         : await buildPanelPayload(target.cytometer, target.configuration)
       if (!payload) return
-      const maxPanelSize = Math.min(payload.fluorophores.length, payload.detectors.length)
+      const maxPanelSize = payload.max_panel_size
       const availableFluorophores = payload.fluorophores.map((item) => item.fluorophore)
       const assignments = omipTemplateAssignmentsForPanel(
         template,
@@ -335,13 +431,51 @@ export function LandingPage({
               ]}
               onChange={(nextCytometer) => {
                 setCytometer(nextCytometer)
-                setConfiguration(nextCytometer === 'xenith' ? 'full' : '')
+                setConfiguration(nextCytometer === 'xenith'
+                  ? 'full'
+                  : nextCytometer === 'symphony'
+                    ? 'symphony_a5se'
+                    : nextCytometer === 'fortessa'
+                      ? 'fortessa_3l'
+                      : nextCytometer === 'celesta'
+                        ? 'celesta_bv'
+                      : nextCytometer === 'attune_nxt'
+                          ? 'attune_nxt_4l'
+                          : nextCytometer === 'accuri_c6_plus'
+                            ? 'accuri_c6_plus_standard'
+                            : nextCytometer === 'facscalibur'
+                              ? 'facscalibur_2l_4'
+                          : nextCytometer === 'canto'
+                            ? 'canto_2l_4_2'
+                            : nextCytometer === 'lyric'
+                              ? 'lyric_2l_4'
+                              : nextCytometer === 'ze5'
+                                ? 'ze5_3l_17'
+                                : nextCytometer === 'cytpix'
+                                  ? 'cytpix_byrv6'
+                                  : nextCytometer === 'quanteon'
+                                    ? 'quanteon_4025'
+                                    : nextCytometer === 'macsquant'
+                                      ? 'macsquant_analyzer10'
+                                      : nextCytometer === 'facsverse'
+                                        ? 'facsverse_3l_8'
+                                        : nextCytometer === 'lsrii'
+                                          ? 'lsrii_6b_2v_2uv_3r'
+                                          : nextCytometer === 'cytoflex_lx'
+                                            ? 'cytoflex_lx_u3_v5_b3_y5_r3_i0'
+                                              : nextCytometer === 'navios'
+                                                ? 'navios_2l_8'
+                                                : nextCytometer === 'dxflex'
+                                                  ? 'dxflex_b5_r3_v5'
+                                              : nextCytometer === 'facsaria_fusion'
+                                                ? 'facsaria_fusion_buv'
+                                          : '')
               }}
               portalMenu
               menuClassName="launch-select-menu"
             />
 
-            {cytometer !== 'xenith' && (
+            {cytometer !== 'xenith' && cytometer !== 'symphony' && (
               <UiSelect
                 label="DETECTOR CONFIGURATION"
                 value={configuration}
@@ -464,9 +598,7 @@ export function LandingPage({
         <OmipLibrary
           theme={theme}
           availableFluorophores={omipPayload?.fluorophores.map((item) => item.fluorophore)}
-          maxPanelSize={omipPayload
-            ? Math.min(omipPayload.fluorophores.length, omipPayload.detectors.length)
-            : undefined}
+          maxPanelSize={omipPayload?.max_panel_size}
           activeCytometerLabel={libraries.find((library) => library.id === cytometer)?.label ?? cytometer}
           activeConfigurationLabel={configurations.find((candidate) => candidate.id === configuration)?.label ?? configuration}
           actionLabel={creatingFromOmip ? 'Creating panel…' : 'Create panel from OMIP'}

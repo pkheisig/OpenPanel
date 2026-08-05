@@ -1,0 +1,507 @@
+cytometer,configuration,detector,laser,description,is_scatter,common_fluorophores
+fortessa,fortessa_3l,450/50-V-A,Violet,450/50,FALSE,BV421;Alexa 405;eFluor 450;Hoechst;Pacific Blue;DAPI;Sytox
+fortessa,fortessa_3l,525/50-V-A,Violet,525/50,FALSE,BV510;AmCyan;V500;Qdot 525;Krome Orange;Pacific Orange
+fortessa,fortessa_3l,610/20-V-A,Violet,610/20,FALSE,BV605;eFluor 605NC;Qdot 605
+fortessa,fortessa_3l,670/30-V-A,Violet,670/30,FALSE,BV650;eFluor 650NC;Qdot 655
+fortessa,fortessa_3l,710/50-V-A,Violet,710/50,FALSE,BV711;eFluor 700NC;Qdot 705
+fortessa,fortessa_3l,780/60-V-A,Violet,780/60,FALSE,BV786;Qdot 800
+fortessa,fortessa_3l,488/10-B-A,Blue,488/10,TRUE,SSC
+fortessa,fortessa_3l,525/50-B-A,Blue,525/50,FALSE,FITC;GFP;Alexa 488;CFSE
+fortessa,fortessa_3l,575/26-B-A,Blue,575/26,FALSE,PE;PKH26
+fortessa,fortessa_3l,610/20-B-A,Blue,610/20,FALSE,PE-CF594;Texas Red;PE-Texas Red;PI
+fortessa,fortessa_3l,695/40-B-A,Blue,695/40,FALSE,PerCP-Cy5.5;PerCP;PE-Cy5;7AAD;PE-Cy5.5;PerCP eFluor 710
+fortessa,fortessa_3l,780/60-B-A,Blue,780/60,FALSE,PE-Cy7;PE-CY7;PC7;PE-Vio 7
+fortessa,fortessa_3l,670/30-R-A,Red,670/30,FALSE,APC;Alexa 647;TOPRO-3;TOTO-3;eFluor 660
+fortessa,fortessa_3l,730/45-R-A,Red,730/45,FALSE,Alexa Fluor 700;Alexa 700;eFluor 710;APC-Alexa 700
+fortessa,fortessa_3l,780/60-R-A,Red,780/60,FALSE,APC-Cy7;Alexa Fluor 750;APC-Vio 770;APC-eFluor 780;APC-H7
+fortessa,fortessa_4l,450/50-V-A,Violet,450/50,FALSE,BV421;Alexa 405;eFluor 450;Pacific Blue;DAPI;Sytox
+fortessa,fortessa_4l,525/50-V-A,Violet,525/50,FALSE,BV510
+fortessa,fortessa_4l,610/20-V-A,Violet,610/20,FALSE,BV605
+fortessa,fortessa_4l,670/30-V-A,Violet,670/30,FALSE,BV650
+fortessa,fortessa_4l,710/50-V-A,Violet,710/50,FALSE,BV711
+fortessa,fortessa_4l,780/60-V-A,Violet,780/60,FALSE,BV786
+fortessa,fortessa_4l,488/10-B-A,Blue,488/10,TRUE,SSC
+fortessa,fortessa_4l,529/24-B-A,Blue,529/24,FALSE,FITC;Alexa 488;GFP
+fortessa,fortessa_4l,695/40-B-A,Blue,695/40,FALSE,PerCP-Cy5.5;PerCP;PerCP eFluor 710
+fortessa,fortessa_4l,582/15-YG-A,YellowGreen,582/15,FALSE,PE
+fortessa,fortessa_4l,610/20-YG-A,YellowGreen,610/20,FALSE,PE-CF 594;mCherry;PE-Texas Red;PI;7AAD
+fortessa,fortessa_4l,670/14-YG-A,YellowGreen,670/14,FALSE,PE-Cy5
+fortessa,fortessa_4l,710/50-YG-A,YellowGreen,710/50,FALSE,PE-Cy5.5
+fortessa,fortessa_4l,780/60-YG-A,YellowGreen,780/60,FALSE,PE-CY7
+fortessa,fortessa_4l,670/30-R-A,Red,670/30,FALSE,APC;Alexa Fluor 647;eFluor 660
+fortessa,fortessa_4l,730/45-R-A,Red,730/45,FALSE,Alexa Fluor 700
+fortessa,fortessa_4l,780/60-R-A,Red,780/60,FALSE,APC-Cy7;Alexa Fluor 750;APC-eFluor 780;APC-H7
+celesta,celesta_bv,530/30-B-A,Blue,530/30,FALSE,BB515;FITC;Alexa 488
+celesta,celesta_bv,575/25-B-A,Blue,575/25,FALSE,PE
+celesta,celesta_bv,610/20-B-A,Blue,610/20,FALSE,PE-CF594;PI
+celesta,celesta_bv,695/40-B-A,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5;7AAD
+celesta,celesta_bv,450/40-V-A,Violet,450/40,FALSE,BV421;V450;Pacific Blue;Alexa 405
+celesta,celesta_bv,525/50-V-A,Violet,525/50,FALSE,BV510;V500
+celesta,celesta_bv,610/20-V-A,Violet,610/20,FALSE,BV605
+celesta,celesta_bv,670/30-V-A,Violet,670/30,FALSE,BV650
+celesta,celesta_bv,710/50-V-A,Violet,710/50,FALSE,BV711
+celesta,celesta_bv,780/60-V-A,Violet,780/60,FALSE,BV786
+celesta,celesta_bvr,530/30-B-A,Blue,530/30,FALSE,BB515;FITC;Alexa 488
+celesta,celesta_bvr,575/26-B-A,Blue,575/26,FALSE,PE
+celesta,celesta_bvr,610/20-B-A,Blue,610/20,FALSE,PE-CF594;PI
+celesta,celesta_bvr,695/40-B-A,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5;7AAD
+celesta,celesta_bvr,450/40-V-A,Violet,450/40,FALSE,BV421;V450;Pacific Blue;Alexa 405
+celesta,celesta_bvr,525/50-V-A,Violet,525/50,FALSE,BV510;V500
+celesta,celesta_bvr,610/20-V-A,Violet,610/20,FALSE,BV605
+celesta,celesta_bvr,660/20-V-A,Violet,660/20,FALSE,BV650
+celesta,celesta_bvr,780/60-V-A,Violet,780/60,FALSE,BV786
+celesta,celesta_bvr,670/30-R-A,Red,670/30,FALSE,APC
+celesta,celesta_bvr,730/45-R-A,Red,730/45,FALSE,APC-R700
+celesta,celesta_bvr,780/60-R-A,Red,780/60,FALSE,APC-Cy7
+celesta,celesta_bvuv,530/30-B-A,Blue,530/30,FALSE,BB515;FITC;Alexa 488
+celesta,celesta_bvuv,575/25-B-A,Blue,575/25,FALSE,PE
+celesta,celesta_bvuv,610/20-B-A,Blue,610/20,FALSE,PE-CF594;PI
+celesta,celesta_bvuv,695/40-B-A,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5;7AAD
+celesta,celesta_bvuv,450/40-V-A,Violet,450/40,FALSE,BV421;V450;Pacific Blue;Alexa 405
+celesta,celesta_bvuv,525/50-V-A,Violet,525/50,FALSE,BV510;V500
+celesta,celesta_bvuv,610/20-V-A,Violet,610/20,FALSE,BV605
+celesta,celesta_bvuv,670/30-V-A,Violet,670/30,FALSE,BV650
+celesta,celesta_bvuv,710/50-V-A,Violet,710/50,FALSE,BV711
+celesta,celesta_bvuv,780/60-V-A,Violet,780/60,FALSE,BV786
+celesta,celesta_bvuv,379/28-UV-A,UV,379/28,FALSE,BUV395
+celesta,celesta_bvuv,740/35-UV-A,UV,740/35,FALSE,BUV737
+celesta,celesta_bvyg,530/30-B-A,Blue,530/30,FALSE,BB515;FITC;Alexa 488
+celesta,celesta_bvyg,695/40-B-A,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5;7AAD
+celesta,celesta_bvyg,450/40-V-A,Violet,450/40,FALSE,BV421;V450;Pacific Blue;Alexa 405
+celesta,celesta_bvyg,525/50-V-A,Violet,525/50,FALSE,BV510;V500
+celesta,celesta_bvyg,610/20-V-A,Violet,610/20,FALSE,BV605
+celesta,celesta_bvyg,670/30-V-A,Violet,670/30,FALSE,BV650
+celesta,celesta_bvyg,710/50-V-A,Violet,710/50,FALSE,BV711
+celesta,celesta_bvyg,780/60-V-A,Violet,780/60,FALSE,BV786
+celesta,celesta_bvyg,586/15-YG-A,YellowGreen,586/15,FALSE,PE
+celesta,celesta_bvyg,610/20-YG-A,YellowGreen,610/20,FALSE,PE-CF594;PI
+celesta,celesta_bvyg,670/30-YG-A,YellowGreen,670/30,FALSE,PE-Cy5
+celesta,celesta_bvyg,780/60-YG-A,YellowGreen,780/60,FALSE,PE-Cy7
+attune_nxt,attune_nxt_4l,440/50-V-A,Violet,440/50,FALSE,Pacific Blue
+attune_nxt,attune_nxt_4l,512/25-V-A,Violet,512/25,FALSE,Pacific Green
+attune_nxt,attune_nxt_4l,603/48-V-A,Violet,603/48,FALSE,Pacific Orange
+attune_nxt,attune_nxt_4l,710/50-V-A,Violet,710/50,FALSE,Qdot 705
+attune_nxt,attune_nxt_4l,530/30-B-A,Blue,530/30,FALSE,FITC;Alexa 488
+attune_nxt,attune_nxt_4l,590/40-B-A,Blue,590/40,FALSE,Propidium Iodide
+attune_nxt,attune_nxt_4l,695/40-B-A,Blue,695/40,FALSE,PerCP-Cy5.5
+attune_nxt,attune_nxt_4l,585/16-Y-A,YellowGreen,585/16,FALSE,PE
+attune_nxt,attune_nxt_4l,620/15-Y-A,YellowGreen,620/15,FALSE,PE-CF594;Propidium Iodide
+attune_nxt,attune_nxt_4l,695/40-Y-A,YellowGreen,695/40,FALSE,PE-Cy5
+attune_nxt,attune_nxt_4l,780/60-Y-A,YellowGreen,780/60,FALSE,PE-Cy7
+attune_nxt,attune_nxt_4l,670/14-R-A,Red,670/14,FALSE,APC
+attune_nxt,attune_nxt_4l,720/30-R-A,Red,720/30,FALSE,Alexa Fluor 700
+attune_nxt,attune_nxt_4l,780/60-R-A,Red,780/60,FALSE,APC-Alexa Fluor 750
+canto,canto_2l_4_2,canto_2l_4_2_530/30-B-A,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+canto,canto_2l_4_2,canto_2l_4_2_585/42-B-A,Blue,585/42,FALSE,PE
+canto,canto_2l_4_2,canto_2l_4_2_670LP-B-A,Blue,670 LP,FALSE,PerCP;PerCP-Cy5.5
+canto,canto_2l_4_2,canto_2l_4_2_780/60-B-A,Blue,780/60,FALSE,PE-Cy7
+canto,canto_2l_4_2,canto_2l_4_2_660/20-R-A,Red,660/20,FALSE,APC;Alexa Fluor 647
+canto,canto_2l_4_2,canto_2l_4_2_780/60-R-A,Red,780/60,FALSE,APC-Cy7;APC-H7
+canto,canto_3l_4_2_2,canto_3l_4_2_2_450/50-V-A,Violet,450/50,FALSE,BV421;Pacific Blue;DAPI
+canto,canto_3l_4_2_2,canto_3l_4_2_2_510/50-V-A,Violet,510/50,FALSE,BV510;AmCyan
+canto,canto_3l_4_2_2,canto_3l_4_2_2_530/30-B-A,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+canto,canto_3l_4_2_2,canto_3l_4_2_2_585/42-B-A,Blue,585/42,FALSE,PE
+canto,canto_3l_4_2_2,canto_3l_4_2_2_670LP-B-A,Blue,670 LP,FALSE,PerCP;PerCP-Cy5.5
+canto,canto_3l_4_2_2,canto_3l_4_2_2_780/60-B-A,Blue,780/60,FALSE,PE-Cy7
+canto,canto_3l_4_2_2,canto_3l_4_2_2_660/20-R-A,Red,660/20,FALSE,APC;Alexa Fluor 647
+canto,canto_3l_4_2_2,canto_3l_4_2_2_780/60-R-A,Red,780/60,FALSE,APC-Cy7;APC-H7
+canto,canto_2l_5_3,canto_2l_5_3_530/30-B-A,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+canto,canto_2l_5_3,canto_2l_5_3_585/42-B-A,Blue,585/42,FALSE,PE
+canto,canto_2l_5_3,canto_2l_5_3_616/23-B-A,Blue,616/23,FALSE,PE-CF594;Propidium Iodide
+canto,canto_2l_5_3,canto_2l_5_3_670LP-B-A,Blue,670 LP,FALSE,PerCP;PerCP-Cy5.5
+canto,canto_2l_5_3,canto_2l_5_3_780/60-B-A,Blue,780/60,FALSE,PE-Cy7
+canto,canto_2l_5_3,canto_2l_5_3_660/20-R-A,Red,660/20,FALSE,APC;Alexa Fluor 647
+canto,canto_2l_5_3,canto_2l_5_3_712/21-R-A,Red,712/21,FALSE,Alexa Fluor 700
+canto,canto_2l_5_3,canto_2l_5_3_780/60-R-A,Red,780/60,FALSE,APC-Cy7;APC-H7
+lyric,lyric_2l_4,lyric_2l_4_527/32-B-A,Blue,527/32,FALSE,FITC;Alexa Fluor 488
+lyric,lyric_2l_4,lyric_2l_4_586/42-B-A,Blue,586/42,FALSE,PE;Propidium Iodide
+lyric,lyric_2l_4,lyric_2l_4_700/54-B-A,Blue,700/54,FALSE,PerCP;PerCP-Cy5.5
+lyric,lyric_2l_4,lyric_2l_4_660/10-R-A,Red,660/10,FALSE,APC;Alexa Fluor 647
+lyric,lyric_2l_6,lyric_2l_6_527/32-B-A,Blue,527/32,FALSE,FITC;Alexa Fluor 488
+lyric,lyric_2l_6,lyric_2l_6_586/42-B-A,Blue,586/42,FALSE,PE;Propidium Iodide
+lyric,lyric_2l_6,lyric_2l_6_700/54-B-A,Blue,700/54,FALSE,PerCP;PerCP-Cy5.5
+lyric,lyric_2l_6,lyric_2l_6_783/56-B-A,Blue,783/56,FALSE,PE-Cy7
+lyric,lyric_2l_6,lyric_2l_6_660/10-R-A,Red,660/10,FALSE,APC;Alexa Fluor 647
+lyric,lyric_2l_6,lyric_2l_6_783/56-R-A,Red,783/56,FALSE,APC-Cy7;APC-H7
+lyric,lyric_3l_8,lyric_3l_8_448/45-V-A,Violet,448/45,FALSE,BV421;Pacific Blue
+lyric,lyric_3l_8,lyric_3l_8_528/45-V-A,Violet,528/45,FALSE,BV510;AmCyan
+lyric,lyric_3l_8,lyric_3l_8_527/32-B-A,Blue,527/32,FALSE,FITC;Alexa Fluor 488
+lyric,lyric_3l_8,lyric_3l_8_586/42-B-A,Blue,586/42,FALSE,PE;Propidium Iodide
+lyric,lyric_3l_8,lyric_3l_8_700/54-B-A,Blue,700/54,FALSE,PerCP;PerCP-Cy5.5
+lyric,lyric_3l_8,lyric_3l_8_783/56-B-A,Blue,783/56,FALSE,PE-Cy7
+lyric,lyric_3l_8,lyric_3l_8_660/10-R-A,Red,660/10,FALSE,APC;Alexa Fluor 647
+lyric,lyric_3l_8,lyric_3l_8_783/56-R-A,Red,783/56,FALSE,APC-Cy7;APC-H7
+lyric,lyric_3l_10,lyric_3l_10_448/45-V-A,Violet,448/45,FALSE,BV421;Pacific Blue
+lyric,lyric_3l_10,lyric_3l_10_528/45-V-A,Violet,528/45,FALSE,BV510;AmCyan
+lyric,lyric_3l_10,lyric_3l_10_606/36-V-A,Violet,606/36,FALSE,BV605
+lyric,lyric_3l_10,lyric_3l_10_527/32-B-A,Blue,527/32,FALSE,FITC;Alexa Fluor 488
+lyric,lyric_3l_10,lyric_3l_10_586/42-B-A,Blue,586/42,FALSE,PE;Propidium Iodide
+lyric,lyric_3l_10,lyric_3l_10_700/54-B-A,Blue,700/54,FALSE,PerCP;PerCP-Cy5.5
+lyric,lyric_3l_10,lyric_3l_10_783/56-B-A,Blue,783/56,FALSE,PE-Cy7
+lyric,lyric_3l_10,lyric_3l_10_660/10-R-A,Red,660/10,FALSE,APC;Alexa Fluor 647
+lyric,lyric_3l_10,lyric_3l_10_720/30-R-A,Red,720/30,FALSE,APC-R700;Alexa Fluor 700
+lyric,lyric_3l_10,lyric_3l_10_783/56-R-A,Red,783/56,FALSE,APC-Cy7;APC-H7
+lyric,lyric_3l_12,lyric_3l_12_448/45-V-A,Violet,448/45,FALSE,BV421;Pacific Blue
+lyric,lyric_3l_12,lyric_3l_12_528/45-V-A,Violet,528/45,FALSE,BV510;AmCyan
+lyric,lyric_3l_12,lyric_3l_12_606/36-V-A,Violet,606/36,FALSE,BV605
+lyric,lyric_3l_12,lyric_3l_12_715/50-V-A,Violet,715/50,FALSE,BV711
+lyric,lyric_3l_12,lyric_3l_12_755LP-V-A,Violet,755 LP,FALSE,BV786
+lyric,lyric_3l_12,lyric_3l_12_527/32-B-A,Blue,527/32,FALSE,FITC;Alexa Fluor 488
+lyric,lyric_3l_12,lyric_3l_12_586/42-B-A,Blue,586/42,FALSE,PE;Propidium Iodide
+lyric,lyric_3l_12,lyric_3l_12_700/54-B-A,Blue,700/54,FALSE,PerCP;PerCP-Cy5.5
+lyric,lyric_3l_12,lyric_3l_12_783/56-B-A,Blue,783/56,FALSE,PE-Cy7
+lyric,lyric_3l_12,lyric_3l_12_660/10-R-A,Red,660/10,FALSE,APC;Alexa Fluor 647
+lyric,lyric_3l_12,lyric_3l_12_720/30-R-A,Red,720/30,FALSE,APC-R700;Alexa Fluor 700
+lyric,lyric_3l_12,lyric_3l_12_783/56-R-A,Red,783/56,FALSE,APC-Cy7;APC-H7
+ze5,ze5_3l_17,ze5_3l_17_420/10-V-A,Violet,420/10,FALSE,BV421
+ze5,ze5_3l_17,ze5_3l_17_460/22-V-A,Violet,460/22,FALSE,SBV440;Pacific Blue
+ze5,ze5_3l_17,ze5_3l_17_525/50-V-A,Violet,525/50,FALSE,SBV515;BV510;ECFP
+ze5,ze5_3l_17,ze5_3l_17_615/24-V-A,Violet,615/24,FALSE,SBV610;BV605
+ze5,ze5_3l_17,ze5_3l_17_670/30-V-A,Violet,670/30,FALSE,SBV670;BV650
+ze5,ze5_3l_17,ze5_3l_17_720/60-V-A,Violet,720/60,FALSE,SBV710;BV711
+ze5,ze5_3l_17,ze5_3l_17_750LP-V-A,Violet,750 LP,FALSE,SBV760;SBV790;BV786
+ze5,ze5_3l_17,ze5_3l_17_509/24-B-A,Blue,509/24,FALSE,FITC;GFP;Alexa Fluor 488
+ze5,ze5_3l_17,ze5_3l_17_549/15-B-A,Blue,549/15,FALSE,YFP
+ze5,ze5_3l_17,ze5_3l_17_583/30-B-A,Blue,583/30,FALSE,SBB580;PE
+ze5,ze5_3l_17,ze5_3l_17_615/24-B-A,Blue,615/24,FALSE,SBB615;PE-CF594;PE-Dazzle 594
+ze5,ze5_3l_17,ze5_3l_17_692/80-B-A,Blue,692/80,FALSE,SBB675;SBB700;PerCP-Cy5.5;PE-Cy5
+ze5,ze5_3l_17,ze5_3l_17_750LP-B-A,Blue,750 LP,FALSE,SBB765;SBB810;PE-Cy7;Alexa Fluor 750
+ze5,ze5_3l_17,ze5_3l_17_670/30-R-A,Red,670/30,FALSE,APC;Alexa Fluor 647
+ze5,ze5_3l_17,ze5_3l_17_720/60-R-A,Red,720/60,FALSE,Alexa Fluor 700
+ze5,ze5_3l_17,ze5_3l_17_775/50-R-A,Red,775/50,FALSE,APC-Cy7;Alexa Fluor 750
+ze5,ze5_3l_17,ze5_3l_17_800LP-R-A,Red,800 LP,FALSE,Alexa Fluor 790;APC-Fire 810
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_509/24-B-A,Blue,509/24,FALSE,FITC;GFP;Alexa Fluor 488
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_549/15-B-A,Blue,549/15,FALSE,YFP
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_583/30-B-A,Blue,583/30,FALSE,SBB580;PE
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_615/24-B-A,Blue,615/24,FALSE,SBB615;PE-CF594;PE-Dazzle 594
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_692/80-B-A,Blue,692/80,FALSE,SBB675;SBB700;PerCP-Cy5.5;PE-Cy5
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_750LP-B-A,Blue,750 LP,FALSE,SBB765;SBB810;PE-Cy7;Alexa Fluor 750
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_577/15-YG-A,YellowGreen,577/15,FALSE,SBY575;PE
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_589/15-YG-A,YellowGreen,589/15,FALSE,DsRed;tdTomato;RFP
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_615/24-YG-A,YellowGreen,615/24,FALSE,SBY605;PE-Dazzle 594;PE-CF594;mCherry
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_640/20-YG-A,YellowGreen,640/20,FALSE,mPlum
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_670/30-YG-A,YellowGreen,670/30,FALSE,SBY665;PE-Cy5;Alexa Fluor 647
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_720/60-YG-A,YellowGreen,720/60,FALSE,SBY720;PE-Cy5.5
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_750LP-YG-A,YellowGreen,750 LP,FALSE,SBY800;PE-Cy7;Alexa Fluor 750
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_670/30-R-A,Red,670/30,FALSE,APC;Alexa Fluor 647
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_720/60-R-A,Red,720/60,FALSE,Alexa Fluor 700
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_775/50-R-A,Red,775/50,FALSE,APC-Cy7;Alexa Fluor 750
+ze5,ze5_3l_17_option2,ze5_3l_17_option2_800LP-R-A,Red,800 LP,FALSE,Alexa Fluor 790;APC-Fire 810
+ze5,ze5_3l_20,ze5_3l_20_420/10-V-A,Violet,420/10,FALSE,BV421
+ze5,ze5_3l_20,ze5_3l_20_460/22-V-A,Violet,460/22,FALSE,SBV440;Pacific Blue
+ze5,ze5_3l_20,ze5_3l_20_525/50-V-A,Violet,525/50,FALSE,SBV515;BV510;ECFP
+ze5,ze5_3l_20,ze5_3l_20_615/24-V-A,Violet,615/24,FALSE,SBV610;BV605
+ze5,ze5_3l_20,ze5_3l_20_670/30-V-A,Violet,670/30,FALSE,SBV670;BV650
+ze5,ze5_3l_20,ze5_3l_20_720/60-V-A,Violet,720/60,FALSE,SBV710;BV711
+ze5,ze5_3l_20,ze5_3l_20_750LP-V-A,Violet,750 LP,FALSE,SBV760;SBV790;BV786
+ze5,ze5_3l_20,ze5_3l_20_509/24-B-A,Blue,509/24,FALSE,FITC;GFP;Alexa Fluor 488
+ze5,ze5_3l_20,ze5_3l_20_549/15-B-A,Blue,549/15,FALSE,YFP
+ze5,ze5_3l_20,ze5_3l_20_583/30-B-A,Blue,583/30,FALSE,SBB580;PE
+ze5,ze5_3l_20,ze5_3l_20_615/24-B-A,Blue,615/24,FALSE,SBB615;PE-CF594;PE-Dazzle 594
+ze5,ze5_3l_20,ze5_3l_20_692/80-B-A,Blue,692/80,FALSE,SBB675;SBB700;PerCP-Cy5.5;PE-Cy5
+ze5,ze5_3l_20,ze5_3l_20_750LP-B-A,Blue,750 LP,FALSE,SBB765;SBB810;PE-Cy7;Alexa Fluor 750
+ze5,ze5_3l_20,ze5_3l_20_577/15-YG-A,YellowGreen,577/15,FALSE,SBY575;PE
+ze5,ze5_3l_20,ze5_3l_20_589/15-YG-A,YellowGreen,589/15,FALSE,DsRed;tdTomato;RFP
+ze5,ze5_3l_20,ze5_3l_20_615/24-YG-A,YellowGreen,615/24,FALSE,SBY605;PE-Dazzle 594;PE-CF594;mCherry
+ze5,ze5_3l_20,ze5_3l_20_640/20-YG-A,YellowGreen,640/20,FALSE,mPlum
+ze5,ze5_3l_20,ze5_3l_20_670/30-YG-A,YellowGreen,670/30,FALSE,SBY665;PE-Cy5;Alexa Fluor 647
+ze5,ze5_3l_20,ze5_3l_20_720/60-YG-A,YellowGreen,720/60,FALSE,SBY720;PE-Cy5.5
+ze5,ze5_3l_20,ze5_3l_20_750LP-YG-A,YellowGreen,750 LP,FALSE,SBY800;PE-Cy7;Alexa Fluor 750
+ze5,ze5_4l_24,ze5_4l_24_420/10-V-A,Violet,420/10,FALSE,BV421
+ze5,ze5_4l_24,ze5_4l_24_460/22-V-A,Violet,460/22,FALSE,SBV440;Pacific Blue
+ze5,ze5_4l_24,ze5_4l_24_525/50-V-A,Violet,525/50,FALSE,SBV515;BV510;ECFP
+ze5,ze5_4l_24,ze5_4l_24_615/24-V-A,Violet,615/24,FALSE,SBV610;BV605
+ze5,ze5_4l_24,ze5_4l_24_670/30-V-A,Violet,670/30,FALSE,SBV670;BV650
+ze5,ze5_4l_24,ze5_4l_24_720/60-V-A,Violet,720/60,FALSE,SBV710;BV711
+ze5,ze5_4l_24,ze5_4l_24_750LP-V-A,Violet,750 LP,FALSE,SBV760;SBV790;BV786
+ze5,ze5_4l_24,ze5_4l_24_509/24-B-A,Blue,509/24,FALSE,FITC;GFP;Alexa Fluor 488
+ze5,ze5_4l_24,ze5_4l_24_549/15-B-A,Blue,549/15,FALSE,YFP
+ze5,ze5_4l_24,ze5_4l_24_583/30-B-A,Blue,583/30,FALSE,SBB580;PE
+ze5,ze5_4l_24,ze5_4l_24_615/24-B-A,Blue,615/24,FALSE,SBB615;PE-CF594;PE-Dazzle 594
+ze5,ze5_4l_24,ze5_4l_24_692/80-B-A,Blue,692/80,FALSE,SBB675;SBB700;PerCP-Cy5.5;PE-Cy5
+ze5,ze5_4l_24,ze5_4l_24_750LP-B-A,Blue,750 LP,FALSE,SBB765;SBB810;PE-Cy7;Alexa Fluor 750
+ze5,ze5_4l_24,ze5_4l_24_577/15-YG-A,YellowGreen,577/15,FALSE,SBY575;PE
+ze5,ze5_4l_24,ze5_4l_24_589/15-YG-A,YellowGreen,589/15,FALSE,DsRed;tdTomato;RFP
+ze5,ze5_4l_24,ze5_4l_24_615/24-YG-A,YellowGreen,615/24,FALSE,SBY605;PE-Dazzle 594;PE-CF594;mCherry
+ze5,ze5_4l_24,ze5_4l_24_640/20-YG-A,YellowGreen,640/20,FALSE,mPlum
+ze5,ze5_4l_24,ze5_4l_24_670/30-YG-A,YellowGreen,670/30,FALSE,SBY665;PE-Cy5;Alexa Fluor 647
+ze5,ze5_4l_24,ze5_4l_24_720/60-YG-A,YellowGreen,720/60,FALSE,SBY720;PE-Cy5.5
+ze5,ze5_4l_24,ze5_4l_24_750LP-YG-A,YellowGreen,750 LP,FALSE,SBY800;PE-Cy7;Alexa Fluor 750
+ze5,ze5_4l_24,ze5_4l_24_670/30-R-A,Red,670/30,FALSE,APC;Alexa Fluor 647
+ze5,ze5_4l_24,ze5_4l_24_720/60-R-A,Red,720/60,FALSE,Alexa Fluor 700
+ze5,ze5_4l_24,ze5_4l_24_775/50-R-A,Red,775/50,FALSE,APC-Cy7;Alexa Fluor 750
+ze5,ze5_4l_24,ze5_4l_24_800LP-R-A,Red,800 LP,FALSE,Alexa Fluor 790;APC-Fire 810
+ze5,ze5_5l_27,ze5_5l_27_387/11-UV-A,UV,387/11,FALSE,BUV395
+ze5,ze5_5l_27,ze5_5l_27_447/60-UV-A,UV,447/60,FALSE,Alexa Fluor 350;DAPI
+ze5,ze5_5l_27,ze5_5l_27_525/50-UV-A,UV,525/50,FALSE,BUV496
+ze5,ze5_5l_27,ze5_5l_27_670/30-UV-A,UV,670/30,FALSE,BUV661
+ze5,ze5_5l_27,ze5_5l_27_700LP-UV-A,UV,700 LP,FALSE,BUV737;BUV805
+ze5,ze5_5l_27,ze5_5l_27_420/10-V-A,Violet,420/10,FALSE,BV421
+ze5,ze5_5l_27,ze5_5l_27_460/22-V-A,Violet,460/22,FALSE,SBV440;Pacific Blue
+ze5,ze5_5l_27,ze5_5l_27_525/50-V-A,Violet,525/50,FALSE,SBV515;BV510;ECFP
+ze5,ze5_5l_27,ze5_5l_27_615/24-V-A,Violet,615/24,FALSE,SBV610;BV605
+ze5,ze5_5l_27,ze5_5l_27_670/30-V-A,Violet,670/30,FALSE,SBV670;BV650
+ze5,ze5_5l_27,ze5_5l_27_720/60-V-A,Violet,720/60,FALSE,SBV710;BV711
+ze5,ze5_5l_27,ze5_5l_27_750LP-V-A,Violet,750 LP,FALSE,SBV760;SBV790;BV786
+ze5,ze5_5l_27,ze5_5l_27_525/25-B-A,Blue,525/25,FALSE,FITC;GFP;Alexa Fluor 488
+ze5,ze5_5l_27,ze5_5l_27_593/52-B-A,Blue,593/52,FALSE,SBB580
+ze5,ze5_5l_27,ze5_5l_27_692/80-B-A,Blue,692/80,FALSE,SBB675;SBB700;PerCP-Cy5.5
+ze5,ze5_5l_27,ze5_5l_27_750LP-B-A,Blue,750 LP,FALSE,SBB765;SBB810;PE-Cy7;Alexa Fluor 750
+ze5,ze5_5l_27,ze5_5l_27_577/15-YG-A,YellowGreen,577/15,FALSE,SBY575;PE
+ze5,ze5_5l_27,ze5_5l_27_589/15-YG-A,YellowGreen,589/15,FALSE,DsRed;tdTomato;RFP
+ze5,ze5_5l_27,ze5_5l_27_615/24-YG-A,YellowGreen,615/24,FALSE,SBY605;PE-Dazzle 594;PE-CF594;mCherry
+ze5,ze5_5l_27,ze5_5l_27_640/20-YG-A,YellowGreen,640/20,FALSE,mPlum
+ze5,ze5_5l_27,ze5_5l_27_670/30-YG-A,YellowGreen,670/30,FALSE,SBY665;PE-Cy5;Alexa Fluor 647
+ze5,ze5_5l_27,ze5_5l_27_720/60-YG-A,YellowGreen,720/60,FALSE,SBY720;PE-Cy5.5
+ze5,ze5_5l_27,ze5_5l_27_750LP-YG-A,YellowGreen,750 LP,FALSE,SBY800;PE-Cy7;Alexa Fluor 750
+ze5,ze5_5l_27,ze5_5l_27_670/30-R-A,Red,670/30,FALSE,APC;Alexa Fluor 647
+ze5,ze5_5l_27,ze5_5l_27_720/60-R-A,Red,720/60,FALSE,Alexa Fluor 700
+ze5,ze5_5l_27,ze5_5l_27_775/50-R-A,Red,775/50,FALSE,APC-Cy7;Alexa Fluor 750
+ze5,ze5_5l_27,ze5_5l_27_800LP-R-A,Red,800 LP,FALSE,Alexa Fluor 790;APC-Fire 810
+cytpix,cytpix_byxx,cytpix_byxx_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_byxx,cytpix_byxx_BL2,Blue,590/40,FALSE,PE
+cytpix,cytpix_byxx,cytpix_byxx_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_byxx,cytpix_byxx_YL1,YellowGreen,585/16,FALSE,PE
+cytpix,cytpix_byxx,cytpix_byxx_YL2,YellowGreen,620/15,FALSE,PE-CF594;Propidium Iodide
+cytpix,cytpix_byxx,cytpix_byxx_YL3,YellowGreen,695/40,FALSE,PE-Cy5
+cytpix,cytpix_byxx,cytpix_byxx_YL4,YellowGreen,780/60,FALSE,PE-Cy7
+cytpix,cytpix_brxx,cytpix_brxx_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_brxx,cytpix_brxx_BL2,Blue,574/26,FALSE,PE
+cytpix,cytpix_brxx,cytpix_brxx_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_brxx,cytpix_brxx_BL4,Blue,780/60,FALSE,PE-Cy7
+cytpix,cytpix_brxx,cytpix_brxx_RL1,Red,670/14,FALSE,APC;Alexa Fluor 647
+cytpix,cytpix_brxx,cytpix_brxx_RL2,Red,720/30,FALSE,Alexa Fluor 700
+cytpix,cytpix_brxx,cytpix_brxx_RL3,Red,780/60,FALSE,APC-Cy7;APC-H7
+cytpix,cytpix_bv4xx,cytpix_bv4xx_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_bv4xx,cytpix_bv4xx_BL2,Blue,574/26,FALSE,PE
+cytpix,cytpix_bv4xx,cytpix_bv4xx_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_bv4xx,cytpix_bv4xx_VL1,Violet,440/50,FALSE,BV421;Pacific Blue
+cytpix,cytpix_bv4xx,cytpix_bv4xx_VL2,Violet,512/25,FALSE,BV510;AmCyan
+cytpix,cytpix_bv4xx,cytpix_bv4xx_VL3,Violet,603/48,FALSE,BV605
+cytpix,cytpix_bv4xx,cytpix_bv4xx_VL4,Violet,710/50,FALSE,BV711
+cytpix,cytpix_bv6xx,cytpix_bv6xx_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_bv6xx,cytpix_bv6xx_BL2,Blue,574/26,FALSE,PE
+cytpix,cytpix_bv6xx,cytpix_bv6xx_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_bv6xx,cytpix_bv6xx_VL1,Violet,450/40,FALSE,BV421;Pacific Blue
+cytpix,cytpix_bv6xx,cytpix_bv6xx_VL2,Violet,525/50,FALSE,BV510;AmCyan
+cytpix,cytpix_bv6xx,cytpix_bv6xx_VL3,Violet,610/20,FALSE,BV605
+cytpix,cytpix_bv6xx,cytpix_bv6xx_VL4,Violet,660/20,FALSE,BV650
+cytpix,cytpix_bv6xx,cytpix_bv6xx_VL5,Violet,710/50,FALSE,BV711
+cytpix,cytpix_bv6xx,cytpix_bv6xx_VL6,Violet,780/60,FALSE,BV786
+cytpix,cytpix_byrx,cytpix_byrx_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_byrx,cytpix_byrx_BL2,Blue,574/26,FALSE,PE
+cytpix,cytpix_byrx,cytpix_byrx_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_byrx,cytpix_byrx_BL4,Blue,780/60,FALSE,PE-Cy7
+cytpix,cytpix_byrx,cytpix_byrx_YL1,YellowGreen,585/16,FALSE,PE
+cytpix,cytpix_byrx,cytpix_byrx_YL2,YellowGreen,620/15,FALSE,PE-CF594;Propidium Iodide
+cytpix,cytpix_byrx,cytpix_byrx_YL3,YellowGreen,695/40,FALSE,PE-Cy5
+cytpix,cytpix_byrx,cytpix_byrx_YL4,YellowGreen,780/60,FALSE,PE-Cy7
+cytpix,cytpix_byrx,cytpix_byrx_RL1,Red,670/14,FALSE,APC;Alexa Fluor 647
+cytpix,cytpix_byrx,cytpix_byrx_RL2,Red,720/30,FALSE,Alexa Fluor 700
+cytpix,cytpix_byrx,cytpix_byrx_RL3,Red,780/60,FALSE,APC-Cy7;APC-H7
+cytpix,cytpix_byv4x,cytpix_byv4x_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_byv4x,cytpix_byv4x_BL2,Blue,590/40,FALSE,PE
+cytpix,cytpix_byv4x,cytpix_byv4x_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_byv4x,cytpix_byv4x_YL1,YellowGreen,585/16,FALSE,PE
+cytpix,cytpix_byv4x,cytpix_byv4x_YL2,YellowGreen,620/15,FALSE,PE-CF594;Propidium Iodide
+cytpix,cytpix_byv4x,cytpix_byv4x_YL3,YellowGreen,695/40,FALSE,PE-Cy5
+cytpix,cytpix_byv4x,cytpix_byv4x_YL4,YellowGreen,780/60,FALSE,PE-Cy7
+cytpix,cytpix_byv4x,cytpix_byv4x_VL1,Violet,440/50,FALSE,BV421;Pacific Blue
+cytpix,cytpix_byv4x,cytpix_byv4x_VL2,Violet,512/25,FALSE,BV510;AmCyan
+cytpix,cytpix_byv4x,cytpix_byv4x_VL3,Violet,603/48,FALSE,BV605
+cytpix,cytpix_byv4x,cytpix_byv4x_VL4,Violet,710/50,FALSE,BV711
+cytpix,cytpix_brv6x,cytpix_brv6x_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_brv6x,cytpix_brv6x_BL2,Blue,574/26,FALSE,PE
+cytpix,cytpix_brv6x,cytpix_brv6x_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_brv6x,cytpix_brv6x_RL1,Red,670/14,FALSE,APC;Alexa Fluor 647
+cytpix,cytpix_brv6x,cytpix_brv6x_RL2,Red,720/30,FALSE,Alexa Fluor 700
+cytpix,cytpix_brv6x,cytpix_brv6x_RL3,Red,780/60,FALSE,APC-Cy7;APC-H7
+cytpix,cytpix_brv6x,cytpix_brv6x_VL1,Violet,450/40,FALSE,BV421;Pacific Blue
+cytpix,cytpix_brv6x,cytpix_brv6x_VL2,Violet,525/50,FALSE,BV510;AmCyan
+cytpix,cytpix_brv6x,cytpix_brv6x_VL3,Violet,610/20,FALSE,BV605
+cytpix,cytpix_brv6x,cytpix_brv6x_VL4,Violet,660/20,FALSE,BV650
+cytpix,cytpix_brv6x,cytpix_brv6x_VL5,Violet,710/50,FALSE,BV711
+cytpix,cytpix_brv6x,cytpix_brv6x_VL6,Violet,780/60,FALSE,BV786
+cytpix,cytpix_byrv6,cytpix_byrv6_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_byrv6,cytpix_byrv6_BL2,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_byrv6,cytpix_byrv6_YL1,YellowGreen,585/16,FALSE,PE
+cytpix,cytpix_byrv6,cytpix_byrv6_YL2,YellowGreen,620/15,FALSE,PE-CF594;Propidium Iodide
+cytpix,cytpix_byrv6,cytpix_byrv6_YL3,YellowGreen,780/60,FALSE,PE-Cy7
+cytpix,cytpix_byrv6,cytpix_byrv6_RL1,Red,670/14,FALSE,APC;Alexa Fluor 647
+cytpix,cytpix_byrv6,cytpix_byrv6_RL2,Red,720/30,FALSE,Alexa Fluor 700
+cytpix,cytpix_byrv6,cytpix_byrv6_RL3,Red,780/60,FALSE,APC-Cy7;APC-H7
+cytpix,cytpix_byrv6,cytpix_byrv6_VL1,Violet,450/40,FALSE,BV421;Pacific Blue
+cytpix,cytpix_byrv6,cytpix_byrv6_VL2,Violet,525/50,FALSE,BV510;AmCyan
+cytpix,cytpix_byrv6,cytpix_byrv6_VL3,Violet,610/20,FALSE,BV605
+cytpix,cytpix_byrv6,cytpix_byrv6_VL4,Violet,660/20,FALSE,BV650
+cytpix,cytpix_byrv6,cytpix_byrv6_VL5,Violet,710/50,FALSE,BV711
+cytpix,cytpix_byrv6,cytpix_byrv6_VL6,Violet,780/60,FALSE,BV786
+cytpix,cytpix_byrv4,cytpix_byrv4_BL1,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+cytpix,cytpix_byrv4,cytpix_byrv4_BL2,Blue,590/40,FALSE,PE
+cytpix,cytpix_byrv4,cytpix_byrv4_BL3,Blue,695/40,FALSE,PerCP;PerCP-Cy5.5
+cytpix,cytpix_byrv4,cytpix_byrv4_YL1,YellowGreen,585/16,FALSE,PE
+cytpix,cytpix_byrv4,cytpix_byrv4_YL2,YellowGreen,620/15,FALSE,PE-CF594;Propidium Iodide
+cytpix,cytpix_byrv4,cytpix_byrv4_YL3,YellowGreen,695/40,FALSE,PE-Cy5
+cytpix,cytpix_byrv4,cytpix_byrv4_YL4,YellowGreen,780/60,FALSE,PE-Cy7
+cytpix,cytpix_byrv4,cytpix_byrv4_RL1,Red,670/14,FALSE,APC;Alexa Fluor 647
+cytpix,cytpix_byrv4,cytpix_byrv4_RL2,Red,720/30,FALSE,Alexa Fluor 700
+cytpix,cytpix_byrv4,cytpix_byrv4_RL3,Red,780/60,FALSE,APC-Cy7;APC-H7
+cytpix,cytpix_byrv4,cytpix_byrv4_VL1,Violet,440/50,FALSE,BV421;Pacific Blue
+cytpix,cytpix_byrv4,cytpix_byrv4_VL2,Violet,512/25,FALSE,BV510;AmCyan
+cytpix,cytpix_byrv4,cytpix_byrv4_VL3,Violet,603/48,FALSE,BV605
+cytpix,cytpix_byrv4,cytpix_byrv4_VL4,Violet,710/50,FALSE,BV711
+quanteon,quanteon_4025,quanteon_4025_V445,Violet,445/45,FALSE,BV421;Pacific Blue
+quanteon,quanteon_4025,quanteon_4025_V525,Violet,525/45,FALSE,BV510;AmCyan
+quanteon,quanteon_4025,quanteon_4025_V586,Violet,586/20,FALSE,BV570;SBV570
+quanteon,quanteon_4025,quanteon_4025_V615,Violet,615/20,FALSE,BV605;SBV610
+quanteon,quanteon_4025,quanteon_4025_V667,Violet,667/30,FALSE,BV650;SBV670
+quanteon,quanteon_4025,quanteon_4025_V695,Violet,695/40,FALSE,Qdot 705
+quanteon,quanteon_4025,quanteon_4025_V725,Violet,725/40,FALSE,BV711;SBV710
+quanteon,quanteon_4025,quanteon_4025_V780,Violet,780/60,FALSE,BV786;Qdot 800
+quanteon,quanteon_4025,quanteon_4025_B525,Blue,525/45,FALSE,FITC;GFP;Alexa Fluor 488
+quanteon,quanteon_4025,quanteon_4025_B586,Blue,586/20,FALSE,EYFP
+quanteon,quanteon_4025,quanteon_4025_B615,Blue,615/20,FALSE,Propidium Iodide
+quanteon,quanteon_4025,quanteon_4025_B667,Blue,667/30,FALSE,PerCP
+quanteon,quanteon_4025,quanteon_4025_B695,Blue,695/40,FALSE,PerCP-Cy5.5
+quanteon,quanteon_4025,quanteon_4025_B725,Blue,725/40,FALSE,PerCP-eFluor 710
+quanteon,quanteon_4025,quanteon_4025_B780,Blue,780/60,FALSE,PE-Cy7
+quanteon,quanteon_4025,quanteon_4025_Y586,YellowGreen,586/20,FALSE,PE
+quanteon,quanteon_4025,quanteon_4025_Y615,YellowGreen,615/20,FALSE,PE-CF594;Propidium Iodide
+quanteon,quanteon_4025,quanteon_4025_Y667,YellowGreen,667/30,FALSE,PE-Cy5
+quanteon,quanteon_4025,quanteon_4025_Y695,YellowGreen,695/40,FALSE,PE-Cy5.5
+quanteon,quanteon_4025,quanteon_4025_Y725,YellowGreen,725/40,FALSE,PE-Alexa Fluor 700
+quanteon,quanteon_4025,quanteon_4025_Y780,YellowGreen,780/60,FALSE,PE-Cy7
+quanteon,quanteon_4025,quanteon_4025_R667,Red,667/30,FALSE,APC;Alexa Fluor 647
+quanteon,quanteon_4025,quanteon_4025_R695,Red,695/40,FALSE,Alexa Fluor 680
+quanteon,quanteon_4025,quanteon_4025_R725,Red,725/40,FALSE,Alexa Fluor 700
+quanteon,quanteon_4025,quanteon_4025_R780,Red,780/60,FALSE,APC-Cy7;APC-H7
+macsquant,macsquant_analyzer10,macsquant_analyzer10_V1,Violet,450/50,FALSE,BV421;Pacific Blue
+macsquant,macsquant_analyzer10,macsquant_analyzer10_V2,Violet,525/50,FALSE,BV510;AmCyan
+macsquant,macsquant_analyzer10,macsquant_analyzer10_B1,Blue,525/50,FALSE,FITC;Alexa Fluor 488
+macsquant,macsquant_analyzer10,macsquant_analyzer10_B2,Blue,585/40,FALSE,PE
+macsquant,macsquant_analyzer10,macsquant_analyzer10_B3,Blue,655-730,FALSE,PerCP;PerCP-Cy5.5
+macsquant,macsquant_analyzer10,macsquant_analyzer10_B4,Blue,750 LP,FALSE,PE-Cy7
+macsquant,macsquant_analyzer10,macsquant_analyzer10_R1,Red,655-730,FALSE,APC;Alexa Fluor 647
+macsquant,macsquant_analyzer10,macsquant_analyzer10_R2,Red,750 LP,FALSE,APC-Cy7;APC-H7
+macsquant,macsquant_analyzer16,macsquant_analyzer16_V1,Violet,450/50,FALSE,BV421;Pacific Blue
+macsquant,macsquant_analyzer16,macsquant_analyzer16_V2,Violet,525/50,FALSE,BV510;AmCyan
+macsquant,macsquant_analyzer16,macsquant_analyzer16_V3,Violet,579/34,FALSE,BV570
+macsquant,macsquant_analyzer16,macsquant_analyzer16_V4,Violet,615/20,FALSE,BV605
+macsquant,macsquant_analyzer16,macsquant_analyzer16_V5,Violet,667/30,FALSE,BV650
+macsquant,macsquant_analyzer16,macsquant_analyzer16_B1,Blue,525/50,FALSE,FITC;Alexa Fluor 488
+macsquant,macsquant_analyzer16,macsquant_analyzer16_B2,Blue,579/34,FALSE,PE
+macsquant,macsquant_analyzer16,macsquant_analyzer16_B3,Blue,615/20,FALSE,Propidium Iodide
+macsquant,macsquant_analyzer16,macsquant_analyzer16_B4,Blue,667/30,FALSE,PerCP-Cy5.5
+macsquant,macsquant_analyzer16,macsquant_analyzer16_B5,Blue,725/40,FALSE,PE-Cy5.5
+macsquant,macsquant_analyzer16,macsquant_analyzer16_B6,Blue,785/62,FALSE,PE-Cy7
+macsquant,macsquant_analyzer16,macsquant_analyzer16_R1,Red,667/30,FALSE,APC;Alexa Fluor 647
+macsquant,macsquant_analyzer16,macsquant_analyzer16_R2,Red,725/40,FALSE,Alexa Fluor 700
+macsquant,macsquant_analyzer16,macsquant_analyzer16_R3,Red,785/62,FALSE,APC-Cy7;APC-H7
+macsquant,macsquant_vyb,macsquant_vyb_V1,Violet,452/45,FALSE,BV421;Pacific Blue
+macsquant,macsquant_vyb,macsquant_vyb_V2,Violet,525/50,FALSE,BV510;AmCyan
+macsquant,macsquant_vyb,macsquant_vyb_B1,Blue,525/50,FALSE,FITC;Alexa Fluor 488
+macsquant,macsquant_vyb,macsquant_vyb_B2,Blue,593-650,FALSE,PE-CF594
+macsquant,macsquant_vyb,macsquant_vyb_Y1,YellowGreen,586/15,FALSE,PE
+macsquant,macsquant_vyb,macsquant_vyb_Y2,YellowGreen,615/20,FALSE,PE-CF594;Propidium Iodide
+macsquant,macsquant_vyb,macsquant_vyb_Y3,YellowGreen,661/20,FALSE,PE-Cy5
+macsquant,macsquant_vyb,macsquant_vyb_Y4,YellowGreen,740 LP,FALSE,PE-Cy7
+facsverse,facsverse_reference,facsverse_BA,Blue,783/56,FALSE,PE-Cy7
+facsverse,facsverse_reference,facsverse_BB,Blue,695/40,FALSE,PerCP-Cy5.5;PerCP;7-AAD
+facsverse,facsverse_reference,facsverse_BD,Blue,586/42,FALSE,PE;Propidium Iodide
+facsverse,facsverse_reference,facsverse_BE,Blue,527/32,FALSE,FITC;Alexa Fluor 488
+facsverse,facsverse_reference,facsverse_BSSC,Blue,488/15,TRUE,SSC
+facsverse,facsverse_reference,facsverse_RA,Red,783/56,FALSE,APC-Cy7;APC-H7
+facsverse,facsverse_reference,facsverse_RB,Red,660/10,FALSE,APC;Alexa Fluor 647
+facsverse,facsverse_reference,facsverse_VA,Violet,528/45,FALSE,V500;AmCyan;Pacific Orange
+facsverse,facsverse_reference,facsverse_VB,Violet,448/45,FALSE,V450;Pacific Blue
+lsrii,lsrii_reference,lsrii_B1,Blue,780/60,FALSE,PE-Cy7
+lsrii,lsrii_reference,lsrii_B2,Blue,695/40,FALSE,PerCP-Cy5.5;PerCP
+lsrii,lsrii_reference,lsrii_B3,Blue,660/20,FALSE,PE-Cy5
+lsrii,lsrii_reference,lsrii_B4,Blue,610/20,FALSE,PE-Texas Red;Propidium Iodide
+lsrii,lsrii_reference,lsrii_B5,Blue,575/26,FALSE,PE
+lsrii,lsrii_reference,lsrii_B6,Blue,530/30,FALSE,FITC;Alexa Fluor 488
+lsrii,lsrii_reference,lsrii_BSSC,Blue,488/10,TRUE,SSC
+lsrii,lsrii_reference,lsrii_Vt1,Violet,525/50,FALSE,AmCyan
+lsrii,lsrii_reference,lsrii_Vt2,Violet,450/50,FALSE,Pacific Blue
+lsrii,lsrii_reference,lsrii_Vo1,Violet,655/8,FALSE,Qdot 655
+lsrii,lsrii_reference,lsrii_Vo2,Violet,605/12,FALSE,Qdot 605
+lsrii,lsrii_reference,lsrii_Vo3,Violet,585/15,FALSE,Qdot 585
+lsrii,lsrii_reference,lsrii_Vo4,Violet,560/20,FALSE,Qdot 565
+lsrii,lsrii_reference,lsrii_Vo5,Violet,525/50,FALSE,AmCyan;Qdot 525
+lsrii,lsrii_reference,lsrii_Vo6,Violet,450/50,FALSE,Pacific Blue
+lsrii,lsrii_reference,lsrii_UV1,UV,530/30,FALSE,Indo-1 (Blue)
+lsrii,lsrii_reference,lsrii_UV2,UV,450/50,FALSE,Indo-1 (Violet);DAPI
+lsrii,lsrii_reference,lsrii_Rt1,Red,780/60,FALSE,APC-Cy7
+lsrii,lsrii_reference,lsrii_Rt2,Red,730/45,FALSE,Alexa Fluor 700
+lsrii,lsrii_reference,lsrii_Rt3,Red,660/20,FALSE,APC;Alexa Fluor 647
+lsrii,lsrii_reference,lsrii_Ro1,Red,780/60,FALSE,APC-Cy7
+lsrii,lsrii_reference,lsrii_Ro2,Red,730/45,FALSE,Alexa Fluor 700
+lsrii,lsrii_reference,lsrii_Ro3,Red,685/35,FALSE,Alexa Fluor 680
+lsrii,lsrii_reference,lsrii_Ro4,Red,660/20,FALSE,APC;Alexa Fluor 647
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_U405,UV,405/30,FALSE,BUV395
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_U525,UV,525/40,FALSE,BUV496
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_U675,UV,675/30,FALSE,BUV661
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_V450,Violet,450/45,FALSE,Pacific Blue;BV421
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_V525,Violet,525/40,FALSE,BV510;AmCyan
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_V610,Violet,610/20,FALSE,BV605
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_V660,Violet,660/10,FALSE,BV650
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_V763,Violet,763/43,FALSE,BV786;Qdot 800
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_B525,Blue,525/40,FALSE,FITC;Alexa Fluor 488;GFP
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_B610,Blue,610/20,FALSE,PI;BB630
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_B690,Blue,690/50,FALSE,PerCP-Cy5.5;PerCP
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y585,YellowGreen,585/42,FALSE,PE;DsRed;RFP
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y610,YellowGreen,610/20,FALSE,mCherry;PE-CF594;Propidium Iodide
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y675,YellowGreen,675/30,FALSE,PE-Cy5;7-AAD
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y710,YellowGreen,710/50,FALSE,PE-Cy5.5
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y763,YellowGreen,763/43,FALSE,PE-Cy7;PC7
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R660,Red,660/10,FALSE,APC;Alexa Fluor 647
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R712,Red,712/25,FALSE,Alexa Fluor 700;APC-A700
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R763,Red,763/43,FALSE,APC-A750;APC-Cy7;APC-eFluor 780
+navios,navios_2l_8,navios_B1,Blue,525/40,FALSE,FITC;Alexa Fluor 488
+navios,navios_2l_8,navios_B2,Blue,575/30,FALSE,PE
+navios,navios_2l_8,navios_B3,Blue,620/30,FALSE,ECD;PE-Texas Red
+navios,navios_2l_8,navios_B4,Blue,695/30,FALSE,PE-Cy5.5;PerCP-Cy5.5
+navios,navios_2l_8,navios_B5,Blue,755 LP,FALSE,PE-Cy7;PC7
+navios,navios_2l_8,navios_BSSC,Blue,488/10,TRUE,SSC
+navios,navios_2l_8,navios_R1,Red,660/20,FALSE,APC;Alexa Fluor 647
+navios,navios_2l_8,navios_R2,Red,725/20,FALSE,Alexa Fluor 700;APC-Alexa 700
+navios,navios_2l_8,navios_R3,Red,755 LP,FALSE,APC-Cy7;APC-H7;APC-Alexa 750
+accuri_c6_plus,accuri_c6_plus_standard,accuri_FL1,Blue,533/30,FALSE,FITC;BB515;Alexa Fluor 488;CFSE;GFP
+accuri_c6_plus,accuri_c6_plus_standard,accuri_FL2,Blue,585/40,FALSE,PE;Propidium Iodide;PE-CF594
+accuri_c6_plus,accuri_c6_plus_standard,accuri_FL3,Blue,670 LP,FALSE,PerCP;PerCP-Cy5.5;PE-Cy5;PE-Cy7;7-AAD
+accuri_c6_plus,accuri_c6_plus_standard,accuri_FL4,Red,675/25,FALSE,APC;Alexa Fluor 647
+facscalibur,facscalibur_2l_4,facscalibur_FL1,Blue,530/30,FALSE,FITC;BB515;Alexa Fluor 488;GFP;CFSE
+facscalibur,facscalibur_2l_4,facscalibur_FL2,Blue,585/42,FALSE,PE;Propidium Iodide;Cy3
+facscalibur,facscalibur_2l_4,facscalibur_FL3,Blue,670 LP,FALSE,PerCP;PerCP-Cy5.5;PE-Cy5;7-AAD
+facscalibur,facscalibur_2l_4,facscalibur_FL4,Red,661/16,FALSE,APC;Alexa Fluor 647;Alexa Fluor 633;eFluor 660
+dxflex,dxflex_b5_r3_v5,dxflex_V450,Violet,450/45,FALSE,BV421;Pacific Blue;Alexa Fluor 405;eFluor 450;Horizon V450;DAPI
+dxflex,dxflex_b5_r3_v5,dxflex_V525,Violet,525/40,FALSE,BV510;AmCyan;Horizon V500;BB515
+dxflex,dxflex_b5_r3_v5,dxflex_V610,Violet,610/20,FALSE,BV605;Qdot 605;SuperBright600;eFluor 605NC
+dxflex,dxflex_b5_r3_v5,dxflex_V660,Violet,660/20,FALSE,BV650;Qdot 655;eFluor 650NC
+dxflex,dxflex_b5_r3_v5,dxflex_V780,Violet,780/60,FALSE,BV785;BV786;Qdot 800
+dxflex,dxflex_b5_r3_v5,dxflex_B525,Blue,525/40,FALSE,FITC;GFP;CFSE;BB515;Alexa Fluor 488
+dxflex,dxflex_b5_r3_v5,dxflex_B585,Blue,585/42,FALSE,PE;Propidium Iodide
+dxflex,dxflex_b5_r3_v5,dxflex_B610,Blue,610/20,FALSE,PE-Texas Red;PE-CF594;ECD
+dxflex,dxflex_b5_r3_v5,dxflex_B690,Blue,690/50,FALSE,PerCP;PerCP-Cy5.5;PE-Cy5.5;BB700;PerCP-eFluor 710
+dxflex,dxflex_b5_r3_v5,dxflex_B780,Blue,780/60,FALSE,PE-Cy7
+dxflex,dxflex_b5_r3_v5,dxflex_R660,Red,660/20,FALSE,APC;Alexa Fluor 647;Cy5;Alexa Fluor 633
+dxflex,dxflex_b5_r3_v5,dxflex_R712,Red,712/25,FALSE,Alexa Fluor 700;APC-R700;R718
+dxflex,dxflex_b5_r3_v5,dxflex_R780,Red,780/60,FALSE,APC-Cy7;APC-eFluor 780;APC-H7;APC-Alexa 750;Viability eFluor 780
+facsaria_fusion,facsaria_fusion_buv,facsaria_B530,Blue,530/30,FALSE,FITC;Alexa Fluor 488;CFSE
+facsaria_fusion,facsaria_fusion_buv,facsaria_B710,Blue,710/50,FALSE,PerCP;PerCP-Cy5.5;PerCP-eFluor 710;7-AAD;Propidium Iodide
+facsaria_fusion,facsaria_fusion_buv,facsaria_R670,Red,670/30,FALSE,APC;Cy5;Alexa Fluor 647
+facsaria_fusion,facsaria_fusion_buv,facsaria_R712,Red,712/21,FALSE,Alexa Fluor 700;APC-R700
+facsaria_fusion,facsaria_fusion_buv,facsaria_R780,Red,780/60,FALSE,APC-Cy7;APC-H7;APC-Vio780;APC-Fire750;APC-eFluor 780;LIVE/DEAD NIR
+facsaria_fusion,facsaria_fusion_buv,facsaria_V450,Violet,450/50,FALSE,Pacific Blue;Alexa Fluor 405;BV421;eFluor 450;Horizon V450;VioBlue;SuperBright436
+facsaria_fusion,facsaria_fusion_buv,facsaria_V525,Violet,525/50,FALSE,Pacific Orange;Horizon V500;BV510;AmCyan;Qdot 525;VioGreen;eFluor 506
+facsaria_fusion,facsaria_fusion_buv,facsaria_V610,Violet,610/20,FALSE,BV605;Qdot 605;eFluor 605NC;LIVE/DEAD Yellow;SuperBright600
+facsaria_fusion,facsaria_fusion_buv,facsaria_V660,Violet,660/20,FALSE,BV650;eFluor 650NC;Qdot 655
+facsaria_fusion,facsaria_fusion_buv,facsaria_V710,Violet,710/40,FALSE,BV710;Qdot 705
+facsaria_fusion,facsaria_fusion_buv,facsaria_V780,Violet,780/60,FALSE,BV785;Qdot 800
+facsaria_fusion,facsaria_fusion_buv,facsaria_Y586,YellowGreen,586/15,FALSE,PE
+facsaria_fusion,facsaria_fusion_buv,facsaria_Y610,YellowGreen,610/20,FALSE,PE-AF605;PE-Texas Red;PE-CF594;PE-Dazzle594;PE-Alexa594
+facsaria_fusion,facsaria_fusion_buv,facsaria_Y780,YellowGreen,780/60,FALSE,PE-Cy7;PE-Vio780
+facsaria_fusion,facsaria_fusion_buv,facsaria_U379,UV,379/34,FALSE,BUV395
+facsaria_fusion,facsaria_fusion_buv,facsaria_U515,UV,515/30,FALSE,Hoechst 33342;Hoechst 33258;Alexa Fluor 350;LIVE/DEAD UV;DAPI;BUV496
+facsaria_fusion,facsaria_fusion_buv,facsaria_U740,UV,740/40,FALSE,BUV737
+facsaria_fusion,facsaria_fusion_buv,facsaria_U800,UV,800/50,FALSE,BUV805

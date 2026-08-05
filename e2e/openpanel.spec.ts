@@ -436,6 +436,329 @@ test('starts a configuration-free Xenith panel after selecting only the cytomete
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(0 colors)')
 })
 
+test('uses spectral metrics and detector capacity for Xenith', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Thermo Fisher Attune Xenith')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'Alexa Fluor 350')
+  await selectFluorophore(page, 1, 'Alexa Fluor 488')
+  await expect(page.getByRole('img', { name: 'Combined spectra' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'SPECTRA', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '51')
+})
+
+test('adapts the workspace and wizard to a conventional FACSymphony', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD FACSymphony A5 SE')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BUV395')
+  await selectFluorophore(page, 1, 'PE')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'RESPONSES', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '48')
+  await wizard.getByRole('button', { name: 'About panel wizard calculations' }).focus()
+  await expect(wizard.getByRole('tooltip')).toContainText('detector-response overlap')
+})
+
+test('adapts the workspace and wizard to BD LSRFortessa 3L detectors', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD LSRFortessa')
+  await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText('BD LSRFortessa 3L: V/B/R')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD LSRFortessa 3L: V/B/R')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'RESPONSES', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '14')
+  await wizard.getByRole('button', { name: 'About panel wizard calculations' }).focus()
+  await expect(wizard.getByRole('tooltip')).toContainText('detector-response overlap')
+})
+
+test('adapts the workspace and wizard to a public FACSCelesta BVUV configuration', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD FACSCelesta')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD FACSCelesta: Blue/Violet/UV')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BUV395')
+  await selectFluorophore(page, 1, 'PE')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '12')
+})
+
+test('adapts the workspace and wizard to the documented 4-laser Attune NxT configuration', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Thermo Fisher Attune NxT')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Thermo Fisher Attune NxT: B/R/V/Y')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '14')
+})
+
+test('adapts the workspace and wizard to the standard BD Accuri C6 Plus', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD Accuri C6 Plus')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD Accuri C6 Plus: standard 3-blue/1-red')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '4')
+})
+
+test('adapts the workspace and wizard to BD FACSCalibur', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD FACSCalibur')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD FACSCalibur: 2-laser 4-color')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '4')
+})
+
+test('adapts the workspace and wizard to BD FACSCanto II', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD FACSCanto II')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD FACSCanto II: 3-laser 4-2-2')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BV421')
+  await selectFluorophore(page, 1, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '8')
+})
+
+test('adapts the workspace and wizard to BD FACSLyric 12-color', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD FACSLyric')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD FACSLyric: 3-laser 12-color (4-3-5)')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BV421')
+  await selectFluorophore(page, 1, 'PE-Cy7')
+  await selectFluorophore(page, 2, 'APC-R700')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '12')
+})
+
+test('adapts the workspace and wizard to Bio-Rad ZE5 5-laser', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Bio-Rad ZE5')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Bio-Rad ZE5: 5-laser (27 colors)')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BUV395')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '27')
+})
+
+test('adapts the workspace and wizard to Thermo Fisher Attune CytPix BYRV6', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Thermo Fisher Attune CytPix')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Thermo Fisher Attune CytPix: BYRV6')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '14')
+})
+
+test('adapts the workspace and wizard to Agilent NovoCyte Quanteon 4025', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Agilent NovoCyte Quanteon')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Agilent NovoCyte Quanteon: 4025')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BV421')
+  await selectFluorophore(page, 1, 'FITC')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '25')
+})
+
+test('adapts the workspace and wizard to Miltenyi MACSQuant Analyzer 16', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Miltenyi MACSQuant')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Miltenyi MACSQuant Analyzer 16')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BV421')
+  await selectFluorophore(page, 1, 'FITC')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '14')
+})
+
+test('adapts the workspace and wizard to BD FACSVerse 8-color', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD FACSVerse')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD FACSVerse: 3-laser 8-color (4-2-2)')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '8')
+})
+
+test('adapts the workspace and wizard to BD LSR II 18-color', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD LSR II')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD LSR II: 6B-6V-2UV-4R')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '18')
+})
+
+test('adapts the workspace and wizard to CytoFLEX LX 19-detector', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Beckman Coulter CytoFLEX LX')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Beckman Coulter CytoFLEX LX: UV3-V5-B3-Y5-R3-I0')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '19')
+})
+
+test('adapts the workspace and wizard to Beckman Coulter Navios 8-color', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Beckman Coulter Navios')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Beckman Coulter Navios: 2-laser 8-color')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '8')
+})
+
+test('adapts the workspace and wizard to Beckman Coulter DxFLEX B5-R3-V5', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Beckman Coulter DxFLEX')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Beckman Coulter DxFLEX: B5-R3-V5')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BV421')
+  await selectFluorophore(page, 1, 'FITC')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '13')
+})
+
+test('adapts the workspace and wizard to the documented FACSAria Fusion BUV configuration', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD FACSAria Fusion')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD FACSAria Fusion: BUV-optimized facility configuration')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'BUV395')
+  await selectFluorophore(page, 1, 'FITC')
+  await selectFluorophore(page, 2, 'APC')
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '18')
+})
+
 test('migrates the previous single active autosave into the named panel library', async ({ page }) => {
   await page.goto(APP_PATH)
   await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()

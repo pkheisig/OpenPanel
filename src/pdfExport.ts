@@ -40,7 +40,13 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   const width = document.internal.pageSize.getWidth()
   document.setFont('helvetica', 'bold')
   document.setFontSize(18)
-  document.text('Fluorophore Spectral Similarity', 12, 14)
+  document.text(
+    payload.measurement_mode === 'conventional'
+      ? 'Fluorophore Detector-Response Similarity'
+      : 'Fluorophore Spectral Similarity',
+    12,
+    14,
+  )
   document.setFont('helvetica', 'normal')
   document.setFontSize(9)
   const cytometer = payload.libraries.find((item) => item.id === payload.cytometer)?.label ?? payload.cytometer
@@ -51,7 +57,13 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
 
   if (rows.length < 2) {
     document.setFont('helvetica', 'normal')
-    document.text('Add at least two fluorophores to calculate pairwise similarity.', 12, 34)
+    document.text(
+      payload.measurement_mode === 'conventional'
+        ? 'Add at least two fluorophores to calculate pairwise detector-response similarity.'
+        : 'Add at least two fluorophores to calculate pairwise spectral similarity.',
+      12,
+      34,
+    )
     return
   }
 

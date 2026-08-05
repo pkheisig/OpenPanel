@@ -57,6 +57,10 @@ const MIN_SIDEBAR_WIDTH = 180;
 const MAX_SIDEBAR_WIDTH = 440;
 const SIDEBAR_KEYBOARD_STEP = 12;
 const MAX_PANEL_HISTORY = 100;
+
+const panelCapacityMessage = (colorCount: number, detectorCount: number) => (
+    `This panel has ${colorCount} colors, but the selected configuration has only ${detectorCount} detectors. Remove colors before calculating or adding to the panel.`
+);
 const loadPanelWizard = () => import('./PanelWizard');
 const PanelWizard = lazy(() => loadPanelWizard().then((module) => ({ default: module.PanelWizard })));
 
@@ -218,6 +222,8 @@ const PanelBuilder = ({
     }, [guiStateLoaded, persistProjectState]);
 
     const selected = useMemo(() => slots.filter(Boolean), [slots]);
+    const selectedColorCount = useMemo(() => new Set(selected).size, [selected]);
+    const panelExceedsDetectorLimit = Boolean(payload && selectedColorCount > payload.max_panel_size);
 
     useEffect(() => {
         slotsRef.current = slots;
@@ -352,6 +358,10 @@ const PanelBuilder = ({
             setPayload(nextPayload);
             setCytometer(getCytometerName(nextPayload.cytometer));
             setConfiguration(getCytometerName(nextPayload.configuration));
+            const nextColorCount = new Set(nextSelected.filter(Boolean)).size;
+            if (nextColorCount > nextPayload.max_panel_size) {
+                setError(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
+            }
             return nextPayload;
         } catch (err) {
             if (!panelRequestSequenceRef.current.isCurrent(requestSequence)) return null;
@@ -418,6 +428,22 @@ const PanelBuilder = ({
                 setPayload(initial);
                 setCytometer(getCytometerName(initial.cytometer));
                 setConfiguration(getCytometerName(initial.configuration));
+                const initialColorCount = new Set(slotsRef.current.filter(Boolean)).size;
+                if (initialColorCount <= initial.max_panel_size && slotsRef.current.length > initial.max_panel_size) {
+                    const nextSlots = slotsRef.current.slice(0, initial.max_panel_size);
+                    const nextMarkers = Object.fromEntries(
+                        Object.entries(markersRef.current)
+                            .map(([key, value]) => [Number(key), value] as const)
+                            .filter(([slotIndex]) => slotIndex < initial.max_panel_size),
+                    );
+                    slotsRef.current = nextSlots;
+                    markersRef.current = nextMarkers;
+                    setSlots(nextSlots);
+                    setMarkers(nextMarkers);
+                }
+                if (initialColorCount > initial.max_panel_size) {
+                    setError(panelCapacityMessage(initialColorCount, initial.max_panel_size));
+                }
                 setGuiStateLoaded(true);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Could not load bundled spectral libraries.');
@@ -503,6 +529,10 @@ const PanelBuilder = ({
     };
 
     const addSlot = () => {
+        if (payload && slotsRef.current.length >= payload.max_panel_size) {
+            setError(`The selected configuration supports a maximum of ${payload.max_panel_size} colors because it has ${payload.max_panel_size} detectors.`);
+            return;
+        }
         recordPanelEdit();
         setSlots(prev => {
             const next = [...prev, ''];
@@ -576,6 +606,9 @@ const PanelBuilder = ({
         recommendations,
         desiredSize,
     }: WizardApplication) => {
+        if (payload && desiredSize > payload.max_panel_size) {
+            throw new Error(`The panel cannot exceed ${payload.max_panel_size} colors for this detector configuration.`);
+        }
         recordPanelEdit();
         const recommendationByMarker = new Map(
             recommendations.map(recommendation => [recommendation.markerId, recommendation.fluorophore]),
@@ -746,6 +779,9 @@ const PanelBuilder = ({
         try {
             const text = await file.text();
             const imported = detectImportedPanelRows(text, payload.fluorophores);
+            if (imported.length > payload.max_panel_size) {
+                throw new Error(`The imported panel contains ${imported.length} colors, but this configuration supports at most ${payload.max_panel_size} colors (${payload.max_panel_size} detectors).`);
+            }
             recordPanelEdit();
             const nextSlots = imported.map(row => row.fluor);
             while (nextSlots.length < emptySlots) nextSlots.push('');
@@ -808,6 +844,10 @@ const PanelBuilder = ({
             clearPanelHistory();
             const available = new Set(nextPayload.fluorophores.map((item) => item.fluorophore));
             const nextSlots = state.slots.map((fluorophore) => available.has(fluorophore) ? fluorophore : '');
+            const nextColorCount = new Set(nextSlots.filter(Boolean)).size;
+            if (nextColorCount > nextPayload.max_panel_size) {
+                throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
+            }
             const nextMarkers = Object.fromEntries(
                 Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
             ) as Record<number, string>;
@@ -918,6 +958,8 @@ const PanelBuilder = ({
                         onPointerEnter={() => void loadPanelWizard()}
                         onFocus={() => void loadPanelWizard()}
                         aria-label="Open panel wizard"
+                        disabled={panelExceedsDetectorLimit}
+                        title={panelExceedsDetectorLimit ? panelCapacityMessage(selectedColorCount, payload.max_panel_size) : 'Open panel wizard'}
                     >
                         <WandSparkles size={17} aria-hidden="true" />
                         <span>Panel wizard</span>
@@ -1159,7 +1201,13 @@ const PanelBuilder = ({
                                 </div>
                             );
                         })}
-                        <button type="button" className="fluor-option" onClick={addSlot}>
+                        <button
+                            type="button"
+                            className="fluor-option"
+                            onClick={addSlot}
+                            disabled={slots.length >= payload.max_panel_size}
+                            title={slots.length >= payload.max_panel_size ? `Maximum panel size: ${payload.max_panel_size} detectors` : 'Add fluorophore row'}
+                        >
                             <span><Plus size={16} /> Add fluorophore row</span>
                         </button>
                     </div>
@@ -1208,10 +1256,8 @@ const PanelBuilder = ({
                         configuration={configuration}
                         configurationLabel={selectedConfigurationLabel}
                         availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
-                        maxPanelSize={Math.max(
-                            selected.length,
-                            Math.min(payload.fluorophores.length, payload.detectors.length),
-                        )}
+                        maxPanelSize={payload.max_panel_size}
+                        measurementMode={payload.measurement_mode}
                         slots={slots}
                         markerNames={markers}
                         theme={embedded && cockpitTheme ? cockpitTheme : theme}

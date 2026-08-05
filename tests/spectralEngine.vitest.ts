@@ -65,6 +65,8 @@ describe('browser spectral engine parity', () => {
     const payload = await buildPanelPayload(fixture.cytometer, fixture.configuration, fixture.selected)
     expect(payload.cytometer).toBe(fixture.cytometer)
     expect(payload.configuration).toBe(fixture.configuration)
+    expect(payload.measurement_mode).toBe('spectral')
+    expect(payload.max_panel_size).toBe(fixture.detectorCount)
     expect(payload.detectors).toHaveLength(fixture.detectorCount)
     expect(payload.fluorophores).toHaveLength(fixture.fluorophoreCount)
     expect(payload.selected).toEqual(fixture.selected)
@@ -82,11 +84,229 @@ describe('browser spectral engine parity', () => {
       buildPanelPayload('xenith'),
     ])
     expect(payloads.map((payload) => payload.configurations.length)).toEqual([4, 2, 3, 1])
-    expect(payloads[0].libraries.map((library) => library.id)).toEqual(['aurora', 'discover', 'id7000', 'xenith'])
+    expect(payloads[0].libraries.map((library) => library.id)).toEqual([
+      'aurora', 'discover', 'id7000', 'xenith', 'symphony', 'fortessa', 'celesta', 'attune_nxt', 'accuri_c6_plus', 'facscalibur',
+      'canto', 'lyric', 'ze5', 'cytpix', 'quanteon', 'macsquant', 'facsverse', 'lsrii', 'cytoflex_lx', 'navios', 'dxflex', 'facsaria_fusion',
+    ])
     expect(resolveCytometer('BD FACSDiscover')).toBe('discover')
     expect(resolveCytometer('Thermo Fisher Attune Xenith')).toBe('xenith')
+    expect(resolveCytometer('BD LSRFortessa')).toBe('fortessa')
+    expect(resolveCytometer('BD FACSCelesta')).toBe('celesta')
+    expect(resolveCytometer('Thermo Fisher Attune NxT')).toBe('attune_nxt')
+    expect(resolveCytometer('BD Accuri C6 Plus')).toBe('accuri_c6_plus')
+    expect(resolveCytometer('BD FACSCalibur')).toBe('facscalibur')
     expect(resolveConfiguration('aurora', '4L UV')).toBe('4l_uv_v_b_r')
     expect(resolveConfiguration('id7000', 'ID7000 3 laser')).toBe('id7000_3l')
+    expect(resolveConfiguration('fortessa', '4L')).toBe('fortessa_4l')
+    expect(resolveConfiguration('celesta', 'BVUV')).toBe('celesta_bvuv')
+    expect(resolveConfiguration('attune_nxt', '4L')).toBe('attune_nxt_4l')
+    expect(resolveConfiguration('accuri_c6_plus', 'standard')).toBe('accuri_c6_plus_standard')
+    expect(resolveConfiguration('facscalibur', '2-laser 4-color')).toBe('facscalibur_2l_4')
+    expect(resolveCytometer('BD FACSCanto II')).toBe('canto')
+    expect(resolveCytometer('BD FACSLyric')).toBe('lyric')
+    expect(resolveCytometer('Bio-Rad ZE5')).toBe('ze5')
+    expect(resolveCytometer('Thermo Fisher Attune CytPix')).toBe('cytpix')
+    expect(resolveCytometer('Agilent NovoCyte Quanteon')).toBe('quanteon')
+    expect(resolveCytometer('Miltenyi MACSQuant Analyzer 16')).toBe('macsquant')
+    expect(resolveCytometer('BD FACSVerse')).toBe('facsverse')
+    expect(resolveCytometer('BD LSR II')).toBe('lsrii')
+    expect(resolveCytometer('Beckman Coulter CytoFLEX LX')).toBe('cytoflex_lx')
+    expect(resolveCytometer('Beckman Coulter Navios')).toBe('navios')
+    expect(resolveCytometer('Beckman Coulter DxFLEX')).toBe('dxflex')
+    expect(resolveCytometer('BD FACSAria Fusion')).toBe('facsaria_fusion')
+    expect(resolveConfiguration('canto', '3-laser 4-2-2')).toBe('canto_3l_4_2_2')
+    expect(resolveConfiguration('lyric', '12-color')).toBe('lyric_3l_12')
+    expect(resolveConfiguration('ze5', '5-laser')).toBe('ze5_5l_27')
+    expect(resolveConfiguration('cytpix', 'BYRV6')).toBe('cytpix_byrv6')
+    expect(resolveConfiguration('quanteon', '4025')).toBe('quanteon_4025')
+    expect(resolveConfiguration('macsquant', 'Analyzer 16')).toBe('macsquant_analyzer16')
+    expect(resolveConfiguration('facsverse', '3-laser 8-color')).toBe('facsverse_3l_8')
+    expect(resolveConfiguration('lsrii', '6B-6V-2UV-4R')).toBe('lsrii_6b_6v_2uv_4r')
+    expect(resolveConfiguration('cytoflex_lx', 'U3-V5-B3-Y5-R3-I0')).toBe('cytoflex_lx_u3_v5_b3_y5_r3_i0')
+    expect(resolveConfiguration('navios', '2-laser 8-color')).toBe('navios_2l_8')
+    expect(resolveConfiguration('dxflex', 'B5-R3-V5')).toBe('dxflex_b5_r3_v5')
+    expect(resolveConfiguration('facsaria_fusion', 'BUV optimized')).toBe('facsaria_fusion_buv')
+  })
+
+  test('uses detector count as the physical panel-size ceiling', async () => {
+    const aurora = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r')
+    const xenith = await buildPanelPayload('xenith', 'full')
+
+    expect(aurora.max_panel_size).toBe(64)
+    expect(xenith.max_panel_size).toBe(51)
+    expect(aurora.fluorophores.length).toBeGreaterThan(aurora.max_panel_size)
+    expect(xenith.fluorophores.length).toBeGreaterThan(xenith.max_panel_size)
+  })
+
+  test('loads the conventional FACSymphony response matrix', async () => {
+    const payload = await buildPanelPayload('symphony', 'symphony_a5se', ['BUV395', 'PE'])
+
+    expect(payload.measurement_mode).toBe('conventional')
+    expect(payload.max_panel_size).toBe(48)
+    expect(payload.detectors).toHaveLength(48)
+    expect(payload.fluorophores).toHaveLength(24)
+    expect(payload.selected).toEqual(['BUV395', 'PE'])
+    expect(payload.peak_detectors).toEqual(['UV379-A', 'B576-A'])
+  })
+
+  test('loads the conventional Fortessa 3L and 4L detector configurations', async () => {
+    const threeLaser = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'PE', 'APC'])
+    const fourLaser = await buildPanelPayload('BD LSRFortessa', '4L', ['FITC', 'PE', 'APC'])
+
+    expect(threeLaser.measurement_mode).toBe('conventional')
+    expect(threeLaser.max_panel_size).toBe(14)
+    expect(threeLaser.detectors).toHaveLength(14)
+    expect(threeLaser.detectors.some((detector) => detector.detector.startsWith('488/10'))).toBe(false)
+    expect(threeLaser.peak_detectors).toEqual(['525/50-B-A', '575/26-B-A', '670/30-R-A'])
+
+    expect(fourLaser.configuration).toBe('fortessa_4l')
+    expect(fourLaser.max_panel_size).toBe(16)
+    expect(fourLaser.detectors).toHaveLength(16)
+    expect(fourLaser.peak_detectors).toEqual(['529/24-B-A', '582/15-YG-A', '670/30-R-A'])
+  })
+
+  test('loads public FACSCelesta conventional filter configurations', async () => {
+    const bv = await buildPanelPayload('celesta', 'BV', ['BV421', 'PE'])
+    const bvr = await buildPanelPayload('celesta', 'BVR', ['BV421', 'APC'])
+    const bvuv = await buildPanelPayload('celesta', 'BVUV', ['BUV395', 'PE'])
+    const bvyg = await buildPanelPayload('celesta', 'BVYG', ['PE', 'PE-Cy7'])
+
+    expect(bv.measurement_mode).toBe('conventional')
+    expect(bv.max_panel_size).toBe(10)
+    expect(bv.detectors).toHaveLength(10)
+    expect(bv.peak_detectors).toEqual(['450/40-V-A', '575/25-B-A'])
+
+    expect(bvr.max_panel_size).toBe(12)
+    expect(bvr.detectors).toHaveLength(12)
+    expect(bvr.peak_detectors).toEqual(['450/40-V-A', '670/30-R-A'])
+
+    expect(bvuv.max_panel_size).toBe(12)
+    expect(bvuv.detectors).toHaveLength(12)
+    expect(bvuv.peak_detectors).toEqual(['379/28-UV-A', '575/25-B-A'])
+
+    expect(bvyg.max_panel_size).toBe(12)
+    expect(bvyg.detectors).toHaveLength(12)
+    expect(bvyg.peak_detectors).toEqual(['586/15-YG-A', '780/60-YG-A'])
+  })
+
+  test('loads the documented 4-laser Attune NxT conventional configuration', async () => {
+    const payload = await buildPanelPayload('Thermo Fisher Attune NxT', '4L', ['FITC', 'PE', 'APC'])
+
+    expect(payload.measurement_mode).toBe('conventional')
+    expect(payload.configuration).toBe('attune_nxt_4l')
+    expect(payload.max_panel_size).toBe(14)
+    expect(payload.detectors).toHaveLength(14)
+    expect(payload.peak_detectors).toEqual(['530/30-B-A', '585/16-Y-A', '670/14-R-A'])
+  })
+
+  test('loads complete BD FACSCanto II and FACSLyric conventional configurations', async () => {
+    const canto = await buildPanelPayload('canto', '2L 4-2', ['FITC', 'PE', 'APC'])
+    const cantoThreeLaser = await buildPanelPayload('BD FACSCanto II', '3L 4-2-2', ['BV421', 'APC'])
+    const lyric = await buildPanelPayload('lyric', '3L 12-color', ['BV421', 'PE-Cy7', 'APC-R700'])
+
+    expect(canto.max_panel_size).toBe(6)
+    expect(canto.detectors).toHaveLength(6)
+    expect(canto.peak_detectors).toEqual([
+      'canto_2l_4_2_530/30-B-A',
+      'canto_2l_4_2_585/42-B-A',
+      'canto_2l_4_2_660/20-R-A',
+    ])
+    expect(cantoThreeLaser.max_panel_size).toBe(8)
+    expect(cantoThreeLaser.detectors).toHaveLength(8)
+    expect(lyric.max_panel_size).toBe(12)
+    expect(lyric.detectors).toHaveLength(12)
+    expect(lyric.peak_detectors).toEqual([
+      'lyric_3l_12_448/45-V-A',
+      'lyric_3l_12_783/56-B-A',
+      'lyric_3l_12_720/30-R-A',
+    ])
+  })
+
+  test('loads complete Bio-Rad ZE5 detector configurations and long-pass filters', async () => {
+    const threeLaser = await buildPanelPayload('ze5', '3L 17', ['BV421', 'FITC', 'APC'])
+    const fiveLaser = await buildPanelPayload('Bio-Rad ZE5', '5L 27', ['BUV395', 'PE', 'APC'])
+
+    expect(threeLaser.max_panel_size).toBe(17)
+    expect(threeLaser.detectors).toHaveLength(17)
+    expect(fiveLaser.max_panel_size).toBe(27)
+    expect(fiveLaser.detectors).toHaveLength(27)
+    expect(fiveLaser.detectors.some((detector) => detector.label === '700 LP')).toBe(true)
+    expect(fiveLaser.peak_detectors).toHaveLength(3)
+  })
+
+  test('loads the nine CytPix defaults whose manual counts match their channels', async () => {
+    const expectedCounts: Record<string, number> = {
+      cytpix_byxx: 7,
+      cytpix_brxx: 7,
+      cytpix_bv4xx: 7,
+      cytpix_bv6xx: 9,
+      cytpix_byrx: 11,
+      cytpix_byv4x: 11,
+      cytpix_brv6x: 12,
+      cytpix_byrv6: 14,
+      cytpix_byrv4: 14,
+    }
+
+    for (const [configuration, detectorCount] of Object.entries(expectedCounts)) {
+      const payload = await buildPanelPayload('cytpix', configuration, ['FITC', 'PE', 'APC'])
+      expect(payload.measurement_mode).toBe('conventional')
+      expect(payload.max_panel_size).toBe(detectorCount)
+      expect(payload.detectors).toHaveLength(detectorCount)
+    }
+  })
+
+  test('loads the public Quanteon 4025 and MACSQuant conventional configurations', async () => {
+    const quanteon = await buildPanelPayload('quanteon', '4025', ['BV421', 'FITC', 'PE', 'APC'])
+    const analyzer10 = await buildPanelPayload('macsquant', 'Analyzer 10', ['BV421', 'FITC', 'APC'])
+    const analyzer16 = await buildPanelPayload('Miltenyi MACSQuant Analyzer 16', 'Analyzer 16', ['BV421', 'FITC', 'APC'])
+    const vyb = await buildPanelPayload('MACSQuant', 'VYB', ['BV421', 'FITC', 'PE'])
+
+    expect(quanteon.max_panel_size).toBe(25)
+    expect(quanteon.detectors).toHaveLength(25)
+    expect(analyzer10.max_panel_size).toBe(8)
+    expect(analyzer10.detectors).toHaveLength(8)
+    expect(analyzer16.max_panel_size).toBe(14)
+    expect(analyzer16.detectors).toHaveLength(14)
+    expect(vyb.max_panel_size).toBe(8)
+    expect(vyb.detectors).toHaveLength(8)
+    expect(analyzer10.detectors.some((detector) => detector.label === '655-730')).toBe(true)
+    expect(analyzer10.detectors.some((detector) => detector.label === '750 LP')).toBe(true)
+  })
+
+  test('loads complete BD FACSVerse, LSR II, and CytoFLEX LX fixed layouts', async () => {
+    const verse = await buildPanelPayload('facsverse', '3-laser 8-color', ['FITC', 'PE', 'APC'])
+    const lsrii = await buildPanelPayload('lsrii', '6B-6V-2UV-4R', ['FITC', 'PE', 'APC'])
+    const cytoflex = await buildPanelPayload('Beckman Coulter CytoFLEX LX', 'U3-V5-B3-Y5-R3-I0', ['FITC', 'PE', 'APC'])
+    const navios = await buildPanelPayload('Beckman Coulter Navios', '2-laser 8-color', ['FITC', 'PE', 'APC'])
+    const accuri = await buildPanelPayload('BD Accuri C6 Plus', 'standard', ['FITC', 'PE', 'APC'])
+    const calibur = await buildPanelPayload('BD FACSCalibur', '2-laser 4-color', ['FITC', 'PE', 'APC'])
+    const dxflex = await buildPanelPayload('Beckman Coulter DxFLEX', 'B5-R3-V5', ['BV421', 'FITC', 'APC'])
+    const facsaria = await buildPanelPayload('BD FACSAria Fusion', 'BUV optimized', ['FITC', 'PE', 'APC'])
+
+    expect(verse.measurement_mode).toBe('conventional')
+    expect(verse.max_panel_size).toBe(8)
+    expect(verse.detectors).toHaveLength(8)
+    expect(lsrii.max_panel_size).toBe(18)
+    expect(lsrii.detectors).toHaveLength(18)
+    expect(lsrii.detectors.some((detector) => detector.label === '685/35')).toBe(true)
+    expect(cytoflex.max_panel_size).toBe(19)
+    expect(cytoflex.detectors).toHaveLength(19)
+    expect(cytoflex.detectors.some((detector) => detector.label === '763/43')).toBe(true)
+    expect(navios.max_panel_size).toBe(8)
+    expect(navios.detectors).toHaveLength(8)
+    expect(navios.detectors.some((detector) => detector.label === '755 LP')).toBe(true)
+    expect(accuri.max_panel_size).toBe(4)
+    expect(accuri.detectors).toHaveLength(4)
+    expect(accuri.detectors.some((detector) => detector.label === '670 LP')).toBe(true)
+    expect(calibur.max_panel_size).toBe(4)
+    expect(calibur.detectors).toHaveLength(4)
+    expect(calibur.detectors.some((detector) => detector.label === '661/16')).toBe(true)
+    expect(dxflex.max_panel_size).toBe(13)
+    expect(dxflex.detectors).toHaveLength(13)
+    expect(dxflex.detectors.some((detector) => detector.label === '780/60')).toBe(true)
+    expect(facsaria.max_panel_size).toBe(18)
+    expect(facsaria.detectors).toHaveLength(18)
+    expect(facsaria.detectors.some((detector) => detector.label === '800/50')).toBe(true)
   })
 
   test('loads only the active cytometer library and reuses identical panel calculations', async () => {

@@ -4,19 +4,19 @@
 
 <h1 align="center">OpenPanel</h1>
 
-<p align="center">Design and evaluate spectral flow cytometry panels entirely in your browser.</p>
+<p align="center">Design and evaluate flow cytometry panels entirely in your browser.</p>
 
 <p align="center">
   <a href="https://pkheisig.github.io/OpenPanel/"><strong>Open OpenPanel →</strong></a>
 </p>
 
-OpenPanel combines instrument-aware spectral plots, panel matrices, similarity and complexity calculations, a guided Panel Wizard, and published OMIP templates. It supports Cytek Aurora, BD FACSDiscover, Sony ID7000, and Thermo Fisher Attune Xenith configurations without requiring an account, installation, or application server.
+OpenPanel combines instrument-aware detector-response plots, panel matrices, similarity and complexity calculations, a guided Panel Wizard, and published OMIP templates. It supports spectral Cytek Aurora, BD FACSDiscover, Sony ID7000, and Thermo Fisher Attune Xenith configurations plus conventional BD FACSymphony A5 SE, BD LSRFortessa 3L/4L, BD FACSCelesta, Thermo Fisher Attune NxT, BD Accuri C6 Plus, BD FACSCalibur, BD FACSCanto II, BD FACSLyric, BD FACSVerse, BD LSR II, Beckman Coulter Navios, Beckman Coulter DxFLEX, BD FACSAria Fusion (BUV-optimized facility configuration), Bio-Rad ZE5, Thermo Fisher Attune CytPix, Agilent NovoCyte Quanteon, Miltenyi MACSQuant, and Beckman Coulter CytoFLEX LX configurations without requiring an account, installation, or application server.
 
 ## What you can do
 
 - Build and compare panels against the selected cytometer configuration.
-- Inspect combined signatures, detector assignments, spectral similarity, and panel complexity.
-- Use the Panel Wizard to balance antigen density, co-expression, availability, brightness, and spectral conflicts.
+- Inspect combined signatures, detector assignments, response similarity, and panel complexity.
+- Use the Panel Wizard to balance antigen density, co-expression, availability, brightness, and response conflicts.
 - Browse published spectral OMIP panels and apply compatible marker-color templates.
 - Keep named projects with separate workspaces for each cytometer.
 - Exchange panel CSVs and complete OpenPanel JSON projects, or create a local PDF report.
@@ -33,7 +33,7 @@ GitHub Pages only serves the static application and bundled reference data. Open
 - Panel CSV import accepts comma-, tab-, and semicolon-delimited files and exports `Marker,Fluorophore` CSVs.
 - Complete projects export as `[project name]_OpenPanel.json`, including instrument workspaces, Panel Wizard data, and editor state.
 - Older `.openpanel.json` projects and the previous `gui_state` JSON format remain importable.
-- PDF overview reports are generated locally and include panel metadata, complexity, similarity, and spectral signatures.
+- PDF overview reports are generated locally and include panel metadata, complexity, similarity, and instrument-response signatures.
 
 ## Run locally
 
@@ -62,7 +62,7 @@ The repository is a single Vite, React, and TypeScript application with a `/Open
 ## Project links
 
 - [Hosted application](https://pkheisig.github.io/OpenPanel/)
-- [Spectral data sources](public/data/SOURCES.md)
+- [Detector-response data sources](public/data/SOURCES.md)
 - [GitHub Pages workflow](.github/workflows/pages.yml)
 - [License](LICENSE)
 

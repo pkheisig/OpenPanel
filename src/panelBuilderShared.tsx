@@ -28,9 +28,12 @@ const PdfIcon = ({ size = 20 }: { size?: number }) => (
     </svg>
 );
 
+type PanelMeasurementMode = 'spectral' | 'conventional';
+
 type LibraryInfo = {
     id: string;
     label: string;
+    measurement_mode: PanelMeasurementMode;
 };
 
 type ConfigurationInfo = {
@@ -63,6 +66,7 @@ type NumericRow = {
 type PanelPayload = {
     cytometer: string;
     configuration: string;
+    measurement_mode: PanelMeasurementMode;
     libraries: LibraryInfo[];
     configurations: ConfigurationInfo[];
     detectors: DetectorInfo[];
@@ -72,6 +76,7 @@ type PanelPayload = {
     similarity: NumericRow[];
     complexity_index: number | null;
     peak_detectors: string[];
+    max_panel_size: number;
     error?: string;
 };
 
@@ -396,6 +401,7 @@ export type {
     ImportedPanelRow,
     LibraryInfo,
     NumericRow,
+    PanelMeasurementMode,
     PanelPayload,
     TabId,
 };

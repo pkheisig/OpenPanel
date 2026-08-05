@@ -45,6 +45,7 @@ import type {
   WizardResults,
   WizardTab,
 } from './panelWizardEngine'
+import type { PanelMeasurementMode } from './panelBuilderShared'
 
 export type WizardApplication = {
   markers: WizardMarker[]
@@ -58,6 +59,7 @@ type PanelWizardProps = {
   configurationLabel: string
   availableFluorophores: string[]
   maxPanelSize: number
+  measurementMode: PanelMeasurementMode
   slots: string[]
   markerNames: Record<number, string>
   theme: 'light' | 'dark'
@@ -84,15 +86,6 @@ const COEXPRESSION_SHORT_LABELS: Record<CoexpressionLevel, string> = {
   3: 'H',
   4: 'VH',
 }
-
-const SORT_OPTIONS = [
-  { value: 'recommended', label: 'Recommended score' },
-  { value: 'spectral', label: 'Spectral fit' },
-  { value: 'availability', label: 'Availability' },
-  { value: 'similarity', label: 'Lowest similarity' },
-  { value: 'complexity', label: 'Lowest complexity impact' },
-  { value: 'marker', label: 'Antigen density' },
-]
 
 const ANTIGEN_DENSITY_OPTIONS = [
   { value: 'low', label: 'Low' },
@@ -133,6 +126,24 @@ const CYTOMETER_LABELS: Record<string, string> = {
   discover: 'FACSDiscover',
   id7000: 'ID7000',
   xenith: 'Attune Xenith',
+  symphony: 'FACSymphony A5 SE',
+  fortessa: 'LSRFortessa',
+  celesta: 'FACSCelesta',
+  attune_nxt: 'Attune NxT',
+  accuri_c6_plus: 'Accuri C6 Plus',
+  facscalibur: 'FACSCalibur',
+  canto: 'FACSCanto II',
+  lyric: 'FACSLyric',
+  ze5: 'ZE5',
+  cytpix: 'Attune CytPix',
+  quanteon: 'NovoCyte Quanteon',
+  macsquant: 'MACSQuant',
+  facsverse: 'FACSVerse',
+  lsrii: 'LSR II',
+  cytoflex_lx: 'CytoFLEX LX',
+  navios: 'Navios',
+  dxflex: 'DxFLEX',
+  facsaria_fusion: 'FACSAria Fusion',
 }
 
 function formatCytometerLabel(cytometer: string): string {
@@ -251,6 +262,7 @@ export function PanelWizard({
   configurationLabel,
   availableFluorophores,
   maxPanelSize,
+  measurementMode,
   slots,
   markerNames,
   theme,
@@ -261,6 +273,20 @@ export function PanelWizard({
   onClose,
   onApply,
 }: PanelWizardProps) {
+  const responseFitLabel = measurementMode === 'conventional'
+    ? 'Detector-response fit'
+    : 'Spectral fit'
+  const responseSimilarityLabel = measurementMode === 'conventional'
+    ? 'Lowest detector-response similarity'
+    : 'Lowest spectral similarity'
+  const sortOptions = [
+    { value: 'recommended', label: 'Recommended score' },
+    { value: 'spectral', label: responseFitLabel },
+    { value: 'availability', label: 'Availability' },
+    { value: 'similarity', label: responseSimilarityLabel },
+    { value: 'complexity', label: 'Lowest complexity impact' },
+    { value: 'marker', label: 'Antigen density' },
+  ]
   const lockedCount = slots.filter(Boolean).length
   const defaultSize = Math.max(
     lockedCount,
@@ -639,7 +665,7 @@ export function PanelWizard({
                 <Info size={18} />
               </button>
               <div className="wizard-info-popover" id="wizard-methodology" role="tooltip">
-                Marker-to-color assignments use antigen density, fluorophore brightness, co-expression, spectral overlap, and availability.
+                Marker-to-color assignments use antigen density, fluorophore brightness, co-expression, {measurementMode === 'conventional' ? 'detector-response overlap' : 'spectral overlap'}, and availability.
               </div>
             </div>
             <button type="button" className="wizard-close" onClick={onClose} aria-label="Close panel wizard">
@@ -873,7 +899,7 @@ export function PanelWizard({
                         className={resultMode === 'bestFit' ? 'active' : ''}
                         onClick={() => setResultMode('bestFit')}
                       >
-                        Best spectral fit
+                        Best {responseFitLabel.toLocaleLowerCase()}
                       </button>
                     </div>
                     <UiSelect
@@ -881,7 +907,7 @@ export function PanelWizard({
                       label="Sort ranked colors"
                       hideLabel
                       value={resultSort}
-                      options={SORT_OPTIONS}
+                      options={sortOptions}
                       onChange={(value) => setResultSort(value as WizardResultSort)}
                       portalMenu
                       menuClassName="wizard-sort-menu"
@@ -894,7 +920,7 @@ export function PanelWizard({
                       <strong>{formatMetric(activeResult.previousComplexity)} <ChevronRight size={15} /> {formatMetric(activeResult.complexity)}</strong>
                     </div>
                     <div>
-                      <span>Worst similarity</span>
+                      <span>{measurementMode === 'conventional' ? 'Worst response similarity' : 'Worst spectral similarity'}</span>
                       <strong>{formatMetric(activeResult.maxSimilarity)}</strong>
                     </div>
                   </div>
@@ -913,7 +939,7 @@ export function PanelWizard({
                                   <Info size={12} />
                                 </button>
                                 <span role="tooltip">
-                                  After complexity guardrails, availability is weighted most strongly. Spectral fit and any available brightness match refine the score.
+                                    After complexity guardrails, availability is weighted most strongly. {responseFitLabel} and any available brightness match refine the score.
                                 </span>
                               </span>
                             </span>
@@ -973,7 +999,7 @@ export function PanelWizard({
                                     <Info size={12} />
                                   </button>
                                   <span role="tooltip">
-                                    After complexity guardrails, availability is weighted most strongly. Spectral fit and any available brightness match refine the score.
+                                  After complexity guardrails, availability is weighted most strongly. {responseFitLabel} and any available brightness match refine the score.
                                   </span>
                                 </span>
                               </span>

@@ -76,6 +76,8 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumLeft = 42;
     const spectrumRight = chartWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
+    const responseLabel = payload.measurement_mode === 'conventional' ? 'detector responses' : 'spectra';
+    const signatureTabLabel = payload.measurement_mode === 'conventional' ? 'RESPONSES' : 'SPECTRA';
 
     useEffect(() => {
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });
@@ -121,7 +123,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     return (
 <main className="main-panel" style={{ '--plot-zoom': plotZoom } as CSSProperties}>
     <div className="top-spectrum" ref={spectrumContainerRef}>
-        <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label="Combined spectra">
+        <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label={`Combined ${responseLabel}`}>
             {[0, 25, 50, 75, 100].map(tick => {
                 const y = chartHeight - (tick / 100) * (chartHeight - 32) - 24;
                 return (
@@ -209,7 +211,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     <div className="tabs-bar">
         <button className={`tab-button ${tab === 'panel' ? 'active' : ''}`} onClick={() => setTab('panel')}>PANEL</button>
         <button className={`tab-button ${tab === 'similarity' ? 'active' : ''}`} onClick={() => setTab('similarity')}>SIMILARITY</button>
-        <button className={`tab-button ${tab === 'signatures' ? 'active' : ''}`} onClick={() => setTab('signatures')}>SPECTRA</button>
+        <button className={`tab-button ${tab === 'signatures' ? 'active' : ''}`} onClick={() => setTab('signatures')}>{signatureTabLabel}</button>
         <div style={{ flex: 1 }} />
         <div className="complexity-badge">Complexity Index: {formatMetric(payload.complexity_index)}</div>
     </div>
@@ -337,7 +339,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
         {tab === 'signatures' && (
             <div className="signatures-wrap">
                 {selected.length === 0 ? (
-                    <div className="empty-state">Select fluorophores to view spectra.</div>
+                    <div className="empty-state">Select fluorophores to view {responseLabel}.</div>
                 ) : selected.map((fluor, index) => {
                     const row = spectraByName.get(fluor);
                     if (!row) return null;

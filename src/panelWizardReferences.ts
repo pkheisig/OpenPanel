@@ -15,13 +15,6 @@ type ReferenceRows = {
 }
 
 let referenceRowsPromise: Promise<ReferenceRows> | null = null
-const FIVE_LASER_CONFIGURATIONS = new Set([
-  '5luvvbygr',
-  'discovers8',
-  'discovera8',
-  'id70005l',
-])
-
 function dataUrl(filename: string): string {
   const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
   return new URL(`data/${filename}`, new URL(import.meta.env.BASE_URL, origin)).toString()
@@ -75,9 +68,7 @@ export async function loadPanelWizardReferences(
   const brightnessByFluorophore: Record<string, number> = {}
   rowsToRecords(rows.brightness).forEach((row) => {
     if (row.cytometer !== '*' && normalize(row.cytometer) !== normalize(cytometer)) return
-    if (row.configuration === '*') {
-      if (!FIVE_LASER_CONFIGURATIONS.has(normalize(configuration))) return
-    } else if (normalize(row.configuration) !== normalize(configuration)) return
+    if (row.configuration !== '*' && normalize(row.configuration) !== normalize(configuration)) return
     const score = Number(row.brightness_score)
     if (Number.isFinite(score)) brightnessByFluorophore[fluorophoreBrightnessKey(row.fluorophore)] = score
   })
