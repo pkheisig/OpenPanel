@@ -56,6 +56,9 @@ type FluorInfo = {
     peak_laser: string;
     peak_color: string;
     retained_signal?: number;
+    mapping_confidence?: 'curated' | 'estimated';
+    mapping_source?: string;
+    mapping_note?: string;
 };
 
 type NumericRow = {

@@ -1189,7 +1189,15 @@ const PanelBuilder = ({
                                                         onClick={() => void updateSlot(index, option.fluorophore)}
                                                     >
                                                         <span className="fluor-option-swatch" style={{ background: option.peak_color || '#d1d5db' }} />
-                                                        {option.fluorophore}
+                                                        <span className="fluor-option-name">{option.fluorophore}</span>
+                                                        {option.mapping_confidence === 'estimated' && (
+                                                            <span
+                                                                className="fluor-option-confidence"
+                                                                title={option.mapping_note || 'Estimated from public fluorophore emission data and detector filters.'}
+                                                            >
+                                                                estimated
+                                                            </span>
+                                                        )}
                                                     </button>
                                                 ))}
                                             </div>

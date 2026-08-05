@@ -35,10 +35,17 @@ type CytometerId =
 
 type CsvRow = Record<string, string>
 
+type FluorophoreMapping = {
+  confidence: 'curated' | 'estimated'
+  source?: string
+  note?: string
+}
+
 type SpectralLibrary = {
   detectors: string[]
   fluorophores: string[]
   values: number[][]
+  fluorophoreMappings?: Map<string, FluorophoreMapping>
 }
 
 const LIBRARIES: LibraryInfo[] = [
@@ -716,6 +723,7 @@ const libraryInitializations = new Map<CytometerId, Promise<void>>()
 let cytometerDictionary: CsvRow[] = []
 let fluorophoreDictionary: CsvRow[] = []
 let conventionalDetectorDictionary: CsvRow[] = []
+let conventionalFluorophoreEstimateDictionary: CsvRow[] = []
 const configurationBases = new Map<string, PanelConfigurationBase>()
 const panelPayloadCache = new Map<string, PanelPayload>()
 const MAX_PANEL_PAYLOAD_CACHE = 32
@@ -810,10 +818,12 @@ function initializeDictionaries(): Promise<void> {
     loadCsv('cytometer_dictionary.csv'),
     loadCsv('fluorophore_dictionary.csv'),
     loadCsv('conventional_detector_dictionary.csv'),
-  ]).then(([cytometers, fluorophores, conventionalDetectors]) => {
+    loadCsv('conventional_fluorophore_estimates.csv'),
+  ]).then(([cytometers, fluorophores, conventionalDetectors, conventionalEstimates]) => {
     cytometerDictionary = rowsToObjects(cytometers)
     fluorophoreDictionary = rowsToObjects(fluorophores)
     conventionalDetectorDictionary = rowsToObjects(conventionalDetectors)
+    conventionalFluorophoreEstimateDictionary = rowsToObjects(conventionalEstimates)
   })
   return dictionaryInitialization
 }
@@ -845,6 +855,18 @@ export async function initializeSpectralEngine(): Promise<void> {
 
 function normalizeToken(value: unknown): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function normalizeLaserName(value: unknown): string {
+  const token = normalizeToken(value)
+  if (token === 'v' || token === 'violet') return 'Violet'
+  if (token === 'b' || token === 'blue') return 'Blue'
+  if (token === 'y' || token === 'yg' || token === 'yellowgreen') return 'YellowGreen'
+  if (token === 'r' || token === 'red') return 'Red'
+  if (token === 'u' || token === 'uv') return 'UV'
+  if (token === 'duv' || token === 'deepuv') return 'DeepUV'
+  if (token === 'ir') return 'IR'
+  return String(value ?? '').trim()
 }
 
 function normalizeDetectorToken(value: unknown): string {
@@ -1102,7 +1124,11 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
 
   const canonicalLookup = fluorophoreCanonicalLookup()
   const wavelengths = conventionalFluorophoreWavelengths()
-  const specifications = new Map<string, { lasers: Set<string>; preferredDetector: string }>()
+  const specifications = new Map<string, {
+    lasers: Set<string>
+    preferredDetector: string
+    mapping: FluorophoreMapping
+  }>()
   rows.forEach((row) => {
     if (row.is_scatter?.toUpperCase() === 'TRUE') return
     const names = (row.common_fluorophores ?? '').split(';').map((name) => name.trim()).filter(Boolean)
@@ -1112,10 +1138,55 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
       const specification = specifications.get(canonical) ?? {
         lasers: new Set<string>(),
         preferredDetector: row.detector,
+        mapping: {
+          confidence: 'curated' as const,
+          source: 'conventional_detector_dictionary.csv',
+        },
       }
-      specification.lasers.add(row.laser)
+      specification.lasers.add(normalizeLaserName(row.laser))
       if (!specification.preferredDetector) specification.preferredDetector = row.detector
       specifications.set(canonical, specification)
+    })
+  })
+
+  const detectorCandidates = detectors.map((detector) => ({
+    detector,
+    laser: normalizeLaserName(matchingDictionaryRow(cytometer, detector)?.laser),
+    filter: detectorFilter(cytometer, detector),
+  }))
+  const fluorophoreRows = new Map<string, CsvRow>()
+  fluorophoreDictionary.forEach((row) => {
+    const canonical = canonicalLookup.get(normalizeToken(row.fluorophore))
+    if (canonical) fluorophoreRows.set(canonical, row)
+  })
+
+  // These rows are public peak/laser references, not measured compensation data.
+  // They allow published dyes that are absent from a detector's common-dye list
+  // to receive a clearly labelled, filter-based planning response on every
+  // offered conventional configuration with a compatible laser/filter.
+  conventionalFluorophoreEstimateDictionary.forEach((sourceRow) => {
+    const canonical = canonicalLookup.get(normalizeToken(sourceRow.fluorophore))
+    if (!canonical || specifications.has(canonical)) return
+    const fluorophoreRow = fluorophoreRows.get(canonical)
+    const laser = normalizeLaserName(fluorophoreRow?.excitation_laser)
+    const emission = wavelengths.get(canonical)
+    if (!fluorophoreRow || !laser || !emission) return
+    const bestDetector = detectorCandidates
+      .filter((candidate) => candidate.laser === laser && candidate.filter)
+      .map((candidate) => ({
+        ...candidate,
+        response: approximateDetectorResponse(emission, candidate.filter as DetectorFilter),
+      }))
+      .sort((left, right) => right.response - left.response)[0]
+    if (!bestDetector || bestDetector.response < 0.02) return
+    specifications.set(canonical, {
+      lasers: new Set([laser]),
+      preferredDetector: bestDetector.detector,
+      mapping: {
+        confidence: 'estimated',
+        source: sourceRow.source_url,
+        note: sourceRow.source_note,
+      },
     })
   })
 
@@ -1124,7 +1195,7 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
     const emission = wavelengths.get(fluorophore) ?? preferredFilter?.center ?? 0
     const row = detectors.map((detector) => {
       const detectorRow = matchingDictionaryRow(cytometer, detector)
-      if (!detectorRow || !specification.lasers.has(detectorRow.laser)) return 0
+      if (!detectorRow || !specification.lasers.has(normalizeLaserName(detectorRow.laser))) return 0
       const filter = detectorFilter(cytometer, detector)
       return filter && emission > 0 ? approximateDetectorResponse(emission, filter) : 0
     })
@@ -1139,6 +1210,10 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
     detectors,
     fluorophores: values.map(({ fluorophore }) => fluorophore),
     values: values.map(({ row }) => row),
+    fluorophoreMappings: new Map(Array.from(specifications.entries()).map(([fluorophore, specification]) => [
+      fluorophore,
+      specification.mapping,
+    ])),
   }
 }
 
@@ -1235,12 +1310,16 @@ function configurationBase(
       0,
     )
     const peak = detectorInfo[peakIndex]
+    const mapping = library.fluorophoreMappings?.get(library.fluorophores[libraryIndex])
     return {
       fluorophore: library.fluorophores[libraryIndex],
       peak_detector: peak.detector,
       peak_laser: peak.laser,
       peak_color: peak.color,
       retained_signal: retainedSignal[libraryIndex],
+      mapping_confidence: mapping?.confidence,
+      mapping_source: mapping?.source,
+      mapping_note: mapping?.note,
     }
   }).sort((left, right) => left.peak_laser.localeCompare(right.peak_laser) || left.fluorophore.localeCompare(right.fluorophore))
 
@@ -1329,4 +1408,5 @@ export function resetSpectralEngineForTests(): void {
   cytometerDictionary = []
   fluorophoreDictionary = []
   conventionalDetectorDictionary = []
+  conventionalFluorophoreEstimateDictionary = []
 }

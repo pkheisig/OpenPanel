@@ -217,6 +217,26 @@ describe('browser spectral engine parity', () => {
     expect(fourLaser.peak_detectors).toEqual(['529/24-B-A', '582/15-YG-A', '670/30-R-A'])
   })
 
+  test('maps public-data conventional fluorophore estimates on compatible detectors', async () => {
+    const dyes = ['Super Bright 600', 'Super Bright 645', 'Super Bright 702', 'Zombie Aqua', 'BV785']
+    const fortessa = await buildPanelPayload('fortessa', 'fortessa_3l', dyes)
+    const fortessaFourLaser = await buildPanelPayload('fortessa', 'fortessa_4l', dyes)
+    const celesta = await buildPanelPayload('celesta', 'BV', dyes)
+    const navios = await buildPanelPayload('navios', '2-laser 8-color', dyes)
+
+    for (const payload of [fortessa, fortessaFourLaser, celesta]) {
+      expect(payload.selected).toEqual(dyes)
+      expect(payload.fluorophores.filter((item) => dyes.includes(item.fluorophore))).toHaveLength(dyes.length)
+      expect(payload.fluorophores.filter((item) => dyes.includes(item.fluorophore)).every((item) => (
+        item.mapping_confidence === 'estimated'
+        && item.mapping_source?.startsWith('https://')
+        && item.mapping_note
+      ))).toBe(true)
+      expect(payload.peak_detectors.every((detector) => detector.includes('-V-A'))).toBe(true)
+    }
+    expect(navios.selected).toEqual([])
+  })
+
   test('loads public FACSCelesta conventional filter configurations', async () => {
     const bv = await buildPanelPayload('celesta', 'BV', ['BV421', 'PE'])
     const bvr = await buildPanelPayload('celesta', 'BVR', ['BV421', 'APC'])

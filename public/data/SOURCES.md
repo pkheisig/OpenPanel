@@ -87,6 +87,17 @@ transmission, laser power, tandem-dye behavior, or sample-dependent spread.
 
 ## Public fluorophore and conventional-instrument references
 
+- `conventional_fluorophore_estimates.csv` adds public-data planning mappings
+  for Super Bright 600, Super Bright 645, Super Bright 702, Zombie Aqua, and
+  BV785. The entries use manufacturer-reported excitation/emission maxima and
+  recommended filter references from [Thermo Fisher's Super Bright 600
+  product page](https://www.thermofisher.com/antibody/product/63-5961-82),
+  [Super Bright 645 product page](https://www.thermofisher.com/order/catalog/product/64-0451-82),
+  [Super Bright 702 product information sheet](https://assets.thermofisher.com/TFS-Assets/LSG/manuals/MAN0018613_SuperBright702_PI.pdf),
+  [BioLegend's Zombie Aqua product page](https://www.biolegend.com/en-us/products/zombie-aqua-fixable-viability-kit-8444),
+  and [BioLegend's Brilliant Violet spectra reference](https://www.biolegend.com/Files/Images/BioLegend/literature/images/02-0005-01.pdf).
+  These are marked `estimated` in the panel builder and are not measured
+  compensation or spreading matrices.
 - Thermo Fisher's [fluorophore and reagent selection guide for flow cytometry
   (PDF)](https://assets.thermofisher.com/TFS-Assets/BID/Reference-Materials/fluorophore-reagents-flow-cytometry-selection-guide.pdf)
   provides public laser/filter groupings and common dye assignments.

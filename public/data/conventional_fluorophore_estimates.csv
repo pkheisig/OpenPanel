@@ -1,0 +1,6 @@
+"fluorophore","source_url","source_note","mapping_confidence"
+"Super Bright 600","https://www.thermofisher.com/antibody/product/63-5961-82","405 nm excitation; approximately 600 nm emission; 610/20-equivalent filtering is the public reference assignment.","estimated"
+"Super Bright 645","https://www.thermofisher.com/order/catalog/product/64-0451-82","405 nm excitation; approximately 645 nm emission; Thermo Fisher recommends a 660/20-equivalent filter.","estimated"
+"Super Bright 702","https://assets.thermofisher.com/TFS-Assets/LSG/manuals/MAN0018613_SuperBright702_PI.pdf","405 nm excitation; approximately 702 nm emission; Thermo Fisher recommends a 710/50-equivalent filter.","estimated"
+"Zombie Aqua","https://www.biolegend.com/en-us/products/zombie-aqua-fixable-viability-kit-8444","Violet-laser excited; maximum emission is approximately 516 nm.","estimated"
+"BV785","https://www.biolegend.com/Files/Images/BioLegend/literature/images/02-0005-01.pdf","405 nm excitation; Brilliant Violet 785 emission is approximately 785 nm.","estimated"

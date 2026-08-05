@@ -8,6 +8,9 @@ const discoverPath = fileURLToPath(new URL('../public/data/discover_spectra.csv'
 const fluorophoreDictionaryPath = fileURLToPath(
   new URL('../public/data/fluorophore_dictionary.csv', import.meta.url),
 )
+const conventionalEstimatePath = fileURLToPath(
+  new URL('../public/data/conventional_fluorophore_estimates.csv', import.meta.url),
+)
 const markerDictionaryPath = fileURLToPath(
   new URL('../public/data/marker_dictionary.csv', import.meta.url),
 )
@@ -54,5 +57,20 @@ describe('bundled spectral data', () => {
     expect(new Set(fluorophores).size).toBe(fluorophores.length)
     expect(markers).toHaveLength(878)
     expect(new Set(markers).size).toBe(markers.length)
+  })
+
+  test('bundles source-linked conventional fluorophore estimates', () => {
+    const rows = parseCsv(readFileSync(conventionalEstimatePath, 'utf8'))
+    const records = rows.slice(1).map((row) => Object.fromEntries(rows[0].map((header, index) => [header, row[index] ?? ''])))
+    expect(records.map((row) => row.fluorophore)).toEqual([
+      'Super Bright 600',
+      'Super Bright 645',
+      'Super Bright 702',
+      'Zombie Aqua',
+      'BV785',
+    ])
+    expect(records.every((row) => row.mapping_confidence === 'estimated')).toBe(true)
+    expect(records.every((row) => row.source_url.startsWith('https://'))).toBe(true)
+    expect(records.every((row) => row.source_note.length > 0)).toBe(true)
   })
 })
