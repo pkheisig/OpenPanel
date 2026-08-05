@@ -57,12 +57,14 @@ export function UiSelect({
   const [portalTarget, setPortalTarget] = useState<Element | null>(null)
   const displayedOptions = useMemo(() => {
     if (!open) return []
+    const hasQuery = Boolean(query.trim())
     const rankedOptions = rankUiSelectOptions(resolvedOptions, query)
+      .filter((option) => !hasQuery || option.value !== '')
     let visibleOptions = searchable && rankedOptions.length > 120
       ? rankedOptions.slice(0, 120)
       : rankedOptions
     const selectedOption = resolvedOptions[matchedIndex]
-    if (selectedOption && !visibleOptions.some((option) => option.value === selectedOption.value)) {
+    if (!hasQuery && selectedOption && !visibleOptions.some((option) => option.value === selectedOption.value)) {
       visibleOptions = [selectedOption, ...visibleOptions.slice(0, 119)]
     }
     const customValue = query.trim()
@@ -161,7 +163,11 @@ export function UiSelect({
   }
 
   const handleSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const firstOption = displayedOptions[0]
+      if (firstOption) choose(firstOption)
+    } else if (event.key === 'ArrowDown') {
       event.preventDefault()
       move(0)
     } else if (event.key === 'ArrowUp') {

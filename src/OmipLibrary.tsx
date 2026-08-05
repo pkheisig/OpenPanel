@@ -18,6 +18,10 @@ import type {
   OmipCatalogEntry,
   OmipTemplate,
 } from './panelWizardKnowledge'
+import {
+  isOmipDesignedForActiveSetup,
+  sortOmipEntriesForActiveSetup,
+} from './omipSorting'
 import './OmipLibrary.css'
 
 type OmipLibraryProps = {
@@ -82,40 +86,6 @@ const METHOD_LABELS: Record<OmipCatalogEntry['method'], string> = {
   imaging: 'Imaging',
 }
 
-function normalizedInstrumentFamily(value: string): string {
-  const normalized = value.toLocaleLowerCase()
-  if (normalized.includes('northern lights')) return 'northern-lights'
-  if (normalized.includes('aurora')) return 'aurora'
-  if (normalized.includes('id7000')) return 'id7000'
-  if (normalized.includes('facsdiscover')) return 'facsdiscover'
-  if (normalized.includes('facsymphony')) return 'facsymphony'
-  if (normalized.includes('fortessa')) return 'fortessa'
-  if (normalized.includes('facscelesta') || normalized.includes('celesta')) return 'celesta'
-  if (normalized.includes('attunenxt') || normalized.includes('attune nxt')) return 'attune-nxt'
-  if (normalized.includes('accuri')) return 'accuri-c6-plus'
-  if (normalized.includes('facscalibur') || normalized.includes('calibur')) return 'facscalibur'
-  if (normalized.includes('facscanto') || normalized.includes('canto ii')) return 'canto'
-  if (normalized.includes('facslyric') || normalized.includes('facs lyric')) return 'lyric'
-  if (normalized.includes('ze5')) return 'ze5'
-  if (normalized.includes('cytpix')) return 'cytpix'
-  if (normalized.includes('quanteon') || normalized.includes('novocyte')) return 'quanteon'
-  if (normalized.includes('macsquant')) return 'macsquant'
-  if (normalized.includes('facsverse')) return 'facsverse'
-  if (normalized.includes('lsr ii') || normalized.includes('lsrii')) return 'lsrii'
-  if (normalized.includes('cytoflex')) return 'cytoflex-lx'
-  if (normalized.includes('navios')) return 'navios'
-  if (normalized.includes('dxflex')) return 'dxflex'
-  if (normalized.includes('facsaria fusion') || normalized.includes('aria fusion')) return 'facsaria-fusion'
-  if (normalized.includes('xenith')) return 'xenith'
-  return normalized.replace(/[^a-z0-9]+/g, '-')
-}
-
-function reportedConfigurationMatches(value: string, activeConfigurationLabel: string): boolean {
-  const reportedLasers = value.match(/\b([34567])l\b/i)?.[1]
-  if (!reportedLasers) return true
-  return new RegExp(`\\b${reportedLasers}l\\b`, 'i').test(activeConfigurationLabel)
-}
-
 export function OmipLibrary({
   theme,
   onClose,
@@ -140,7 +110,7 @@ export function OmipLibrary({
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
-    return OMIP_CATALOG.filter((entry) => (
+    const filteredEntries = OMIP_CATALOG.filter((entry) => (
       (species === 'all' || entry.species === species)
       && (method === 'all' || entry.method === method)
       && (year === 'all' || entry.year === year)
@@ -166,7 +136,12 @@ export function OmipLibrary({
         ].join(' ').toLocaleLowerCase().includes(normalizedQuery)
       )
     ))
-  }, [availability, cellType, method, query, species, year])
+    return sortOmipEntriesForActiveSetup(
+      filteredEntries,
+      activeCytometerLabel,
+      activeConfigurationLabel,
+    )
+  }, [activeConfigurationLabel, activeCytometerLabel, availability, cellType, method, query, species, year])
 
   const filtersActive = Boolean(
     query.trim()
@@ -202,11 +177,7 @@ export function OmipLibrary({
     )
   )
   const designedForActiveCytometer = Boolean(
-    !activeCytometerLabel
-    || preview?.cytometers.some((reportedCytometer) => (
-      normalizedInstrumentFamily(reportedCytometer) === normalizedInstrumentFamily(activeCytometerLabel)
-      && reportedConfigurationMatches(reportedCytometer, activeConfigurationLabel)
-    ))
+    preview && isOmipDesignedForActiveSetup(preview, activeCytometerLabel, activeConfigurationLabel)
   )
   const requiresCompatibilityWarning = Boolean(
     preview?.template

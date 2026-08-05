@@ -263,7 +263,8 @@
 }
 
 .omip-library-list > button {
-  min-height: 76px;
+  min-height: 104px;
+  height: max-content;
   padding: 13px 14px;
   display: grid;
   grid-template-columns: 205px 1fr auto;

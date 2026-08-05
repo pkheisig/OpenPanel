@@ -189,6 +189,9 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByRole('option').first()).toHaveText('Select cytometer')
   await page.getByRole('searchbox', { name: 'Search cytometers' }).fill('celesta')
   await expect(page.getByRole('option', { name: 'BD FACSCelesta', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Select cytometer', exact: true })).toHaveCount(0)
+  await page.getByRole('searchbox', { name: 'Search cytometers' }).press('Enter')
+  await expect(page.getByRole('combobox', { name: 'CYTOMETER' })).toContainText('BD FACSCelesta')
   await page.keyboard.press('Escape')
   await page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' }).click()
   await expect(page.getByRole('searchbox', { name: 'Search configurations' })).toBeVisible()
@@ -1075,6 +1078,29 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     'https://isac-net.org/omip-and-flow-repository-database/',
   )
   await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(113)
+  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ }).nth(0)).toHaveAttribute(
+    'aria-label',
+    'Preview OMIP-119',
+  )
+  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ }).nth(1)).toHaveAttribute(
+    'aria-label',
+    'Preview OMIP-118',
+  )
+  const firstOmipCard = templateDialog.getByRole('button', { name: 'Preview OMIP-119' })
+  await expect(firstOmipCard.locator('.omip-library-entry-cytometer')).toHaveText(
+    'Cytek Aurora 5L (UV-V-B-YG-R)',
+  )
+  const firstOmipCardLayout = await firstOmipCard.evaluate((card) => {
+    const cardRect = card.getBoundingClientRect()
+    const cytometerRect = card.querySelector<HTMLElement>('.omip-library-entry-cytometer')!.getBoundingClientRect()
+    return {
+      cardHeight: cardRect.height,
+      cytometerBottom: cytometerRect.bottom,
+      cardBottom: cardRect.bottom,
+    }
+  })
+  expect(firstOmipCardLayout.cardHeight).toBeGreaterThan(100)
+  expect(firstOmipCardLayout.cytometerBottom).toBeLessThanOrEqual(firstOmipCardLayout.cardBottom + 1)
   await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-111' })).toContainText('Sony ID7000')
   await templateDialog.evaluate(async (dialog) => {
     await Promise.all(dialog.getAnimations().map((animation) => animation.finished))
