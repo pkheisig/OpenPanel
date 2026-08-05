@@ -554,9 +554,10 @@ export function inferOmipCellTypes(description: string): string[] {
   return [...cellTypes]
 }
 
-// PubMed title/abstract query:
-// OMIP[Title] AND (spectral OR full spectrum OR Cytek Aurora OR spectral cytometer)
-const SPECTRAL_OMIP_NUMBERS = new Set([
+// Verified offline marker-color tables currently cover this spectral subset.
+// The catalog below intentionally includes the complete bibliography; entries
+// without a verified table remain visible as paper-only references.
+const EDITABLE_SPECTRAL_OMIP_NUMBERS = new Set([
   120, 119, 118, 117, 116, 115, 114, 112, 111, 110, 109, 105,
   104, 102, 99, 97, 95, 94, 93, 86, 84, 83, 69,
 ])
@@ -619,7 +620,7 @@ function spectralOmipContext(title: string): CoexpressionContext {
 }
 
 export const OMIP_TEMPLATES: OmipTemplate[] = OMIP_CATALOG_RECORDS
-  .filter(([number]) => SPECTRAL_OMIP_NUMBERS.has(number))
+  .filter(([number]) => EDITABLE_SPECTRAL_OMIP_NUMBERS.has(number))
   .map(([number, pmid, , title]) => {
     const paddedNumber = String(number).padStart(3, '0')
     const id = `omip-${paddedNumber}`
@@ -640,8 +641,15 @@ export const OMIP_TEMPLATES: OmipTemplate[] = OMIP_CATALOG_RECORDS
 
 const omipTemplatesById = new Map(OMIP_TEMPLATES.map((template) => [template.id, template]))
 
+function omipMethod(title: string): OmipCatalogEntry['method'] {
+  const normalized = title.toLocaleLowerCase()
+  if (/\b(imaging mass cytometry|multiplex(?:ed)? imaging|image cytometry)\b/.test(normalized)) return 'imaging'
+  if (/\b(mass cytometry|cytof)\b/.test(normalized)) return 'mass'
+  if (/\b(spectral|full spectrum|full-spectrum)\b/.test(normalized)) return 'spectral'
+  return 'conventional'
+}
+
 export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
-  .filter(([number]) => SPECTRAL_OMIP_NUMBERS.has(number))
   .map(
     ([number, pmid, year, title]) => {
       const paddedNumber = String(number).padStart(3, '0')
@@ -653,12 +661,13 @@ export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
         name: `OMIP-${paddedNumber}`,
         summary: template?.summary ?? title,
         year,
-        cytometers: SPECTRAL_OMIP_CYTOMETERS[number] ?? ['Not reported'],
+        cytometers: SPECTRAL_OMIP_CYTOMETERS[number] ?? ['Not reported in catalog'],
         species: omipSpecies(title, template),
         cellTypes: inferOmipCellTypes(title),
-        method: 'spectral',
+        method: EDITABLE_SPECTRAL_OMIP_NUMBERS.has(number) ? 'spectral' : omipMethod(title),
         sourceUrl: template?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
         template,
       }
     },
   )
+  .filter((entry) => entry.method === 'spectral' || entry.method === 'conventional')

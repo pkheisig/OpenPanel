@@ -1069,12 +1069,12 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(templateDialog).toBeHidden()
   await page.getByRole('button', { name: 'Use OMIP' }).click()
   await expect(templateDialog).toBeVisible()
-  await expect(templateDialog.getByText(/of 121 panels/)).toHaveCount(0)
+  await expect(templateDialog.getByText('113 of 113 panels')).toBeVisible()
   await expect(templateDialog.getByRole('link', { name: 'Browse database' })).toHaveAttribute(
     'href',
     'https://isac-net.org/omip-and-flow-repository-database/',
   )
-  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(23)
+  await expect(templateDialog.getByRole('button', { name: /^Preview OMIP-/ })).toHaveCount(113)
   await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-111' })).toContainText('Sony ID7000')
   await templateDialog.evaluate(async (dialog) => {
     await Promise.all(dialog.getAnimations().map((animation) => animation.finished))
@@ -1098,7 +1098,15 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     filterLabel: 10.5,
     filterValue: 13.5,
   })
-  await expect(templateDialog.getByRole('combobox', { name: 'Method' })).toHaveCount(0)
+  await chooseOption(page, 'Method', 'Conventional')
+  await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-120' })).toHaveCount(0)
+  await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-101' })).toBeVisible()
+  await templateDialog.getByRole('button', { name: 'Preview OMIP-101' }).click()
+  const conventionalPreview = page.getByRole('dialog', { name: 'OMIP-101' })
+  await expect(conventionalPreview.locator('.omip-library-paper-only')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Create panel from OMIP' })).toHaveCount(0)
+  await conventionalPreview.getByRole('button', { name: 'Back to OMIP Library' }).click()
+  await templateDialog.getByRole('button', { name: 'Clear' }).click()
   await chooseOption(page, 'Cell type', 'Platelets')
   expect(await templateDialog.getByRole('button', { name: 'Clear' }).evaluate((button) => (
     Number.parseFloat(getComputedStyle(button).fontSize)

@@ -153,6 +153,14 @@
   text-decoration: none;
 }
 
+.omip-library-count {
+  flex: none;
+  color: var(--omip-muted);
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .omip-library-tools > a:hover,
 .omip-library-tools > a:focus-visible {
   text-decoration: underline;
@@ -163,7 +171,7 @@
 .omip-library-filters {
   padding: 10px 12px 3px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
   gap: 8px;
   align-items: end;
 }
@@ -418,6 +426,28 @@
 
 .omip-library-table td:first-child {
   color: var(--omip-text);
+}
+
+.omip-library-paper-only {
+  min-height: 180px;
+  padding: 28px 24px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: var(--omip-muted);
+  text-align: center;
+}
+
+.omip-library-paper-only > svg {
+  color: var(--omip-accent);
+}
+
+.omip-library-paper-only p {
+  max-width: 540px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .omip-library-window > footer {

@@ -260,13 +260,14 @@ their aliases remain searchable and their cell-type prioritization remains
 intact. The list is used only for local lookup and never sends marker searches
 to a server.
 
-The bundled OMIP Library contains the 23 spectral OMIPs returned by the PubMed
-query `OMIP[Title] AND (spectral[Title/Abstract] OR "full spectrum"[Title/Abstract]
-OR "full-spectrum"[Title/Abstract] OR "Cytek Aurora"[Title/Abstract] OR
-"spectral cytometer"[Title/Abstract])`, refreshed 2026-07-31. Conventional,
-mass-cytometry, and imaging panels are excluded.
+The bundled OMIP Library contains the 113 flow-cytometry records from the
+121-record PubMed OMIP bibliography snapshot, refreshed 2026-07-31. Mass
+cytometry and imaging applications are excluded because they are not flow
+cytometry workflows. The catalog includes both spectral and conventional flow
+panels; records without a verified local marker–fluorophore table are shown as
+paper-only references.
 
-Every visible OMIP has an offline, editable marker–fluorophore table. The
+The 23 currently editable entries have offline marker–fluorophore tables. The
 assignments were transcribed from the public
 [FluoroFinder OMIP registry](https://admin.fluorofinder.com/omips), which
 reproduces the published reagent tables. OMIP-084 was transcribed directly

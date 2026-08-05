@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
+  BookOpen,
   ChevronRight,
   ExternalLink,
   Search,
@@ -41,6 +42,18 @@ const SPECIES_OPTIONS = [
   { value: 'other', label: 'Other species' },
 ]
 
+const METHOD_OPTIONS = [
+  { value: 'all', label: 'All methods' },
+  { value: 'spectral', label: 'Spectral' },
+  { value: 'conventional', label: 'Conventional' },
+]
+
+const AVAILABILITY_OPTIONS = [
+  { value: 'all', label: 'All entries' },
+  { value: 'template', label: 'Editable templates' },
+  { value: 'paper', label: 'Papers only' },
+]
+
 const YEAR_OPTIONS = [
   { value: 'all', label: 'All years' },
   ...Array.from(new Set(OMIP_CATALOG.map((entry) => entry.year)))
@@ -60,6 +73,13 @@ const SPECIES_LABELS: Record<OmipCatalogEntry['species'], string> = {
   mouse: 'Mouse',
   'non-human-primate': 'Non-human primate',
   other: 'Other',
+}
+
+const METHOD_LABELS: Record<OmipCatalogEntry['method'], string> = {
+  spectral: 'Spectral',
+  conventional: 'Conventional',
+  mass: 'Mass cytometry',
+  imaging: 'Imaging',
 }
 
 function normalizedInstrumentFamily(value: string): string {
@@ -112,16 +132,23 @@ export function OmipLibrary({
   const [preview, setPreview] = useState<OmipCatalogEntry | null>(null)
   const [query, setQuery] = useState('')
   const [species, setSpecies] = useState('all')
+  const [method, setMethod] = useState('all')
   const [year, setYear] = useState('all')
   const [cellType, setCellType] = useState('all')
+  const [availability, setAvailability] = useState('all')
   const [pendingIncompatibleEntry, setPendingIncompatibleEntry] = useState<OmipCatalogEntry | null>(null)
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     return OMIP_CATALOG.filter((entry) => (
       (species === 'all' || entry.species === species)
+      && (method === 'all' || entry.method === method)
       && (year === 'all' || entry.year === year)
       && (cellType === 'all' || entry.cellTypes.includes(cellType))
+      && (
+        availability === 'all'
+        || (availability === 'template' ? Boolean(entry.template) : !entry.template)
+      )
       && (
         !normalizedQuery
         || [
@@ -129,6 +156,7 @@ export function OmipLibrary({
           entry.summary,
           entry.year,
           entry.species,
+          entry.method,
           ...entry.cytometers,
           ...entry.cellTypes,
           ...(entry.template?.markers.flatMap((marker) => [
@@ -138,20 +166,24 @@ export function OmipLibrary({
         ].join(' ').toLocaleLowerCase().includes(normalizedQuery)
       )
     ))
-  }, [cellType, query, species, year])
+  }, [availability, cellType, method, query, species, year])
 
   const filtersActive = Boolean(
     query.trim()
     || species !== 'all'
+    || method !== 'all'
     || year !== 'all'
-    || cellType !== 'all',
+    || cellType !== 'all'
+    || availability !== 'all',
   )
 
   const clearFilters = () => {
     setQuery('')
     setSpecies('all')
+    setMethod('all')
     setYear('all')
     setCellType('all')
+    setAvailability('all')
   }
 
   const exceedsWorkspace = Boolean(
@@ -251,6 +283,10 @@ export function OmipLibrary({
                     <dd>{SPECIES_LABELS[preview.species]}</dd>
                   </div>
                   <div>
+                    <dt>Method</dt>
+                    <dd>{METHOD_LABELS[preview.method]}</dd>
+                  </div>
+                  <div>
                     <dt>Markers</dt>
                     <dd>{preview.template?.markers.length ?? '—'}</dd>
                   </div>
@@ -281,17 +317,25 @@ export function OmipLibrary({
                   </table>
                 </div>
               )}
+              {!preview.template && (
+                <div className="omip-library-paper-only">
+                  <BookOpen size={24} aria-hidden="true" />
+                  <p>This publication can be inspected here, but its marker–color table is not yet bundled as an editable template.</p>
+                </div>
+              )}
             </div>
 
             <footer>
               <span>
-                {exceedsWorkspace
-                  ? `${preview.template?.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
-                  : !designedForActiveCytometer
-                    ? `Designed for ${preview.cytometers.join(' / ')}`
-                    : incompatibleWithWorkspace
-                      ? 'Some published colors are unavailable in the active configuration'
-                    : `${preview.template?.markers.length ?? 0} markers`}
+                {!preview.template
+                  ? `${METHOD_LABELS[preview.method]} publication · paper only`
+                  : exceedsWorkspace
+                    ? `${preview.template.markers.length} markers exceed this ${maxPanelSize}-slot workspace`
+                    : !designedForActiveCytometer
+                      ? `Designed for ${preview.cytometers.join(' / ')}`
+                      : incompatibleWithWorkspace
+                        ? 'Some published colors are unavailable in the active configuration'
+                        : `${preview.template.markers.length} markers`}
               </span>
               {onApplyTemplate && preview.template && (
                 <button
@@ -318,6 +362,7 @@ export function OmipLibrary({
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </div>
+              <span className="omip-library-count">{visibleEntries.length} of {OMIP_CATALOG.length} panels</span>
               <a href={OMIP_DATABASE_URL} target="_blank" rel="noreferrer">
                 Browse database
                 <ExternalLink size={13} aria-hidden="true" />
@@ -336,10 +381,28 @@ export function OmipLibrary({
               />
               <UiSelect
                 className="omip-library-filter"
+                label="Method"
+                value={method}
+                options={METHOD_OPTIONS}
+                onChange={setMethod}
+                portalMenu
+                menuClassName="omip-library-filter-menu"
+              />
+              <UiSelect
+                className="omip-library-filter"
                 label="Cell type"
                 value={cellType}
                 options={CELL_TYPE_OPTIONS}
                 onChange={setCellType}
+                portalMenu
+                menuClassName="omip-library-filter-menu"
+              />
+              <UiSelect
+                className="omip-library-filter"
+                label="Availability"
+                value={availability}
+                options={AVAILABILITY_OPTIONS}
+                onChange={setAvailability}
                 portalMenu
                 menuClassName="omip-library-filter-menu"
               />
@@ -370,6 +433,7 @@ export function OmipLibrary({
                   <span className="omip-library-entry-name">
                     <strong>{entry.name}</strong>
                     <small>{entry.year}</small>
+                    <small>{entry.template ? `${entry.template.markers.length} markers` : 'Paper only'}</small>
                     <small className="omip-library-entry-cytometer">{entry.cytometers.join(' / ')}</small>
                   </span>
                   <span>{entry.summary}</span>

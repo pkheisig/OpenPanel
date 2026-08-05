@@ -27,15 +27,19 @@ import { mockBundledData } from './helpers'
 beforeEach(mockBundledData)
 
 describe('panel wizard recommendation engine', () => {
-  test('bundles only spectral OMIPs and makes every entry editable', () => {
-    expect(OMIP_CATALOG).toHaveLength(23)
-    expect(new Set(OMIP_CATALOG.map((entry) => entry.id)).size).toBe(23)
+  test('bundles flow OMIPs and keeps only verified templates editable', () => {
+    expect(OMIP_CATALOG).toHaveLength(113)
+    expect(new Set(OMIP_CATALOG.map((entry) => entry.id)).size).toBe(113)
     expect(OMIP_CATALOG[0]).toMatchObject({ name: 'OMIP-120', year: '2026' })
-    expect(OMIP_CATALOG.at(-1)).toMatchObject({ name: 'OMIP-069', year: '2020' })
-    expect(OMIP_CATALOG.every((entry) => entry.method === 'spectral')).toBe(true)
+    expect(OMIP_CATALOG.at(-1)).toMatchObject({ name: 'OMIP-001', year: '2010' })
+    expect(OMIP_CATALOG.every((entry) => ['spectral', 'conventional'].includes(entry.method))).toBe(true)
+    expect(OMIP_CATALOG.some((entry) => entry.method === 'conventional')).toBe(true)
+    expect(OMIP_CATALOG.some((entry) => entry.id === 'omip-121')).toBe(false)
+    expect(OMIP_CATALOG.some((entry) => entry.id === 'omip-103')).toBe(false)
+    expect(OMIP_CATALOG.filter((entry) => entry.template)).toHaveLength(23)
+    expect(OMIP_CATALOG.filter((entry) => !entry.template)).toHaveLength(OMIP_CATALOG.length - 23)
     expect(OMIP_CATALOG.every((entry) => entry.cytometers.length > 0)).toBe(true)
-    expect(OMIP_CATALOG.every((entry) => entry.template)).toBe(true)
-    expect(OMIP_CATALOG.every((entry) => (
+    expect(OMIP_CATALOG.filter((entry) => entry.template).every((entry) => (
       entry.template?.markers.every((marker) => (
         marker.name.trim() && marker.fluorophore?.trim()
       ))
