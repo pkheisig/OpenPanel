@@ -83,8 +83,8 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumLeft = 42;
     const spectrumRight = chartWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
-    const responseLabel = payload.measurement_mode === 'conventional' ? 'detector responses' : 'spectra';
-    const signatureTabLabel = payload.measurement_mode === 'conventional' ? 'RESPONSES' : 'SPECTRA';
+    const responseLabel = payload.measurement_mode === 'conventional' ? 'detector peaks' : 'spectra';
+    const signatureTabLabel = payload.measurement_mode === 'conventional' ? 'PEAKS' : 'SPECTRA';
 
     useEffect(() => {
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });

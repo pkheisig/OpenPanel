@@ -274,10 +274,10 @@ export function PanelWizard({
   onApply,
 }: PanelWizardProps) {
   const responseFitLabel = measurementMode === 'conventional'
-    ? 'Detector-response fit'
+    ? 'Detector-peak fit'
     : 'Spectral fit'
   const responseSimilarityLabel = measurementMode === 'conventional'
-    ? 'Lowest detector-response similarity'
+    ? 'Lowest detector-peak similarity'
     : 'Lowest spectral similarity'
   const sortOptions = [
     { value: 'recommended', label: 'Recommended score' },
@@ -687,7 +687,7 @@ export function PanelWizard({
                 <Info size={18} />
               </button>
               <div className="wizard-info-popover" id="wizard-methodology" role="tooltip">
-                Marker-to-color assignments use antigen density, fluorophore brightness, co-expression, {measurementMode === 'conventional' ? 'detector-response overlap' : 'spectral overlap'}, and availability.
+                Marker-to-color assignments use antigen density, fluorophore brightness, co-expression, {measurementMode === 'conventional' ? 'detector-peak overlap' : 'spectral overlap'}, and availability.
               </div>
             </div>
             <button type="button" className="wizard-close" onClick={onClose} aria-label="Close panel wizard">
@@ -942,7 +942,7 @@ export function PanelWizard({
                       <strong>{formatMetric(activeResult.previousComplexity)} <ChevronRight size={15} /> {formatMetric(activeResult.complexity)}</strong>
                     </div>
                     <div>
-                      <span>{measurementMode === 'conventional' ? 'Worst response similarity' : 'Worst spectral similarity'}</span>
+                      <span>{measurementMode === 'conventional' ? 'Worst peak similarity' : 'Worst spectral similarity'}</span>
                       <strong>{formatMetric(activeResult.maxSimilarity)}</strong>
                     </div>
                   </div>

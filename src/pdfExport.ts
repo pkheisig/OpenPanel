@@ -42,7 +42,7 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   document.setFontSize(18)
   document.text(
     payload.measurement_mode === 'conventional'
-      ? 'Fluorophore Detector-Response Similarity'
+      ? 'Fluorophore Detector-Peak Similarity'
       : 'Fluorophore Spectral Similarity',
     12,
     14,
@@ -59,7 +59,7 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
     document.setFont('helvetica', 'normal')
     document.text(
       payload.measurement_mode === 'conventional'
-        ? 'Add at least two fluorophores to calculate pairwise detector-response similarity.'
+        ? 'Add at least two fluorophores to calculate pairwise detector-peak similarity.'
         : 'Add at least two fluorophores to calculate pairwise spectral similarity.',
       12,
       34,

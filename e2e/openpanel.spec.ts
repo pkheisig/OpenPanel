@@ -538,14 +538,14 @@ test('adapts the workspace and wizard to a conventional FACSymphony', async ({ p
 
   await selectFluorophore(page, 0, 'BUV395')
   await selectFluorophore(page, 1, 'PE')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'RESPONSES', exact: true })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'PEAKS', exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
   await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '48')
   await wizard.getByRole('button', { name: 'About panel wizard calculations' }).focus()
-  await expect(wizard.getByRole('tooltip')).toContainText('detector-response overlap')
+  await expect(wizard.getByRole('tooltip')).toContainText('detector-peak overlap')
 })
 
 test('adapts the workspace and wizard to BD LSRFortessa 3L detectors', async ({ page }) => {
@@ -559,22 +559,22 @@ test('adapts the workspace and wizard to BD LSRFortessa 3L detectors', async ({ 
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  const fortessaResponses = page.getByRole('img', { name: 'Combined detector responses' })
-  await expect(fortessaResponses).toBeVisible()
-  const fortessaPlotWidth = await fortessaResponses.evaluate((element) => element.getBoundingClientRect().width)
+  const fortessaPeaks = page.getByRole('img', { name: 'Combined detector peaks' })
+  await expect(fortessaPeaks).toBeVisible()
+  const fortessaPlotWidth = await fortessaPeaks.evaluate((element) => element.getBoundingClientRect().width)
   const fortessaPlotContainerWidth = await page.locator('.top-spectrum').evaluate((element) => {
     const style = getComputedStyle(element)
     return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
   })
   expect(fortessaPlotWidth).toBeCloseTo(848, 0)
   expect(fortessaPlotWidth).toBeLessThan(fortessaPlotContainerWidth)
-  await expect(page.getByRole('button', { name: 'RESPONSES', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'PEAKS', exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
   await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '14')
   await wizard.getByRole('button', { name: 'About panel wizard calculations' }).focus()
-  await expect(wizard.getByRole('tooltip')).toContainText('detector-response overlap')
+  await expect(wizard.getByRole('tooltip')).toContainText('detector-peak overlap')
 })
 
 test('adapts the workspace and wizard to a public FACSCelesta BVUV configuration', async ({ page }) => {
@@ -586,7 +586,7 @@ test('adapts the workspace and wizard to a public FACSCelesta BVUV configuration
 
   await selectFluorophore(page, 0, 'BUV395')
   await selectFluorophore(page, 1, 'PE')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
   await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '12')
@@ -602,7 +602,7 @@ test('adapts the workspace and wizard to the documented 4-laser Attune NxT confi
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
   await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '14')
@@ -618,14 +618,14 @@ test('adapts the workspace and wizard to the standard BD Accuri C6 Plus', async 
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
   await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '4')
 })
 
-test('keeps small conventional response plots compact and high resolution', async ({ page }) => {
+test('keeps small conventional peak plots compact and high resolution', async ({ page }) => {
   await page.goto(APP_PATH)
   await chooseOption(page, 'CYTOMETER', 'BD Accuri C6 Plus')
   await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD Accuri C6 Plus: standard 3-blue/1-red')
@@ -634,7 +634,7 @@ test('keeps small conventional response plots compact and high resolution', asyn
 
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
-  await page.getByRole('button', { name: 'RESPONSES', exact: true }).click()
+  await page.getByRole('button', { name: 'PEAKS', exact: true }).click()
 
   const plot = page.getByRole('img', { name: 'FITC spectrum' })
   await expect(plot).toBeVisible()
@@ -663,7 +663,7 @@ test('adapts the workspace and wizard to BD FACSCalibur', async ({ page }) => {
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -679,7 +679,7 @@ test('adapts the workspace and wizard to BD FACSCanto II', async ({ page }) => {
 
   await selectFluorophore(page, 0, 'BV421')
   await selectFluorophore(page, 1, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -696,7 +696,7 @@ test('adapts the workspace and wizard to BD FACSLyric 12-color', async ({ page }
   await selectFluorophore(page, 0, 'BV421')
   await selectFluorophore(page, 1, 'PE-Cy7')
   await selectFluorophore(page, 2, 'APC-R700')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -713,7 +713,7 @@ test('adapts the workspace and wizard to Bio-Rad ZE5 5-laser', async ({ page }) 
   await selectFluorophore(page, 0, 'BUV395')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -730,7 +730,7 @@ test('adapts the workspace and wizard to Thermo Fisher Attune CytPix BYRV6', asy
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -747,7 +747,7 @@ test('adapts the workspace and wizard to Agilent NovoCyte Quanteon 4025', async 
   await selectFluorophore(page, 0, 'BV421')
   await selectFluorophore(page, 1, 'FITC')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -764,7 +764,7 @@ test('adapts the workspace and wizard to Miltenyi MACSQuant Analyzer 16', async 
   await selectFluorophore(page, 0, 'BV421')
   await selectFluorophore(page, 1, 'FITC')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -781,7 +781,7 @@ test('adapts the workspace and wizard to BD FACSVerse 8-color', async ({ page })
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -798,7 +798,7 @@ test('adapts the workspace and wizard to BD LSR II 18-color', async ({ page }) =
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -815,7 +815,7 @@ test('adapts the workspace and wizard to CytoFLEX LX 19-detector', async ({ page
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -832,7 +832,7 @@ test('adapts the workspace and wizard to Beckman Coulter Navios 8-color', async 
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -849,7 +849,7 @@ test('adapts the workspace and wizard to Beckman Coulter DxFLEX B5-R3-V5', async
   await selectFluorophore(page, 0, 'BV421')
   await selectFluorophore(page, 1, 'FITC')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
@@ -866,7 +866,7 @@ test('adapts the workspace and wizard to the documented FACSAria Fusion BUV conf
   await selectFluorophore(page, 0, 'BUV395')
   await selectFluorophore(page, 1, 'FITC')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
