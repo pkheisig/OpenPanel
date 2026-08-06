@@ -112,7 +112,7 @@ jobs:
                 "${api_headers[@]}" \
                 --data "${deployment_payload}"
             })"
-            deployment_id="$(jq -er '.id // (.status_url | split("/") | last)' <<<"${deployment_response}")"
+            deployment_id="$(jq -er 'if .status_url then (.status_url | split("/") | last) elif .id then .id else error("Pages deployment did not return an identifier") end' <<<"${deployment_response}")"
             page_url="$(jq -r '.page_url // empty' <<<"${deployment_response}")"
 
             for _ in $(seq 1 120); do
