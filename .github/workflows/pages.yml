@@ -53,6 +53,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       pages: write
       id-token: write
     environment:
@@ -63,31 +64,105 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
 
-      - name: Deploy GitHub Pages (attempt 1)
-        id: deployment_attempt_1
-        continue-on-error: true
-        uses: actions/deploy-pages@v5
-        with:
-          # deploy-pages caps each polling attempt at 10 minutes. Retry the
-          # whole deployment below when Pages remains queued beyond that cap.
-          timeout: 600000
+      - name: Deploy GitHub Pages
+        id: deployment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
 
-      - name: Deploy GitHub Pages (attempt 2)
-        id: deployment_attempt_2
-        if: steps.deployment_attempt_1.outcome == 'failure'
-        continue-on-error: true
-        uses: actions/deploy-pages@v5
-        with:
-          timeout: 600000
+          api_url="${GITHUB_API_URL:-https://api.github.com}"
+          api_headers=(
+            -H "Accept: application/vnd.github+json"
+            -H "Authorization: Bearer ${GITHUB_TOKEN}"
+            -H "X-GitHub-Api-Version: 2022-11-28"
+          )
 
-      - name: Deploy GitHub Pages (attempt 3)
-        id: deployment_attempt_3
-        if: steps.deployment_attempt_1.outcome == 'failure' && steps.deployment_attempt_2.outcome == 'failure'
-        continue-on-error: true
-        uses: actions/deploy-pages@v5
-        with:
-          timeout: 600000
+          artifact_response="$({
+            curl --fail-with-body --silent --show-error \
+              "${api_url}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?name=github-pages" \
+              "${api_headers[@]}"
+          })"
+          artifact_id="$(jq -er '.artifacts | if length == 1 then .[0].id else error("expected exactly one github-pages artifact") end' <<<"${artifact_response}")"
 
-      - name: Fail if GitHub Pages deployment failed
-        if: steps.deployment_attempt_1.outcome == 'failure' && steps.deployment_attempt_2.outcome == 'failure' && steps.deployment_attempt_3.outcome == 'failure'
-        run: exit 1
+          deploy_once() {
+            local attempt="$1"
+            local build_version="openpanel-${GITHUB_SHA}-${GITHUB_RUN_ID}-${attempt}"
+            local oidc_response oidc_token deployment_payload deployment_response deployment_id
+            local page_url=""
+            local status_payload status last_status=""
+
+            echo "Creating Pages deployment attempt ${attempt}..."
+
+            oidc_response="$({
+              curl --fail-with-body --silent --show-error \
+                -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+                "${ACTIONS_ID_TOKEN_REQUEST_URL}"
+            })"
+            oidc_token="$(jq -er '.value' <<<"${oidc_response}")"
+
+            deployment_payload="$(jq -cn \
+              --arg artifact_id "${artifact_id}" \
+              --arg pages_build_version "${build_version}" \
+              --arg oidc_token "${oidc_token}" \
+              '{artifact_id: ($artifact_id | tonumber), pages_build_version: $pages_build_version, oidc_token: $oidc_token}')"
+            deployment_response="$({
+              curl --fail-with-body --silent --show-error --request POST \
+                "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments" \
+                "${api_headers[@]}" \
+                --data "${deployment_payload}"
+            })"
+            deployment_id="$(jq -er '.id // (.status_url | split("/") | last)' <<<"${deployment_response}")"
+            page_url="$(jq -r '.page_url // empty' <<<"${deployment_response}")"
+
+            for _ in $(seq 1 120); do
+              if status_payload="$({
+                curl --fail-with-body --silent --show-error \
+                  "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments/${deployment_id}" \
+                  "${api_headers[@]}"
+              })"; then
+                status="$(jq -r '.status // empty' <<<"${status_payload}")" || status=""
+                if [[ "${status}" != "${last_status}" ]]; then
+                  echo "Pages deployment status: ${status:-unknown}"
+                  last_status="${status}"
+                fi
+
+                case "${status}" in
+                  succeed)
+                    if [[ -z "${page_url}" ]]; then
+                      page_url="$(curl --fail-with-body --silent --show-error \
+                        "${api_url}/repos/${GITHUB_REPOSITORY}/pages" \
+                        "${api_headers[@]}" | jq -r '.html_url // empty')" || page_url=""
+                    fi
+                    echo "page_url=${page_url}" >> "${GITHUB_OUTPUT}"
+                    echo "GitHub Pages deployment succeeded on attempt ${attempt}."
+                    return 0
+                    ;;
+                  deployment_failed|deployment_content_failed|deployment_cancelled|deployment_lost)
+                    echo "GitHub Pages deployment ended with ${status}." >&2
+                    return 1
+                    ;;
+                esac
+              fi
+              sleep 5
+            done
+
+            echo "GitHub Pages deployment attempt ${attempt} timed out; cancelling it." >&2
+            curl --fail-with-body --silent --show-error --request POST \
+              "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments/${deployment_id}/cancel" \
+              "${api_headers[@]}" >/dev/null || true
+            return 1
+          }
+
+          for attempt in 1 2 3; do
+            if deploy_once "${attempt}"; then
+              exit 0
+            fi
+            if [[ "${attempt}" -lt 3 ]]; then
+              echo "Retrying GitHub Pages deployment with a new build version..."
+              sleep 2
+            fi
+          done
+
+          echo "GitHub Pages deployment failed after three attempts." >&2
+          exit 1
