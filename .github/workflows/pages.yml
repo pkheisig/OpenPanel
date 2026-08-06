@@ -74,11 +74,11 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan pages-site
+          git checkout --orphan gh-pages
           git rm -rf .
           cp -R site/. .
           rm -rf site
           touch .nojekyll
           git add -A
           git commit -m "Deploy ${GITHUB_SHA} to GitHub Pages"
-          git push --force origin HEAD:pages-site
+          git push --force origin HEAD:gh-pages
