@@ -8,6 +8,7 @@ import {
   detectorLaserKey,
   detectorLaserMeta,
   detectorLaserSegments,
+  detectorSignatureChartWidth,
   detectorSpectralColors,
   mapDetectorToEmission,
   wavelengthToColor,
@@ -103,6 +104,9 @@ test('accepts legacy scalar array wrappers for cytometer names', () => {
 test('detector fallbacks and wavelength parsing cover nonstandard panels', () => {
   assert.equal(detectorAxisChartWidth(1), 1040)
   assert.equal(detectorAxisChartWidth(100), 1800)
+  assert.equal(detectorSignatureChartWidth(4), 680)
+  assert.equal(detectorSignatureChartWidth(14), 1008)
+  assert.equal(detectorSignatureChartWidth(27), 1800)
   assert.equal(detectorAxisFooterHeight([{ detector: 'UV1-A' }]), 64)
   assert.equal(detectorAxisFooterHeight([{ detector: 'FL16-A', label: '405nm - 420/10-A' }]), 114)
   assert.equal(detectorLaserKey('unknown'), 'Other')

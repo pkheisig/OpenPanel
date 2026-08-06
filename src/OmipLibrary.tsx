@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -107,6 +107,20 @@ export function OmipLibrary({
   const [cellType, setCellType] = useState('all')
   const [availability, setAvailability] = useState('all')
   const [pendingIncompatibleEntry, setPendingIncompatibleEntry] = useState<OmipCatalogEntry | null>(null)
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      if (pendingIncompatibleEntry) {
+        setPendingIncompatibleEntry(null)
+        return
+      }
+      onClose()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [onClose, pendingIncompatibleEntry])
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()

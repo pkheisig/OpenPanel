@@ -122,10 +122,49 @@ const PanelBuilder = ({
     const [clearingPanel, setClearingPanel] = useState(false);
     const [showPanelWizard, setShowPanelWizard] = useState(false);
     const [wizardState, setWizardState] = useState<WizardProjectState | null>(() => initialProject?.wizard ?? null);
+    const [wizardSyncRevision, setWizardSyncRevision] = useState(0);
     const wizardStateRef = useRef(wizardState);
     const handleWizardStateChange = useCallback((state: WizardProjectState) => {
         wizardStateRef.current = state;
         setWizardState(state);
+    }, []);
+    const syncWizardColorsWithPanel = useCallback((
+        nextSlots: string[],
+        removedSlotIndex?: number,
+        invalidateResults = true,
+    ) => {
+        const current = wizardStateRef.current;
+        if (!current) return;
+        let changed = false;
+        const remainingMarkers = current.markers
+            .filter((marker) => marker.slotIndex !== removedSlotIndex);
+        if (remainingMarkers.length !== current.markers.length) changed = true;
+        const nextMarkers = remainingMarkers
+            .map((marker) => {
+                const slotIndex = removedSlotIndex !== undefined && marker.slotIndex > removedSlotIndex
+                    ? marker.slotIndex - 1
+                    : marker.slotIndex;
+                const currentFluorophore = nextSlots[slotIndex] ?? '';
+                if (slotIndex === marker.slotIndex && currentFluorophore === marker.currentFluorophore) {
+                    return marker;
+                }
+                changed = true;
+                return { ...marker, slotIndex, currentFluorophore };
+            });
+        const desiredSize = removedSlotIndex === undefined
+            ? current.desiredSize
+            : Math.min(current.desiredSize, nextSlots.length);
+        if (desiredSize !== current.desiredSize) changed = true;
+        if (!changed) return;
+        const nextState = {
+            ...current,
+            desiredSize,
+            markers: nextMarkers,
+            results: invalidateResults && current.results ? null : current.results,
+        };
+        wizardStateRef.current = nextState;
+        setWizardState(nextState);
+        setWizardSyncRevision((revision) => revision + 1);
     }, []);
     const panelHistoryRef = useRef<{ past: PanelEditSnapshot[]; future: PanelEditSnapshot[] }>({
         past: [],
@@ -140,6 +179,11 @@ const PanelBuilder = ({
     const [bootAttempt, setBootAttempt] = useState(0);
 
     useEffect(() => () => sidebarResizeCleanupRef.current?.(), []);
+
+    useEffect(() => {
+        if (wizardStateRef.current?.inputsChanged === true) return;
+        syncWizardColorsWithPanel(slots);
+    }, [slots, syncWizardColorsWithPanel]);
 
     useEffect(() => {
         if (typeof window.requestIdleCallback === 'function') {
@@ -213,6 +257,11 @@ const PanelBuilder = ({
         }
         await saveActiveProject(state);
     }, [panelName, projectId, projectState]);
+
+    const exitToPanelLibrary = useCallback(async () => {
+        await persistProjectState();
+        await onRequestExit?.();
+    }, [onRequestExit, persistProjectState]);
 
     useEffect(() => {
         if (!guiStateLoaded) return;
@@ -475,7 +524,26 @@ const PanelBuilder = ({
             }
         };
         const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setFileMenu(null);
+            if (event.key !== 'Escape' || event.defaultPrevented) return;
+            if (showPanelWizard) return;
+            event.preventDefault();
+            if (showClearConfirmation) {
+                if (!clearingPanel) setShowClearConfirmation(false);
+                return;
+            }
+            if (showPdfConfirm) {
+                setShowPdfConfirm(false);
+                return;
+            }
+            if (activeSlot !== null) {
+                setActiveSlot(null);
+                return;
+            }
+            if (fileMenu !== null) {
+                setFileMenu(null);
+                return;
+            }
+            if (onRequestExit) void exitToPanelLibrary();
         };
         document.addEventListener('mousedown', handleClickOutside);
         document.addEventListener('keydown', handleEscape);
@@ -483,7 +551,7 @@ const PanelBuilder = ({
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
         };
-    }, []);
+    }, [activeSlot, clearingPanel, exitToPanelLibrary, fileMenu, onRequestExit, showClearConfirmation, showPanelWizard, showPdfConfirm]);
 
     const updateSlot = async (index: number, fluor: string) => {
         const currentSlots = slotsRef.current;
@@ -493,6 +561,7 @@ const PanelBuilder = ({
         const nextSlots = currentSlots.map((existing, i) => (i === index ? fluor : existing));
         slotsRef.current = nextSlots;
         setSlots(nextSlots);
+        syncWizardColorsWithPanel(nextSlots);
         writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
         setQueries(prev => ({ ...prev, [index]: '' }));
         setActiveSlot(null);
@@ -514,6 +583,7 @@ const PanelBuilder = ({
         markersRef.current = nextMarkers;
         setSlots(nextSlots);
         setMarkers(nextMarkers);
+        syncWizardColorsWithPanel(nextSlots, index);
         setQueries((current) => Object.fromEntries(
             Object.entries(current)
                 .map(([key, value]) => [Number(key), value] as const)
@@ -535,12 +605,11 @@ const PanelBuilder = ({
             return;
         }
         recordPanelEdit();
-        setSlots(prev => {
-            const next = [...prev, ''];
-            slotsRef.current = next;
-            writeLocalStorage('spectreasy_slots', JSON.stringify(next));
-            return next;
-        });
+        const nextSlots = [...slotsRef.current, ''];
+        slotsRef.current = nextSlots;
+        setSlots(nextSlots);
+        syncWizardColorsWithPanel(nextSlots);
+        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
     };
 
     const updateMarkerWithHistory = useCallback((slotIndex: number, value: string) => {
@@ -629,6 +698,7 @@ const PanelBuilder = ({
         markersRef.current = nextMarkers;
         setSlots(nextSlots);
         setMarkers(nextMarkers);
+        syncWizardColorsWithPanel(nextSlots, undefined, false);
         writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
         writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((wizardError) => {
@@ -895,11 +965,6 @@ const PanelBuilder = ({
             extensions: ['.openpanel.json', '.json'],
         }, projectInputRef.current);
         if (file) await importProject(file);
-    };
-
-    const exitToPanelLibrary = async () => {
-        await persistProjectState();
-        await onRequestExit?.();
     };
 
     if (loading) {
@@ -1261,6 +1326,7 @@ const PanelBuilder = ({
             {showPanelWizard && (
                 <Suspense fallback={<div className={`panel-wizard-backdrop ${embedded && cockpitTheme ? cockpitTheme : theme}`} />}>
                     <PanelWizard
+                        key={`panel-wizard-${wizardSyncRevision}`}
                         cytometer={cytometer}
                         configuration={configuration}
                         configurationLabel={selectedConfigurationLabel}

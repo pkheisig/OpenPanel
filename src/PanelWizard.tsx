@@ -387,18 +387,29 @@ export function PanelWizard({
     () => activeResult ? sortRows(activeResult.rows, resultSort) : [],
     [activeResult, resultSort],
   )
+
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      if (showClearConfirmation) {
+        if (!clearing) setShowClearConfirmation(false)
+        return
+      }
+      if (dialog) {
+        setDialog(null)
+        return
+      }
+      onClose()
     }
     document.addEventListener('keydown', closeOnEscape)
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', closeOnEscape)
     }
-  }, [onClose])
+  }, [clearing, dialog, onClose, showClearConfirmation])
 
   useEffect(() => {
     let active = true

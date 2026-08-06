@@ -23,6 +23,16 @@ const PLOT_TOP = 22
 const PLOT_HEIGHT = 265
 const AXIS_BOTTOM = PLOT_TOP + PLOT_HEIGHT
 const PLOT_TOTAL_HEIGHT = AXIS_BOTTOM + 82
+const MIN_CANVAS_PIXEL_RATIO = 2
+const MAX_CANVAS_PIXEL_RATIO = 3
+
+function canvasPixelRatio(): number {
+  if (typeof window === 'undefined') return 1
+  return Math.min(
+    MAX_CANVAS_PIXEL_RATIO,
+    Math.max(MIN_CANVAS_PIXEL_RATIO, window.devicePixelRatio || 1),
+  )
+}
 
 function drawSpectrum(
   canvas: HTMLCanvasElement,
@@ -31,10 +41,12 @@ function drawSpectrum(
   chartWidth: number,
   theme: 'light' | 'dark',
 ) {
-  canvas.width = chartWidth
-  canvas.height = PLOT_TOTAL_HEIGHT
+  const pixelRatio = canvasPixelRatio()
+  canvas.width = Math.round(chartWidth * pixelRatio)
+  canvas.height = Math.round(PLOT_TOTAL_HEIGHT * pixelRatio)
   const context = canvas.getContext('2d')
   if (!context) return
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
 
   const plotWidth = chartWidth - PLOT_LEFT - 18
   const columnWidth = plotWidth / Math.max(1, detectors.length)
@@ -151,7 +163,10 @@ export const SpectrumBandPlot = memo(function SpectrumBandPlot({
       height={1}
       role="img"
       aria-label={`${fluorophore} spectrum`}
-      style={{ aspectRatio: `${chartWidth} / ${PLOT_TOTAL_HEIGHT}` } as CSSProperties}
+      style={{
+        aspectRatio: `${chartWidth} / ${PLOT_TOTAL_HEIGHT}`,
+        maxWidth: `${chartWidth}px`,
+      } as CSSProperties}
     />
   )
 })

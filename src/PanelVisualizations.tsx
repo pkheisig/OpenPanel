@@ -7,6 +7,7 @@ import {
     detectorAxisFooterHeight,
     detectorLaserKey,
     detectorLaserMeta,
+    detectorSignatureChartWidth,
 } from './detectorAxis';
 import { DEFAULT_PLOT_SCALE } from './projectStore';
 import {
@@ -70,6 +71,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumPointerRef = useRef({ clientX: 0, clientY: 0 });
     const [spectrumHover, setSpectrumHover] = useState<{ fluor: string; color: string } | null>(null);
     const chartWidth = detectorAxisChartWidth(payload.detectors.length);
+    const signatureChartWidth = detectorSignatureChartWidth(payload.detectors.length);
     const chartHeight = 230;
     const spectrumHeight = chartHeight + detectorAxisFooterHeight(payload.detectors);
     const plotZoom = `${(plotScale / DEFAULT_PLOT_SCALE) * 100}%`;
@@ -351,7 +353,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                                 fluorophore={fluor}
                                 row={row}
                                 detectors={payload.detectors}
-                                chartWidth={chartWidth}
+                                chartWidth={signatureChartWidth}
                                 theme={theme}
                                 eager={index < 2}
                             />

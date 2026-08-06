@@ -148,6 +148,33 @@ test('shares light and dark mode between the landing page and editor', async ({ 
   await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
 })
 
+test('exits the project page with Escape', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+
+  await page.getByLabel('Panel name').focus()
+  await page.keyboard.press('Escape')
+
+  await expect(page.locator('.launch-screen')).toBeVisible()
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+})
+
+test('keeps wizard colors synchronized with sidebar edits', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+  await selectFluorophore(page, 0, 'FITC')
+
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('FITC')
+  await page.getByRole('button', { name: 'Close panel wizard' }).click()
+
+  await selectFluorophore(page, 0, 'APC')
+  await expect(page.getByPlaceholder('Select fluorophore').first()).toHaveValue('APC')
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  await expect(wizard.getByRole('combobox', { name: 'Color for marker 1', exact: true })).toContainText('APC')
+})
+
 test('shows the fluorophore name beside the cursor when hovering a spectrum', async ({ page }) => {
   await page.goto(APP_PATH)
   await openEmptyPanel(page)
@@ -590,6 +617,34 @@ test('adapts the workspace and wizard to the standard BD Accuri C6 Plus', async 
   await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '4')
 })
 
+test('keeps small conventional response plots compact and high resolution', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'BD Accuri C6 Plus')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'BD Accuri C6 Plus: standard 3-blue/1-red')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+  await expect(page.getByLabel('Panel name')).toBeVisible()
+
+  await selectFluorophore(page, 0, 'FITC')
+  await selectFluorophore(page, 1, 'PE')
+  await page.getByRole('button', { name: 'RESPONSES', exact: true }).click()
+
+  const plot = page.getByRole('img', { name: 'FITC spectrum' })
+  await expect(plot).toBeVisible()
+  await expect.poll(() => plot.evaluate((canvas) => (canvas as HTMLCanvasElement).width)).toBeGreaterThan(1)
+  const dimensions = await plot.evaluate((canvas) => {
+    const plotBox = canvas.getBoundingClientRect()
+    const cardBox = canvas.closest('.signature-card')?.getBoundingClientRect()
+    return {
+      bitmapWidth: (canvas as HTMLCanvasElement).width,
+      cssWidth: plotBox.width,
+      cardWidth: cardBox?.width ?? 0,
+    }
+  })
+
+  expect(dimensions.bitmapWidth / dimensions.cssWidth).toBeGreaterThanOrEqual(2)
+  expect(dimensions.cssWidth).toBeLessThan(dimensions.cardWidth - 100)
+})
+
 test('adapts the workspace and wizard to BD FACSCalibur', async ({ page }) => {
   await page.goto(APP_PATH)
   await chooseOption(page, 'CYTOMETER', 'BD FACSCalibur')
@@ -950,6 +1005,39 @@ test('keeps independent panel workspaces for each cytometer', async ({ page }) =
   await expect(page.locator('.matrix-marker-input').first()).toHaveValue('CD19')
 })
 
+test('closes popup windows with Escape from the topmost layer', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await chooseOption(page, 'CYTOMETER', 'Cytek Aurora')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Aurora 5L: UV/V/B/YG/R')
+  await page.getByRole('button', { name: 'Use OMIP' }).click()
+
+  const library = page.getByRole('dialog', { name: 'OMIP Library' })
+  await library.getByRole('button', { name: 'Preview OMIP-120' }).click()
+  const preview = page.getByRole('dialog', { name: 'OMIP-120' })
+  await preview.getByRole('button', { name: 'Create panel from OMIP' }).click()
+  const warning = page.getByRole('alertdialog', { name: 'Warning' })
+  await expect(warning).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(warning).toBeHidden()
+  await expect(preview).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(preview).toBeHidden()
+
+  await openEmptyPanel(page)
+  await page.getByRole('button', { name: 'Open panel wizard' }).click()
+  const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
+  await expect(wizard).toBeVisible()
+  await wizard.getByRole('button', { name: 'Clear', exact: true }).click()
+  const clearConfirmation = page.getByRole('alertdialog', { name: 'Clear the panel?' })
+  await expect(clearConfirmation).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(clearConfirmation).toBeHidden()
+  await expect(wizard).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(wizard).toBeHidden()
+})
+
 test('runs representative panel, import, export, and project round-trip workflows locally', async ({ page }) => {
   const remoteRequests: string[] = []
   page.on('request', (request) => {
@@ -1090,6 +1178,12 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     const style = getComputedStyle(trigger)
     return { borderRadius: style.borderRadius, paddingLeft: style.paddingLeft }
   })
+  const frequencyTableTypography = await page.locator('.frequency-table').evaluate((table) => ({
+    body: getComputedStyle(table.querySelector('td')!).fontSize,
+    header: getComputedStyle(table.querySelector('th')!).fontSize,
+    select: getComputedStyle(table.querySelector('.ui-select-trigger')!).fontSize,
+  }))
+  expect(frequencyTableTypography).toEqual({ body: '13px', header: '11px', select: '13px' })
 
   await page.getByRole('button', { name: 'Close panel wizard' }).click()
   await page.getByRole('button', { name: 'Open panel library' }).click()
@@ -1187,6 +1281,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     const fontSize = (selector: string) => Number.parseFloat(
       getComputedStyle(dialog.querySelector<HTMLElement>(selector)!).fontSize,
     )
+    const fontWeight = (selector: string) => getComputedStyle(dialog.querySelector<HTMLElement>(selector)!).fontWeight
     return {
       title: fontSize('.omip-library-overview p'),
       paperLink: fontSize('.omip-library-overview a'),
@@ -1196,6 +1291,9 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
       tableCell: fontSize('.omip-library-table td'),
       markerCount: fontSize('footer > span'),
       action: fontSize('.omip-library-primary'),
+      titleWeight: fontWeight('.omip-library-overview p'),
+      cardValueWeight: fontWeight('.omip-library-overview dd'),
+      markerWeight: fontWeight('.omip-library-table td:first-child strong'),
     }
   })
   expect(previewTypography).toEqual({
@@ -1207,6 +1305,9 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     tableCell: 15,
     markerCount: 13.5,
     action: 15,
+    titleWeight: '400',
+    cardValueWeight: '400',
+    markerWeight: '400',
   })
   await expect(page.locator('.omip-library-table tbody tr')).toHaveCount(22)
   await expect(page.getByRole('button', { name: 'Create panel from OMIP' })).toBeEnabled()
@@ -1380,6 +1481,14 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await page.getByRole('button', { name: 'Calculate recommendations' }).click()
   const primaryRecommendations = page.locator('.primary-recommendation-table')
   await expect(primaryRecommendations.locator('tbody tr')).toHaveCount(6, { timeout: 60_000 })
+  const recommendationTextWeights = await page.locator('.panel-wizard-window *').evaluateAll((elements) => (
+    [...new Set(
+      elements
+        .filter((element) => element.textContent?.trim())
+        .map((element) => getComputedStyle(element).fontWeight),
+    )].sort()
+  ))
+  expect(recommendationTextWeights).toEqual(['400'])
   await expect(primaryRecommendations.getByRole('columnheader', { name: '#' })).toHaveCount(0)
   await expect(primaryRecommendations.getByRole('columnheader', { name: 'Brightness' })).toBeVisible()
   const existingRow = primaryRecommendations.locator('tbody tr').first()

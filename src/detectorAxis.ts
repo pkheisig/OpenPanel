@@ -9,6 +9,9 @@ export type DetectorAxisEntry = {
 
 export const DETECTOR_LABEL_ROTATION = -90
 export const detectorAxisChartWidth = (detectorCount: number) => Math.min(1800, Math.max(1040, detectorCount * 27))
+export const detectorSignatureChartWidth = (detectorCount: number) => (
+  Math.min(1800, Math.max(680, Math.max(1, detectorCount) * 72))
+)
 
 type DetectorAxisInput = string | DetectorAxisEntry
 

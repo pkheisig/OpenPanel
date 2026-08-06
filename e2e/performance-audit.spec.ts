@@ -68,7 +68,11 @@ test('audit editor interaction rendering', async ({ page }) => {
   await expect.poll(async () => Number(await spectrumPlots.first().getAttribute('width'))).toBeGreaterThan(1)
   const firstSpectrumPainted = await spectrumPlots.first().evaluate((plot) => {
     const canvas = plot as HTMLCanvasElement
-    return (canvas.getContext('2d')?.getImageData(60, 24, 1, 1).data[3] ?? 0) > 0
+    const context = canvas.getContext('2d')
+    if (!context) return false
+    const x = Math.floor(canvas.width / 2)
+    const y = Math.floor(canvas.height * 0.3)
+    return context.getImageData(x, y, 1, 1).data[3] > 0
   })
   expect(firstSpectrumPainted).toBe(true)
   await spectrumPlots.last().scrollIntoViewIfNeeded()
