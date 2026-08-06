@@ -66,3 +66,7 @@ jobs:
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          # Pages can remain queued while GitHub's deployment service drains an
+          # earlier production deployment; keep the release job alive for 30m.
+          timeout: 1800000
