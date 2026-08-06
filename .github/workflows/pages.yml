@@ -75,6 +75,7 @@ jobs:
           api_headers=(
             -H "Accept: application/vnd.github+json"
             -H "Authorization: Bearer ${GITHUB_TOKEN}"
+            -H "Content-Type: application/json"
             -H "X-GitHub-Api-Version: 2022-11-28"
           )
           curl_options=(--connect-timeout 10 --max-time 30)
@@ -108,25 +109,37 @@ jobs:
 
             echo "Creating Pages deployment attempt ${attempt}..."
 
-            oidc_response="$({
+            if ! oidc_response="$({
               curl "${curl_options[@]}" --fail-with-body --silent --show-error \
                 -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
                 "${ACTIONS_ID_TOKEN_REQUEST_URL}"
-            })"
-            oidc_token="$(jq -er '.value' <<<"${oidc_response}")"
+            })"; then
+              echo "Failed to request an OIDC token for Pages deployment attempt ${attempt}." >&2
+              return 1
+            fi
+            if ! oidc_token="$(jq -er '.value' <<<"${oidc_response}")"; then
+              echo "OIDC token response was invalid for Pages deployment attempt ${attempt}." >&2
+              return 1
+            fi
 
             deployment_payload="$(jq -cn \
               --arg artifact_id "${artifact_id}" \
               --arg pages_build_version "${build_version}" \
               --arg oidc_token "${oidc_token}" \
               '{artifact_id: ($artifact_id | tonumber), pages_build_version: $pages_build_version, oidc_token: $oidc_token}')"
-            deployment_response="$({
+            if ! deployment_response="$({
               curl "${curl_options[@]}" --fail-with-body --silent --show-error --request POST \
                 "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments" \
                 "${api_headers[@]}" \
                 --data "${deployment_payload}"
-            })"
-            deployment_id="$(jq -er 'if .status_url then (.status_url | split("/") | last) elif .id then .id else error("Pages deployment did not return an identifier") end' <<<"${deployment_response}")"
+            })"; then
+              echo "Pages deployment creation failed on attempt ${attempt}." >&2
+              return 1
+            fi
+            if ! deployment_id="$(jq -er 'if .status_url then (.status_url | split("/") | last) elif .id then .id else error("Pages deployment did not return an identifier") end' <<<"${deployment_response}")"; then
+              echo "Pages deployment response did not contain an identifier on attempt ${attempt}." >&2
+              return 1
+            fi
             active_deployment_id="${deployment_id}"
             page_url="$(jq -r '.page_url // empty' <<<"${deployment_response}")"
 
