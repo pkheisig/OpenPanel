@@ -559,7 +559,15 @@ test('adapts the workspace and wizard to BD LSRFortessa 3L detectors', async ({ 
   await selectFluorophore(page, 0, 'FITC')
   await selectFluorophore(page, 1, 'PE')
   await selectFluorophore(page, 2, 'APC')
-  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  const fortessaResponses = page.getByRole('img', { name: 'Combined detector responses' })
+  await expect(fortessaResponses).toBeVisible()
+  const fortessaPlotWidth = await fortessaResponses.evaluate((element) => element.getBoundingClientRect().width)
+  const fortessaPlotContainerWidth = await page.locator('.top-spectrum').evaluate((element) => {
+    const style = getComputedStyle(element)
+    return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
+  })
+  expect(fortessaPlotWidth).toBeCloseTo(848, 0)
+  expect(fortessaPlotWidth).toBeLessThan(fortessaPlotContainerWidth)
   await expect(page.getByRole('button', { name: 'RESPONSES', exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()

@@ -12,6 +12,13 @@ export const detectorAxisChartWidth = (detectorCount: number) => Math.min(1800, 
 export const detectorSignatureChartWidth = (detectorCount: number) => (
   Math.min(1800, Math.max(680, Math.max(1, detectorCount) * 72))
 )
+export const detectorAxisDisplayWidth = (
+  detectorCount: number,
+  measurementMode: 'conventional' | 'spectral',
+) => {
+  if (measurementMode !== 'conventional') return null
+  return Math.min(1400, Math.max(640, Math.max(1, detectorCount) * 52 + 120))
+}
 
 type DetectorAxisInput = string | DetectorAxisEntry
 

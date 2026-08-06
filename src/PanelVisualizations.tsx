@@ -4,6 +4,7 @@ import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
 import { SpectrumBandPlot } from './SpectrumBandPlot';
 import {
     detectorAxisChartWidth,
+    detectorAxisDisplayWidth,
     detectorAxisFooterHeight,
     detectorLaserKey,
     detectorLaserMeta,
@@ -72,9 +73,13 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const [spectrumHover, setSpectrumHover] = useState<{ fluor: string; color: string } | null>(null);
     const chartWidth = detectorAxisChartWidth(payload.detectors.length);
     const signatureChartWidth = detectorSignatureChartWidth(payload.detectors.length);
+    const compactDisplayWidth = detectorAxisDisplayWidth(payload.detectors.length, payload.measurement_mode);
     const chartHeight = 230;
     const spectrumHeight = chartHeight + detectorAxisFooterHeight(payload.detectors);
     const plotZoom = `${(plotScale / DEFAULT_PLOT_SCALE) * 100}%`;
+    const spectrumDisplayWidth = compactDisplayWidth === null
+        ? plotZoom
+        : `${Math.round(compactDisplayWidth * plotScale / DEFAULT_PLOT_SCALE)}px`;
     const spectrumLeft = 42;
     const spectrumRight = chartWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
@@ -123,7 +128,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     }, [spectrumHover]);
 
     return (
-<main className="main-panel" style={{ '--plot-zoom': plotZoom } as CSSProperties}>
+<main className="main-panel" style={{ '--plot-zoom': plotZoom, '--spectrum-display-width': spectrumDisplayWidth } as CSSProperties}>
     <div className="top-spectrum" ref={spectrumContainerRef}>
         <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label={`Combined ${responseLabel}`}>
             {[0, 25, 50, 75, 100].map(tick => {

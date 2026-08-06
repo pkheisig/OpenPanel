@@ -4,6 +4,7 @@ import {
   DETECTOR_LABEL_ROTATION,
   compactDetectorLabel,
   detectorAxisChartWidth,
+  detectorAxisDisplayWidth,
   detectorAxisFooterHeight,
   detectorLaserKey,
   detectorLaserMeta,
@@ -104,6 +105,10 @@ test('accepts legacy scalar array wrappers for cytometer names', () => {
 test('detector fallbacks and wavelength parsing cover nonstandard panels', () => {
   assert.equal(detectorAxisChartWidth(1), 1040)
   assert.equal(detectorAxisChartWidth(100), 1800)
+  assert.equal(detectorAxisDisplayWidth(4, 'conventional'), 640)
+  assert.equal(detectorAxisDisplayWidth(14, 'conventional'), 848)
+  assert.equal(detectorAxisDisplayWidth(14, 'spectral'), null)
+  assert.equal(detectorAxisDisplayWidth(100, 'conventional'), 1400)
   assert.equal(detectorSignatureChartWidth(4), 680)
   assert.equal(detectorSignatureChartWidth(14), 1008)
   assert.equal(detectorSignatureChartWidth(27), 1800)
