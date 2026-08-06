@@ -57,16 +57,37 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment_attempt_1.outputs.page_url || steps.deployment_attempt_2.outputs.page_url || steps.deployment_attempt_3.outputs.page_url }}
 
     steps:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
 
-      - name: Deploy GitHub Pages
-        id: deployment
+      - name: Deploy GitHub Pages (attempt 1)
+        id: deployment_attempt_1
+        continue-on-error: true
         uses: actions/deploy-pages@v5
         with:
-          # Pages can remain queued while GitHub's deployment service drains an
-          # earlier production deployment; keep the release job alive for 30m.
-          timeout: 1800000
+          # deploy-pages caps each polling attempt at 10 minutes. Retry the
+          # whole deployment below when Pages remains queued beyond that cap.
+          timeout: 600000
+
+      - name: Deploy GitHub Pages (attempt 2)
+        id: deployment_attempt_2
+        if: steps.deployment_attempt_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+        with:
+          timeout: 600000
+
+      - name: Deploy GitHub Pages (attempt 3)
+        id: deployment_attempt_3
+        if: steps.deployment_attempt_1.outcome == 'failure' && steps.deployment_attempt_2.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+        with:
+          timeout: 600000
+
+      - name: Fail if GitHub Pages deployment failed
+        if: steps.deployment_attempt_1.outcome == 'failure' && steps.deployment_attempt_2.outcome == 'failure' && steps.deployment_attempt_3.outcome == 'failure'
+        run: exit 1
