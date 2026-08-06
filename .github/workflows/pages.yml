@@ -44,8 +44,9 @@ jobs:
         run: npm run test:e2e
 
       - name: Upload production site
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
+          name: site
           path: dist
 
   deploy:
@@ -53,18 +54,30 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      pages: write
-      id-token: write
+      contents: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: https://pkheisig.github.io/OpenPanel/
 
     steps:
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-      - name: Deploy GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+      - name: Download production site
+        uses: actions/download-artifact@v5
         with:
-          timeout: 600000
+          name: site
+          path: dist
+
+      - name: Publish the Pages branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan gh-pages
+          git rm -rf .
+          cp -R dist/. .
+          touch .nojekyll
+          git add -A
+          git commit -m "Deploy ${GITHUB_SHA} to GitHub Pages"
+          git push --force origin HEAD:gh-pages
