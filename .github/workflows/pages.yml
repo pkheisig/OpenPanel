@@ -58,7 +58,7 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment_attempt_1.outputs.page_url || steps.deployment_attempt_2.outputs.page_url || steps.deployment_attempt_3.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Configure GitHub Pages
@@ -77,9 +77,22 @@ jobs:
             -H "Authorization: Bearer ${GITHUB_TOKEN}"
             -H "X-GitHub-Api-Version: 2022-11-28"
           )
+          curl_options=(--connect-timeout 10 --max-time 30)
+          active_deployment_id=""
+
+          cleanup_deployment() {
+            if [[ -n "${active_deployment_id}" ]]; then
+              curl "${curl_options[@]}" --fail-with-body --silent --show-error --request POST \
+                "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments/${active_deployment_id}/cancel" \
+                "${api_headers[@]}" >/dev/null || true
+              active_deployment_id=""
+            fi
+          }
+          trap cleanup_deployment EXIT
+          trap 'cleanup_deployment; exit 143' TERM INT
 
           artifact_response="$({
-            curl --fail-with-body --silent --show-error \
+            curl "${curl_options[@]}" --fail-with-body --silent --show-error \
               "${api_url}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?name=github-pages" \
               "${api_headers[@]}"
           })"
@@ -91,11 +104,12 @@ jobs:
             local oidc_response oidc_token deployment_payload deployment_response deployment_id
             local page_url=""
             local status_payload status last_status=""
+            local deadline=$((SECONDS + 600))
 
             echo "Creating Pages deployment attempt ${attempt}..."
 
             oidc_response="$({
-              curl --fail-with-body --silent --show-error \
+              curl "${curl_options[@]}" --fail-with-body --silent --show-error \
                 -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
                 "${ACTIONS_ID_TOKEN_REQUEST_URL}"
             })"
@@ -107,17 +121,18 @@ jobs:
               --arg oidc_token "${oidc_token}" \
               '{artifact_id: ($artifact_id | tonumber), pages_build_version: $pages_build_version, oidc_token: $oidc_token}')"
             deployment_response="$({
-              curl --fail-with-body --silent --show-error --request POST \
+              curl "${curl_options[@]}" --fail-with-body --silent --show-error --request POST \
                 "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments" \
                 "${api_headers[@]}" \
                 --data "${deployment_payload}"
             })"
             deployment_id="$(jq -er 'if .status_url then (.status_url | split("/") | last) elif .id then .id else error("Pages deployment did not return an identifier") end' <<<"${deployment_response}")"
+            active_deployment_id="${deployment_id}"
             page_url="$(jq -r '.page_url // empty' <<<"${deployment_response}")"
 
-            for _ in $(seq 1 120); do
+            while (( SECONDS < deadline )); do
               if status_payload="$({
-                curl --fail-with-body --silent --show-error \
+                curl "${curl_options[@]}" --fail-with-body --silent --show-error \
                   "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments/${deployment_id}" \
                   "${api_headers[@]}"
               })"; then
@@ -130,16 +145,18 @@ jobs:
                 case "${status}" in
                   succeed)
                     if [[ -z "${page_url}" ]]; then
-                      page_url="$(curl --fail-with-body --silent --show-error \
+                      page_url="$(curl "${curl_options[@]}" --fail-with-body --silent --show-error \
                         "${api_url}/repos/${GITHUB_REPOSITORY}/pages" \
                         "${api_headers[@]}" | jq -r '.html_url // empty')" || page_url=""
                     fi
                     echo "page_url=${page_url}" >> "${GITHUB_OUTPUT}"
                     echo "GitHub Pages deployment succeeded on attempt ${attempt}."
+                    active_deployment_id=""
                     return 0
                     ;;
                   deployment_failed|deployment_content_failed|deployment_cancelled|deployment_lost)
                     echo "GitHub Pages deployment ended with ${status}." >&2
+                    active_deployment_id=""
                     return 1
                     ;;
                 esac
@@ -148,9 +165,10 @@ jobs:
             done
 
             echo "GitHub Pages deployment attempt ${attempt} timed out; cancelling it." >&2
-            curl --fail-with-body --silent --show-error --request POST \
+            curl "${curl_options[@]}" --fail-with-body --silent --show-error --request POST \
               "${api_url}/repos/${GITHUB_REPOSITORY}/pages/deployments/${deployment_id}/cancel" \
               "${api_headers[@]}" >/dev/null || true
+            active_deployment_id=""
             return 1
           }
 
