@@ -77,6 +77,7 @@ jobs:
           git checkout --orphan pages-site
           git rm -rf .
           cp -R site/. .
+          rm -rf site
           touch .nojekyll
           git add -A
           git commit -m "Deploy ${GITHUB_SHA} to GitHub Pages"
