@@ -87,6 +87,26 @@ describe('browser spectral engine parity', () => {
     expect(Number(payload.spectra[0][fixture.sampleDetector])).toBeCloseTo(fixture.sampleValue, 12)
   })
 
+  test('retries a bundled library after its first fetch fails', async () => {
+    const bundledFetch = globalThis.fetch
+    let failedAuroraRequest = false
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (!failedAuroraRequest && source.endsWith('/aurora_spectra.csv')) {
+        failedAuroraRequest = true
+        return new Response('Unavailable', { status: 503 })
+      }
+      return bundledFetch(input)
+    })
+
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['Alexa Fluor 488']))
+      .rejects.toThrow('aurora_spectra.csv')
+
+    const recovered = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['Alexa Fluor 488'])
+    expect(recovered.selected).toEqual(['Alexa Fluor 488'])
+    expect(failedAuroraRequest).toBe(true)
+  })
+
   test('retains the complete instrument/configuration catalog and aliases', async () => {
     const payloads = await Promise.all([
       buildPanelPayload('aurora'),

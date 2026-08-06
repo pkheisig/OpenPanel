@@ -18,7 +18,12 @@
         const faviconBase = new URL('.', favicon.href)
         const preferredDark = window.matchMedia('(prefers-color-scheme: dark)')
         const updateFavicon = () => {
-          const storedTheme = localStorage.getItem('spectreasy-theme') || localStorage.getItem('spectreasy_theme')
+          let storedTheme = ''
+          try {
+            storedTheme = localStorage.getItem('spectreasy-theme') || localStorage.getItem('spectreasy_theme') || ''
+          } catch {
+            // The favicon can follow the rendered theme when browser storage is restricted.
+          }
           const renderedDark = document.body.classList.contains('dark') || document.documentElement.dataset.theme === 'dark'
           const dark = renderedDark || (storedTheme ? storedTheme === 'dark' : preferredDark.matches)
           favicon.href = new URL(dark ? 'favicon-dark.svg' : 'favicon-light.svg', faviconBase).href

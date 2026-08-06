@@ -3,6 +3,7 @@ import { LandingPage } from './LandingPage'
 import type { PanelLaunchSelection } from './LandingPage'
 import PanelBuilder from './PanelBuilder'
 import { projectJsonFilename, projectNameFromFilename, saveBlob } from './browserFiles'
+import { readLocalStorage, writeLocalStorage } from './browserStorage'
 import {
   DEFAULT_PLOT_SCALE,
   archivePanelProject,
@@ -23,20 +24,12 @@ import { readThemePreference } from './themePreference'
 const CURRENT_SURFACE_STORAGE_KEY = 'openpanel.current-surface'
 
 function storedSurface(): 'landing' | 'editor' | null {
-  try {
-    const value = localStorage.getItem(CURRENT_SURFACE_STORAGE_KEY)
-    return value === 'landing' || value === 'editor' ? value : null
-  } catch {
-    return null
-  }
+  const value = readLocalStorage(CURRENT_SURFACE_STORAGE_KEY)
+  return value === 'landing' || value === 'editor' ? value : null
 }
 
 function rememberSurface(surface: 'landing' | 'editor'): void {
-  try {
-    localStorage.setItem(CURRENT_SURFACE_STORAGE_KEY, surface)
-  } catch {
-    // Navigation remains functional for the current page when storage is unavailable.
-  }
+  writeLocalStorage(CURRENT_SURFACE_STORAGE_KEY, surface)
 }
 
 function emptyProject(selection: PanelLaunchSelection): ProjectState {

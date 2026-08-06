@@ -353,6 +353,9 @@ export function PanelWizard({
   const [coexpressionCompleted, setCoexpressionCompleted] = useState(
     initialTemplate ? false : initialState?.coexpressionCompleted ?? false,
   )
+  const [wizardInputsChanged, setWizardInputsChanged] = useState(
+    () => Boolean(initialTemplate || initialState?.inputsChanged),
+  )
   const [calculating, setCalculating] = useState(false)
   const [results, setResults] = useState<WizardResults | null>(
     initialTemplate ? null : initialState?.results ?? null,
@@ -372,6 +375,7 @@ export function PanelWizard({
   const recommendationsUnlocked = setupReady && coexpressionVisited
   const setupMatchesProject = desiredSize === slots.length
     && markers.length === slots.length
+    && !wizardInputsChanged
     && markers.every((marker, index) => (
       marker.name.trim() === (markerNames[index]?.trim() ?? '')
       && marker.currentFluorophore === (slots[index] ?? '')
@@ -415,6 +419,7 @@ export function PanelWizard({
       coexpressionContext,
       coexpressionVisited,
       coexpressionCompleted,
+      inputsChanged: wizardInputsChanged,
       activeTab,
       results,
       resultMode,
@@ -432,6 +437,7 @@ export function PanelWizard({
     resultMode,
     resultSort,
     results,
+    wizardInputsChanged,
   ])
 
   const invalidateResults = () => {
@@ -466,6 +472,7 @@ export function PanelWizard({
       }
       return next
     })
+    setWizardInputsChanged(true)
     setCoexpressionVisited(false)
     setCoexpressionCompleted(false)
     invalidateResults()
@@ -481,6 +488,7 @@ export function PanelWizard({
         ? { ...next, currentFluorophore: '' }
         : next
     }))
+    setWizardInputsChanged(true)
     setCoexpressionCompleted(false)
     invalidateResults()
   }
@@ -490,6 +498,7 @@ export function PanelWizard({
     const current = coexpression[key] ?? 2
     const next = ((current + 1) % 5) as CoexpressionLevel
     setCoexpression((values) => ({ ...values, [key]: next }))
+    setWizardInputsChanged(true)
     setCoexpressionCompleted(false)
     invalidateResults()
   }
@@ -537,6 +546,7 @@ export function PanelWizard({
 
   const autoFillCoexpression = () => {
     setCoexpression((current) => inferCoexpression(markers, coexpressionContext, current))
+    setWizardInputsChanged(true)
     setCoexpressionVisited(true)
     setCoexpressionCompleted(false)
     invalidateResults()
@@ -551,6 +561,7 @@ export function PanelWizard({
       setClearing(false)
       setShowClearConfirmation(false)
     }
+    setWizardInputsChanged(true)
     setDesiredSize(defaultSize)
     setMarkers(initialMarkerSettings(defaultSize, Array(defaultSize).fill(''), {}))
     setCoexpression({})
@@ -563,7 +574,7 @@ export function PanelWizard({
   }
 
   const calculate = async () => {
-    if (!recommendationsUnlocked || setupMatchesProject) return
+    if (!recommendationsUnlocked) return
     setCalculating(true)
     setError('')
     setResults(null)
@@ -876,7 +887,7 @@ export function PanelWizard({
                     </button>
                     {setupMatchesProject && (
                       <span id="wizard-calculation-unavailable" className="wizard-calculate-tooltip" role="tooltip">
-                        This setup already matches the project. Increase the panel size or change a marker/color to calculate new recommendations.
+                        This setup already matches the project. Change the panel size, marker, color, antigen density, or co-expression to calculate new recommendations.
                       </span>
                     )}
                   </div>

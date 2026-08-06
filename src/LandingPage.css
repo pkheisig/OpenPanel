@@ -105,6 +105,17 @@
   margin: 0 auto;
 }
 
+.launch-error {
+  margin: 22px 0 -8px;
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--launch-danger) 55%, var(--launch-border));
+  border-radius: 6px;
+  color: var(--launch-danger);
+  background: color-mix(in srgb, var(--launch-danger) 9%, var(--launch-surface));
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .new-panel-section,
 .panel-library {
   padding: 34px 0;

@@ -82,6 +82,7 @@ export type WizardProjectState = {
   }
   coexpressionVisited: boolean
   coexpressionCompleted: boolean
+  inputsChanged?: boolean
   activeTab: WizardTab
   results: WizardResults | null
   resultMode: WizardResultMode

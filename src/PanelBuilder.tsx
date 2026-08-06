@@ -8,6 +8,7 @@ import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
 import { openTextFile, projectJsonFilename, saveBlob } from './browserFiles';
+import { writeLocalStorage } from './browserStorage';
 import { buildPanelPayload } from './spectralEngine';
 import {
     parseProject,
@@ -150,11 +151,11 @@ const PanelBuilder = ({
     }, []);
 
     useEffect(() => {
-        localStorage.setItem('spectreasy_cytometer', getCytometerName(cytometer));
+        writeLocalStorage('spectreasy_cytometer', getCytometerName(cytometer));
     }, [cytometer]);
 
     useEffect(() => {
-        localStorage.setItem('spectreasy_configuration', getCytometerName(configuration));
+        writeLocalStorage('spectreasy_configuration', getCytometerName(configuration));
     }, [configuration]);
 
     useEffect(() => {
@@ -163,7 +164,7 @@ const PanelBuilder = ({
     }, [embedded, theme]);
 
     useEffect(() => {
-        localStorage.setItem('spectreasy_slots', JSON.stringify(slots));
+        writeLocalStorage('spectreasy_slots', JSON.stringify(slots));
     }, [slots]);
 
     useEffect(() => {
@@ -175,7 +176,7 @@ const PanelBuilder = ({
     }, [wizardState]);
 
     useEffect(() => {
-        localStorage.setItem('spectreasy_markers', JSON.stringify(markers));
+        writeLocalStorage('spectreasy_markers', JSON.stringify(markers));
     }, [markers]);
 
     const projectState = useMemo<ProjectState>(() => {
@@ -382,8 +383,8 @@ const PanelBuilder = ({
         setWizardState(snapshot.wizard);
         setQueries({});
         setActiveSlot(null);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(snapshot.slots));
-        localStorage.setItem('spectreasy_markers', JSON.stringify(snapshot.markers));
+        writeLocalStorage('spectreasy_slots', JSON.stringify(snapshot.slots));
+        writeLocalStorage('spectreasy_markers', JSON.stringify(snapshot.markers));
         await fetchPanel(cytometer, configuration, snapshot.slots.filter(Boolean)).catch((historyError) => {
             setError(historyError instanceof Error ? historyError.message : 'Could not restore panel edit.');
         });
@@ -492,7 +493,7 @@ const PanelBuilder = ({
         const nextSlots = currentSlots.map((existing, i) => (i === index ? fluor : existing));
         slotsRef.current = nextSlots;
         setSlots(nextSlots);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
         setQueries(prev => ({ ...prev, [index]: '' }));
         setActiveSlot(null);
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
@@ -520,8 +521,8 @@ const PanelBuilder = ({
                 .map(([slotIndex, value]) => [slotIndex > index ? slotIndex - 1 : slotIndex, value]),
         ));
         setActiveSlot(null);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
-        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+        writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
             setError(err instanceof Error ? err.message : 'Could not update panel.');
         });
@@ -537,7 +538,7 @@ const PanelBuilder = ({
         setSlots(prev => {
             const next = [...prev, ''];
             slotsRef.current = next;
-            localStorage.setItem('spectreasy_slots', JSON.stringify(next));
+            writeLocalStorage('spectreasy_slots', JSON.stringify(next));
             return next;
         });
     };
@@ -550,7 +551,7 @@ const PanelBuilder = ({
         else delete nextMarkers[slotIndex];
         markersRef.current = nextMarkers;
         setMarkers(nextMarkers);
-        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+        writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
     }, [recordPanelEdit]);
 
     const clearPanelContent = async () => {
@@ -568,8 +569,8 @@ const PanelBuilder = ({
         setWizardState(null);
         setQueries({});
         setActiveSlot(null);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
-        localStorage.setItem('spectreasy_markers', '{}');
+        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+        writeLocalStorage('spectreasy_markers', '{}');
         await fetchPanel(cytometer, configuration, []).catch((clearError) => {
             setError(clearError instanceof Error ? clearError.message : 'Could not clear the panel.');
         });
@@ -628,8 +629,8 @@ const PanelBuilder = ({
         markersRef.current = nextMarkers;
         setSlots(nextSlots);
         setMarkers(nextMarkers);
-        localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
-        localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+        writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((wizardError) => {
             throw wizardError instanceof Error ? wizardError : new Error('Could not apply the panel recommendations.');
         });
@@ -795,8 +796,8 @@ const PanelBuilder = ({
             setSlots(nextSlots);
             setMarkers(nextMarkers);
             setWizardState(null);
-            localStorage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
-            localStorage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+            writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+            writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
             setQueries({});
             setActiveSlot(null);
             await fetchPanel(cytometer, configuration, imported.map(row => row.fluor));

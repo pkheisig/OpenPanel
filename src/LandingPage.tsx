@@ -21,6 +21,7 @@ import {
   getSpectralPanelLibraries,
 } from './spectralEngine'
 import type { PanelPayload } from './panelBuilderShared'
+import { writeLocalStorage } from './browserStorage'
 import {
   omipTemplateAssignmentsForPanel,
   omipTemplateAssignmentsForPanelBestEffort,
@@ -64,6 +65,10 @@ function formatUpdatedAt(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback
 }
 
 type InstrumentSetup = {
@@ -227,6 +232,8 @@ export function LandingPage({
   const [theme, setTheme] = useState<'light' | 'dark'>(readThemePreference)
   const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
   const [starting, setStarting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [error, setError] = useState('')
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [showOmipLibrary, setShowOmipLibrary] = useState(false)
   const [omipPayload, setOmipPayload] = useState<PanelPayload | null>(null)
@@ -289,11 +296,14 @@ export function LandingPage({
 
   const startPanel = async () => {
     if (!setupReady) return
-    localStorage.setItem('spectreasy_cytometer', cytometer)
-    localStorage.setItem('spectreasy_configuration', configuration)
+    setError('')
+    writeLocalStorage('spectreasy_cytometer', cytometer)
+    writeLocalStorage('spectreasy_configuration', configuration)
     setStarting(true)
     try {
       await onStart({ name: panelName, cytometer, configuration })
+    } catch (startError) {
+      setError(errorMessage(startError, 'Could not open the panel workspace.'))
     } finally {
       setStarting(false)
     }
@@ -303,6 +313,7 @@ export function LandingPage({
     template: OmipTemplate,
     target: InstrumentSetup = { cytometer, configuration },
   ) => {
+    setError('')
     setCreatingFromOmip(true)
     try {
       const payload = target.cytometer === cytometer && target.configuration === configuration
@@ -322,8 +333,8 @@ export function LandingPage({
       )
       if (assignments.length === 0) return
 
-      localStorage.setItem('spectreasy_cytometer', target.cytometer)
-      localStorage.setItem('spectreasy_configuration', target.configuration)
+      writeLocalStorage('spectreasy_cytometer', target.cytometer)
+      writeLocalStorage('spectreasy_configuration', target.configuration)
       await onStart({
         name: template.name,
         cytometer: target.cytometer,
@@ -333,8 +344,22 @@ export function LandingPage({
           assignments.map((assignment, index) => [index, assignment.marker]),
         ),
       })
+    } catch (createError) {
+      setError(errorMessage(createError, 'Could not create a panel from this OMIP.'))
     } finally {
       setCreatingFromOmip(false)
+    }
+  }
+
+  const importProject = async (file: File) => {
+    setError('')
+    setImporting(true)
+    try {
+      await onImport(file)
+    } catch (importError) {
+      setError(errorMessage(importError, 'Could not import this OpenPanel project.'))
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -380,10 +405,11 @@ export function LandingPage({
           <button
             type="button"
             className="launch-secondary-button"
+            disabled={importing || starting || creatingFromOmip}
             onClick={() => importInput.current?.click()}
           >
             <Upload size={16} />
-            Import project
+            {importing ? 'Importing…' : 'Import project'}
           </button>
           <input
             ref={importInput}
@@ -392,7 +418,7 @@ export function LandingPage({
             accept=".json,.op,.openpanel,application/json"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0]
-              if (file) void onImport(file)
+              if (file) void importProject(file)
               event.currentTarget.value = ''
             }}
           />
@@ -409,6 +435,7 @@ export function LandingPage({
       </header>
 
       <div className="launch-content">
+        {error && <div className="launch-error" role="alert">{error}</div>}
         <section className="new-panel-section" aria-label="Create panel">
           <form
             className="launch-card"

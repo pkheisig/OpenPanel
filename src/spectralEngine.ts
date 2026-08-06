@@ -814,7 +814,7 @@ function uniqueValues(values: string[]): string[] {
 
 function initializeDictionaries(): Promise<void> {
   if (dictionaryInitialization) return dictionaryInitialization
-  dictionaryInitialization = Promise.all([
+  const pending = Promise.all([
     loadCsv('cytometer_dictionary.csv'),
     loadCsv('fluorophore_dictionary.csv'),
     loadCsv('conventional_detector_dictionary.csv'),
@@ -825,7 +825,11 @@ function initializeDictionaries(): Promise<void> {
     conventionalDetectorDictionary = rowsToObjects(conventionalDetectors)
     conventionalFluorophoreEstimateDictionary = rowsToObjects(conventionalEstimates)
   })
-  return dictionaryInitialization
+  dictionaryInitialization = pending
+  return pending.catch((error) => {
+    if (dictionaryInitialization === pending) dictionaryInitialization = null
+    throw error
+  })
 }
 
 function initializeLibrary(cytometer: CytometerId): Promise<void> {
@@ -839,7 +843,10 @@ function initializeLibrary(cytometer: CytometerId): Promise<void> {
       libraries.set(cytometer, parseLibrary(rows))
     })
   libraryInitializations.set(cytometer, pending)
-  return pending
+  return pending.catch((error) => {
+    if (libraryInitializations.get(cytometer) === pending) libraryInitializations.delete(cytometer)
+    throw error
+  })
 }
 
 async function initializeCytometer(cytometer: CytometerId): Promise<void> {

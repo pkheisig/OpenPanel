@@ -1,4 +1,5 @@
 import { openDB } from 'idb'
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import type { TabId } from './panelBuilderShared'
 import type {
@@ -171,6 +172,7 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
     ...(coexpressionContext ? { coexpressionContext } : {}),
     coexpressionVisited: value.coexpressionVisited === true,
     coexpressionCompleted: value.coexpressionCompleted === true,
+    ...(typeof value.inputsChanged === 'boolean' ? { inputsChanged: value.inputsChanged } : {}),
     activeTab,
     results: rawResults,
     resultMode,
@@ -302,7 +304,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
     // IndexedDB can be unavailable in hardened/private contexts; migrate from localStorage below.
   }
   try {
-    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+    const legacy = readLocalStorage(LEGACY_STORAGE_KEY)
     return legacy ? parseProject(legacy) : null
   } catch {
     return null
@@ -313,7 +315,7 @@ export async function saveActiveProject(state: ProjectState): Promise<void> {
   try {
     await (await database()).put(PROJECT_STORE, state, ACTIVE_PROJECT_KEY)
   } catch {
-    localStorage.setItem(LEGACY_STORAGE_KEY, serializeProject(state))
+    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(state))
   }
 }
 
@@ -340,7 +342,7 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
 
 function fallbackLibrary(): StoredPanelProject[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PANEL_LIBRARY_STORAGE_KEY) || '[]')
+    const parsed = JSON.parse(readLocalStorage(PANEL_LIBRARY_STORAGE_KEY) || '[]')
     return Array.isArray(parsed)
       ? parsed.map(normalizeStoredPanel).filter((panel): panel is StoredPanelProject => panel !== null)
       : []
@@ -350,7 +352,7 @@ function fallbackLibrary(): StoredPanelProject[] {
 }
 
 function writeFallbackLibrary(panels: StoredPanelProject[]): void {
-  localStorage.setItem(PANEL_LIBRARY_STORAGE_KEY, JSON.stringify(panels))
+  writeLocalStorage(PANEL_LIBRARY_STORAGE_KEY, JSON.stringify(panels))
 }
 
 function createPanelId(): string {
@@ -384,7 +386,7 @@ export async function loadPanelProject(id: string): Promise<StoredPanelProject |
 }
 
 export function setActivePanelProject(id: string): void {
-  localStorage.setItem(ACTIVE_PANEL_ID_STORAGE_KEY, id)
+  writeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY, id)
 }
 
 export async function createPanelProject(
@@ -405,7 +407,7 @@ export async function createPanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== panel.id)])
-    localStorage.setItem(LEGACY_STORAGE_KEY, serializeProject(panel.state))
+    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
   }
   setActivePanelProject(panel.id)
   return panel
@@ -432,18 +434,18 @@ export async function savePanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== id)])
-    localStorage.setItem(LEGACY_STORAGE_KEY, serializeProject(panel.state))
+    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
   }
   setActivePanelProject(id)
   return panel
 }
 
 export async function loadLastPanelProject(): Promise<StoredPanelProject | null> {
-  const activeId = localStorage.getItem(ACTIVE_PANEL_ID_STORAGE_KEY)
+  const activeId = readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
   if (activeId) {
     const active = await loadPanelProject(activeId)
     if (active && !active.archivedAt) return active
-    localStorage.removeItem(ACTIVE_PANEL_ID_STORAGE_KEY)
+    removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
 
   const panels = await listPanelProjects()
@@ -511,8 +513,8 @@ export async function archivePanelProject(
     ...panel,
     archivedAt: new Date().toISOString(),
   })
-  if (localStorage.getItem(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
-    localStorage.removeItem(ACTIVE_PANEL_ID_STORAGE_KEY)
+  if (readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
+    removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
   return archived
 }
@@ -536,7 +538,7 @@ export async function deletePanelProject(id: string): Promise<void> {
   } catch {
     writeFallbackLibrary(fallbackLibrary().filter((panel) => panel.id !== id))
   }
-  if (localStorage.getItem(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
-    localStorage.removeItem(ACTIVE_PANEL_ID_STORAGE_KEY)
+  if (readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
+    removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
 }

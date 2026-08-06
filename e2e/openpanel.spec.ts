@@ -26,7 +26,7 @@ async function chooseOption(
   label: string,
   option: string,
 ) {
-  await page.getByRole('combobox', { name: label }).click()
+  await page.getByRole('combobox', { name: label, exact: true }).click()
   await page.getByRole('option', { name: option }).click()
 }
 
@@ -57,6 +57,38 @@ test('finds fluorophores through punctuation-insensitive sidebar search', async 
   await expect(nearIrOption).toBeVisible()
   await nearIrOption.click()
   await expect(input).toHaveValue('LIVE DEAD NIR')
+})
+
+test('reports invalid project imports on the landing page', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await page.locator('input[accept*=".openpanel"]').setInputFiles({
+    name: 'invalid.openpanel.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('not json'),
+  })
+
+  await expect(page.getByRole('alert')).toHaveText('This project file is not valid JSON.')
+  await expect(page.locator('.launch-screen')).toBeVisible()
+})
+
+test('keeps the landing page usable when localStorage is blocked', async ({ browser }) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' })
+  await context.addInitScript(() => {
+    for (const method of ['getItem', 'setItem', 'removeItem']) {
+      Object.defineProperty(Storage.prototype, method, {
+        configurable: true,
+        value: function () { throw new Error('storage blocked') },
+      })
+    }
+  })
+  const page = await context.newPage()
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+
+  await page.goto(APP_PATH)
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+  expect(pageErrors).toEqual([])
+  await context.close()
 })
 
 test('resizes the sidebar fluidly and persists the final width', async ({ page }) => {
@@ -1206,6 +1238,14 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   await expect(unchangedCalculation).toBeDisabled()
   await page.getByLabel('Calculation unavailable').hover()
   await expect(page.getByRole('tooltip').filter({ hasText: 'This setup already matches the project' })).toBeVisible()
+  await page.getByRole('button', { name: /Marker setup/ }).click()
+  await chooseOption(page, 'Antigen density for marker 1', 'High')
+  await recommendationsTab.click()
+  await expect(unchangedCalculation).toBeEnabled()
+  await page.getByRole('button', { name: /Co-expression/ }).click()
+  await page.locator('.coexpression-cell').first().click()
+  await recommendationsTab.click()
+  await expect(unchangedCalculation).toBeEnabled()
   await page.getByRole('button', { name: /Marker setup/ }).click()
 
   await page.getByRole('button', { name: 'Clear', exact: true }).click()
