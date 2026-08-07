@@ -125,6 +125,44 @@ test('resizes the sidebar fluidly and persists the final width', async ({ page }
   expect((await sidebar.boundingBox())!.width).toBeCloseTo(draggedWidth - 12, 0)
 })
 
+test('resizes the spectrum plot from either edge', async ({ page }) => {
+  await page.goto(APP_PATH)
+  await openEmptyPanel(page)
+
+  const spectrum = page.getByRole('img', { name: 'Combined spectra' })
+  const plot = page.locator('.spectrum-plot-shell')
+  const leftHandle = page.getByRole('separator', { name: 'Resize spectrum plot from left edge' })
+  const rightHandle = page.getByRole('separator', { name: 'Resize spectrum plot from right edge' })
+  const initialWidth = (await spectrum.boundingBox())!.width
+  const rightBox = await rightHandle.boundingBox()
+  expect(rightBox).not.toBeNull()
+
+  await page.mouse.move(rightBox!.x + rightBox!.width / 2, rightBox!.y + rightBox!.height / 2)
+  await page.mouse.down()
+  await expect(plot).toHaveClass(/is-resizing/)
+  await page.mouse.move(rightBox!.x + rightBox!.width / 2 + 96, rightBox!.y + rightBox!.height / 2, { steps: 6 })
+  await page.waitForTimeout(50)
+  const expandedWidth = (await spectrum.boundingBox())!.width
+  expect(expandedWidth).toBeGreaterThan(initialWidth + 40)
+  await page.mouse.up()
+  await expect(plot).not.toHaveClass(/is-resizing/)
+
+  const leftBox = await leftHandle.boundingBox()
+  expect(leftBox).not.toBeNull()
+  await page.mouse.move(leftBox!.x + leftBox!.width / 2, leftBox!.y + leftBox!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(leftBox!.x + leftBox!.width / 2 + 64, leftBox!.y + leftBox!.height / 2, { steps: 6 })
+  await page.waitForTimeout(50)
+  const reducedWidth = (await spectrum.boundingBox())!.width
+  expect(reducedWidth).toBeLessThan(expandedWidth - 30)
+  await page.mouse.up()
+
+  await rightHandle.focus()
+  const scaleBeforeKeyboardResize = await rightHandle.getAttribute('aria-valuenow')
+  await page.keyboard.press('ArrowLeft')
+  await expect(rightHandle).toHaveAttribute('aria-valuenow', String(Number(scaleBeforeKeyboardResize) - 10))
+})
+
 test('shares light and dark mode between the landing page and editor', async ({ page }) => {
   await page.goto(APP_PATH)
   await openEmptyPanel(page)

@@ -834,14 +834,71 @@
   }
 }
 
-.spectrum-svg {
-  display: block;
+.spectrum-plot-shell {
+  position: relative;
   width: var(--spectrum-display-width, var(--plot-zoom, 100%));
-  height: auto;
   max-width: none;
   margin-inline: auto;
-  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.05));
   transition: width 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.spectrum-plot-shell.is-resizing {
+  transition: none;
+}
+
+.spectrum-plot-resize-handle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.spectrum-plot-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.28;
+  transition: opacity 120ms ease;
+}
+
+.spectrum-plot-resize-handle-left {
+  left: 0;
+}
+
+.spectrum-plot-resize-handle-left::after {
+  left: 6px;
+}
+
+.spectrum-plot-resize-handle-right {
+  right: 0;
+}
+
+.spectrum-plot-resize-handle-right::after {
+  right: 6px;
+}
+
+.spectrum-plot-resize-handle:hover::after,
+.spectrum-plot-resize-handle:focus-visible::after,
+.spectrum-plot-resize-handle.is-resizing::after {
+  opacity: 0.9;
+}
+
+.spectrum-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.05));
 }
 
 .panel-builder.dark .spectrum-svg {

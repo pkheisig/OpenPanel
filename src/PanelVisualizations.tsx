@@ -1,5 +1,11 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import type { CSSProperties, Dispatch, PointerEvent as ReactPointerEvent, SetStateAction } from 'react';
+import type {
+    CSSProperties,
+    Dispatch,
+    KeyboardEvent as ReactKeyboardEvent,
+    PointerEvent as ReactPointerEvent,
+    SetStateAction,
+} from 'react';
 import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
 import { SpectrumBandPlot } from './SpectrumBandPlot';
 import {
@@ -10,7 +16,11 @@ import {
     detectorLaserMeta,
     detectorSignatureChartWidth,
 } from './detectorAxis';
-import { DEFAULT_PLOT_SCALE } from './projectStore';
+import {
+    DEFAULT_PLOT_SCALE,
+    MAX_PLOT_SCALE,
+    MIN_PLOT_SCALE,
+} from './projectStore';
 import {
     detectorPointX,
     formatMetric,
@@ -47,7 +57,12 @@ interface PanelVisualizationsProps {
     theme: 'light' | 'dark';
     error: string;
     plotScale: number;
+    onPlotScaleChange: (scale: number) => void;
 }
+
+type SpectrumResizeEdge = 'left' | 'right';
+
+const PLOT_RESIZE_KEYBOARD_STEP = 10;
 
 export const PanelVisualizations = memo(function PanelVisualizations({
     payload,
@@ -65,9 +80,12 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     theme,
     error,
     plotScale,
+    onPlotScaleChange,
 }: PanelVisualizationsProps) {
     const tabContentRef = useRef<HTMLElement>(null);
     const spectrumContainerRef = useRef<HTMLDivElement>(null);
+    const spectrumPlotRef = useRef<HTMLDivElement>(null);
+    const spectrumResizeCleanupRef = useRef<(() => void) | null>(null);
     const spectrumTooltipRef = useRef<HTMLDivElement>(null);
     const spectrumPointerRef = useRef({ clientX: 0, clientY: 0 });
     const [spectrumHover, setSpectrumHover] = useState<{ fluor: string; color: string } | null>(null);
@@ -89,6 +107,97 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     useEffect(() => {
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });
     }, [tab]);
+
+    useEffect(() => () => spectrumResizeCleanupRef.current?.(), []);
+
+    const beginSpectrumResize = (
+        edge: SpectrumResizeEdge,
+        event: ReactPointerEvent<HTMLDivElement>,
+    ) => {
+        event.preventDefault();
+        spectrumResizeCleanupRef.current?.();
+
+        const plot = spectrumPlotRef.current;
+        const handle = event.currentTarget;
+        if (!plot) return;
+
+        const startX = event.clientX;
+        const startScale = plotScale;
+        const startWidth = plot.getBoundingClientRect().width;
+        const pointerId = event.pointerId;
+        const previousCursor = document.body.style.cursor;
+        const previousUserSelect = document.body.style.userSelect;
+        let nextScale = startScale;
+        let animationFrame = 0;
+
+        const applyScale = () => {
+            animationFrame = 0;
+            onPlotScaleChange(nextScale);
+        };
+        const queueScale = () => {
+            if (!animationFrame) animationFrame = window.requestAnimationFrame(applyScale);
+        };
+        const move = (moveEvent: PointerEvent) => {
+            if (startWidth <= 0) return;
+            const signedDelta = edge === 'right'
+                ? moveEvent.clientX - startX
+                : startX - moveEvent.clientX;
+            nextScale = Math.min(
+                MAX_PLOT_SCALE,
+                Math.max(
+                    MIN_PLOT_SCALE,
+                    Math.round(startScale * (startWidth + signedDelta) / startWidth),
+                ),
+            );
+            queueScale();
+        };
+        const cleanup = () => {
+            handle.removeEventListener('pointermove', move);
+            handle.removeEventListener('pointerup', finish);
+            handle.removeEventListener('pointercancel', finish);
+            if (animationFrame) {
+                window.cancelAnimationFrame(animationFrame);
+                applyScale();
+            }
+            if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+            plot.classList.remove('is-resizing');
+            handle.classList.remove('is-resizing');
+            document.body.style.cursor = previousCursor;
+            document.body.style.userSelect = previousUserSelect;
+            spectrumResizeCleanupRef.current = null;
+        };
+        const finish = () => {
+            cleanup();
+            onPlotScaleChange(nextScale);
+        };
+
+        plot.classList.add('is-resizing');
+        handle.classList.add('is-resizing');
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+        handle.setPointerCapture(pointerId);
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', finish);
+        handle.addEventListener('pointercancel', finish);
+        spectrumResizeCleanupRef.current = cleanup;
+    };
+
+    const resizeSpectrumByKeyboard = (edge: SpectrumResizeEdge, event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const direction = event.key === 'ArrowRight'
+            ? edge === 'right' ? 1 : -1
+            : event.key === 'ArrowLeft'
+                ? edge === 'left' ? 1 : -1
+                : 0;
+        if (!direction && event.key !== 'Home' && event.key !== 'End') return;
+        event.preventDefault();
+        onPlotScaleChange(
+            event.key === 'Home'
+                ? MIN_PLOT_SCALE
+                : event.key === 'End'
+                    ? MAX_PLOT_SCALE
+                    : Math.min(MAX_PLOT_SCALE, Math.max(MIN_PLOT_SCALE, plotScale + direction * PLOT_RESIZE_KEYBOARD_STEP)),
+        );
+    };
 
     const positionSpectrumTooltip = (clientX: number, clientY: number) => {
         const container = spectrumContainerRef.current;
@@ -130,7 +239,24 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     return (
 <main className="main-panel" style={{ '--plot-zoom': plotZoom, '--spectrum-display-width': spectrumDisplayWidth } as CSSProperties}>
     <div className="top-spectrum" ref={spectrumContainerRef}>
-        <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label={`Combined ${responseLabel}`}>
+        <div
+            className="spectrum-plot-shell"
+            ref={spectrumPlotRef}
+            style={{ '--spectrum-display-width': spectrumDisplayWidth } as CSSProperties}
+        >
+            <div
+                className="spectrum-plot-resize-handle spectrum-plot-resize-handle-left"
+                role="separator"
+                aria-label="Resize spectrum plot from left edge"
+                aria-orientation="vertical"
+                aria-valuemin={MIN_PLOT_SCALE}
+                aria-valuemax={MAX_PLOT_SCALE}
+                aria-valuenow={Math.round(plotScale)}
+                tabIndex={0}
+                onPointerDown={(event) => beginSpectrumResize('left', event)}
+                onKeyDown={(event) => resizeSpectrumByKeyboard('left', event)}
+            />
+            <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label={`Combined ${responseLabel}`}>
             {[0, 25, 50, 75, 100].map(tick => {
                 const y = chartHeight - (tick / 100) * (chartHeight - 32) - 24;
                 return (
@@ -199,7 +325,20 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                     </g>
                 );
             })}
-        </svg>
+            </svg>
+            <div
+                className="spectrum-plot-resize-handle spectrum-plot-resize-handle-right"
+                role="separator"
+                aria-label="Resize spectrum plot from right edge"
+                aria-orientation="vertical"
+                aria-valuemin={MIN_PLOT_SCALE}
+                aria-valuemax={MAX_PLOT_SCALE}
+                aria-valuenow={Math.round(plotScale)}
+                tabIndex={0}
+                onPointerDown={(event) => beginSpectrumResize('right', event)}
+                onKeyDown={(event) => resizeSpectrumByKeyboard('right', event)}
+            />
+        </div>
         {spectrumHover && (
             <div
                 ref={spectrumTooltipRef}

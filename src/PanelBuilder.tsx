@@ -1321,6 +1321,7 @@ const PanelBuilder = ({
                     theme={embedded && cockpitTheme ? cockpitTheme : theme}
                     error={error}
                     plotScale={plotScale}
+                    onPlotScaleChange={setPlotScale}
                 />
             </div>
             {showPanelWizard && (
