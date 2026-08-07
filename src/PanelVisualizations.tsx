@@ -6,6 +6,7 @@ import type {
     PointerEvent as ReactPointerEvent,
     SetStateAction,
 } from 'react';
+import { GripVertical } from 'lucide-react';
 import { DetectorSpectrumAxis } from './DetectorSpectrumAxis';
 import { SpectrumBandPlot } from './SpectrumBandPlot';
 import {
@@ -282,7 +283,9 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                 tabIndex={0}
                 onPointerDown={(event) => beginSpectrumResize('left', event)}
                 onKeyDown={(event) => resizeSpectrumByKeyboard('left', event)}
-            />
+            >
+                <GripVertical className="spectrum-plot-resize-icon" size={16} strokeWidth={1.8} aria-hidden="true" />
+            </div>
             <svg
                 className="spectrum-svg"
                 width={spectrumWidth}
@@ -371,7 +374,9 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                 tabIndex={0}
                 onPointerDown={(event) => beginSpectrumResize('right', event)}
                 onKeyDown={(event) => resizeSpectrumByKeyboard('right', event)}
-            />
+            >
+                <GripVertical className="spectrum-plot-resize-icon" size={16} strokeWidth={1.8} aria-hidden="true" />
+            </div>
         </div>
         {spectrumHover && (
             <div

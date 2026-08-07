@@ -854,9 +854,29 @@
   width: 14px;
   border: 0;
   background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 42%, transparent);
   cursor: ew-resize;
   touch-action: none;
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.62;
+  transition: color 140ms ease, opacity 140ms ease;
+}
+
+.spectrum-plot-resize-handle:hover,
+.spectrum-plot-resize-handle:focus-visible,
+.spectrum-plot-resize-handle.is-resizing {
+  color: var(--accent);
+  opacity: 1;
+  outline: none;
+}
+
+.spectrum-plot-resize-icon {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--bg-spectrum) 75%, transparent));
+  pointer-events: none;
 }
 
 .spectrum-plot-resize-handle-left {

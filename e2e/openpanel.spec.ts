@@ -133,6 +133,8 @@ test('resizes the spectrum plot from either edge', async ({ page }) => {
   const plot = page.locator('.spectrum-plot-shell')
   const leftHandle = page.getByRole('separator', { name: 'Resize spectrum plot from left edge' })
   const rightHandle = page.getByRole('separator', { name: 'Resize spectrum plot from right edge' })
+  await expect(leftHandle.locator('svg')).toBeVisible()
+  await expect(rightHandle.locator('svg')).toBeVisible()
   const initialBounds = await spectrum.boundingBox()
   expect(initialBounds).not.toBeNull()
   const initialViewBox = String(await spectrum.getAttribute('viewBox')).split(' ').map(Number)
