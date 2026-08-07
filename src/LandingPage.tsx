@@ -60,6 +60,36 @@ type ProjectMenuState = {
   y: number
 }
 
+type ProjectOrder = 'created-desc' | 'created-asc' | 'updated-desc' | 'name-asc'
+
+const projectOrderOptions = [
+  { value: 'created-desc', label: 'Newest created' },
+  { value: 'created-asc', label: 'Oldest created' },
+  { value: 'updated-desc', label: 'Recently edited' },
+  { value: 'name-asc', label: 'Name A–Z' },
+] satisfies Array<{ value: ProjectOrder; label: string }>
+
+function sortPanelProjects(panels: StoredPanelProject[], order: ProjectOrder): StoredPanelProject[] {
+  return [...panels].sort((left, right) => {
+    if (order === 'created-asc') {
+      return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)
+    }
+    if (order === 'updated-desc') {
+      return right.updatedAt.localeCompare(left.updatedAt)
+        || right.createdAt.localeCompare(left.createdAt)
+        || left.id.localeCompare(right.id)
+    }
+    if (order === 'name-asc') {
+      return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
+        || right.createdAt.localeCompare(left.createdAt)
+        || left.id.localeCompare(right.id)
+    }
+    return right.createdAt.localeCompare(left.createdAt)
+      || right.updatedAt.localeCompare(left.updatedAt)
+      || left.id.localeCompare(right.id)
+  })
+}
+
 function formatUpdatedAt(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
@@ -239,6 +269,7 @@ export function LandingPage({
   const [omipPayload, setOmipPayload] = useState<PanelPayload | null>(null)
   const [creatingFromOmip, setCreatingFromOmip] = useState(false)
   const [menu, setMenu] = useState<ProjectMenuState | null>(null)
+  const [projectOrder, setProjectOrder] = useState<ProjectOrder>('created-desc')
   const [cytometer, setCytometer] = useState('')
   const configurations = useMemo(
     () => cytometer
@@ -251,13 +282,17 @@ export function LandingPage({
   const [configuration, setConfiguration] = useState('')
   const setupReady = Boolean(cytometer && (cytometer === 'xenith' || cytometer === 'symphony' || configuration))
 
+  const orderedPanels = useMemo(
+    () => sortPanelProjects(panels, projectOrder),
+    [panels, projectOrder],
+  )
   const activePanels = useMemo(
-    () => panels.filter((panel) => !panel.archivedAt),
-    [panels],
+    () => orderedPanels.filter((panel) => !panel.archivedAt),
+    [orderedPanels],
   )
   const archivedPanels = useMemo(
-    () => panels.filter((panel) => panel.archivedAt),
-    [panels],
+    () => orderedPanels.filter((panel) => panel.archivedAt),
+    [orderedPanels],
   )
 
   useEffect(() => {
@@ -559,11 +594,21 @@ export function LandingPage({
 
         <section className="panel-library" aria-labelledby="panel-library-title">
           <div className="panel-library-heading">
-            <h2 id="panel-library-title">Projects</h2>
-            <span>{activePanels.length}</span>
+            <div className="panel-library-title">
+              <h2 id="panel-library-title">Projects</h2>
+              <span>{activePanels.length}</span>
+            </div>
+            <UiSelect
+              className="project-order-select"
+              label="Order projects"
+              hideLabel
+              value={projectOrder}
+              options={projectOrderOptions}
+              onChange={(value) => setProjectOrder(value as ProjectOrder)}
+            />
           </div>
           {activePanels.length ? (
-            <div className="panel-library-list" aria-label="Projects, newest edited first">
+            <div className="panel-library-list" aria-label="Projects">
               {activePanels.map((panel) => (
                 <ProjectCard
                   key={panel.id}

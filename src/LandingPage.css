@@ -249,11 +249,19 @@
 .panel-library-heading {
   display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: space-between;
+  gap: 14px;
   margin-bottom: 16px;
 }
 
-.panel-library-heading > span {
+.panel-library-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.panel-library-title > span {
   display: grid;
   min-width: 20px;
   height: 20px;
@@ -264,6 +272,32 @@
   background: color-mix(in srgb, var(--launch-border) 50%, transparent);
   font-size: 10px;
   font-weight: 800;
+}
+
+.panel-library-heading .project-order-select {
+  display: block;
+  width: 168px;
+  flex: 0 0 auto;
+}
+
+.panel-library-heading .project-order-select .ui-select-trigger {
+  width: 100%;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--launch-border);
+  border-radius: 6px;
+  outline: 0;
+  color: var(--launch-text);
+  background: var(--launch-surface);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.panel-library-heading .project-order-select .ui-select-trigger:hover,
+.panel-library-heading .project-order-select .ui-select.is-open .ui-select-trigger,
+.panel-library-heading .project-order-select .ui-select-trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--launch-accent) 70%, var(--launch-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--launch-accent) 10%, transparent);
 }
 
 .panel-library-list {
@@ -717,5 +751,9 @@
 
   .launch-card-actions {
     grid-template-columns: 1fr;
+  }
+
+  .panel-library-heading .project-order-select {
+    width: 150px;
   }
 }

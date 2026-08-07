@@ -978,6 +978,43 @@ test('manages saved panels from the OpenSketch-style project library and context
   await expect(page.getByRole('button', { name: 'Open Renamed panel' })).toBeVisible()
 })
 
+test('orders projects by creation by default and supports alternate project orders', async ({ page }) => {
+  await page.goto(APP_PATH)
+
+  await openEmptyPanel(page)
+  await page.getByRole('button', { name: 'Open panel library' }).click()
+
+  await openEmptyPanel(page)
+  await page.getByRole('button', { name: 'Open panel library' }).click()
+
+  const projectCards = page.locator('.panel-library > .panel-library-list > .panel-library-card')
+  await expect(page.getByRole('combobox', { name: 'Order projects' })).toContainText('Newest created')
+  await expect(projectCards).toHaveCount(2)
+  await expect(projectCards.first()).toContainText('Panel 2')
+
+  const firstProjectCard = projectCards.filter({
+    has: page.getByRole('button', { name: 'Open Panel 1' }),
+  })
+  await firstProjectCard.click({ button: 'right' })
+  page.once('dialog', (dialog) => dialog.accept('First project edited'))
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await expect(page.getByRole('button', { name: 'Open First project edited' })).toBeVisible()
+  await expect(projectCards.first()).toContainText('Panel 2')
+
+  const secondProjectCard = projectCards.filter({
+    has: page.getByRole('button', { name: 'Open Panel 2' }),
+  })
+  await secondProjectCard.click({ button: 'right' })
+  page.once('dialog', (dialog) => dialog.accept('Second project'))
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await expect(page.getByRole('button', { name: 'Open Second project' })).toBeVisible()
+  await expect(projectCards.first()).toContainText('Second project')
+
+  await page.getByRole('combobox', { name: 'Order projects' }).click()
+  await page.getByRole('option', { name: 'Oldest created' }).click()
+  await expect(projectCards.first()).toContainText('First project edited')
+})
+
 test('keeps independent panel workspaces for each cytometer', async ({ page }) => {
   test.slow()
   await page.goto(APP_PATH)
