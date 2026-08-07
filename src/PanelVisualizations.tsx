@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
     CSSProperties,
     Dispatch,
@@ -89,7 +89,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumTooltipRef = useRef<HTMLDivElement>(null);
     const spectrumPointerRef = useRef({ clientX: 0, clientY: 0 });
     const [spectrumHover, setSpectrumHover] = useState<{ fluor: string; color: string } | null>(null);
-    const chartWidth = detectorAxisChartWidth(payload.detectors.length);
+    const baseChartWidth = detectorAxisChartWidth(payload.detectors.length);
     const signatureChartWidth = detectorSignatureChartWidth(payload.detectors.length);
     const compactDisplayWidth = detectorAxisDisplayWidth(payload.detectors.length, payload.measurement_mode);
     const chartHeight = 230;
@@ -98,8 +98,11 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumDisplayWidth = compactDisplayWidth === null
         ? plotZoom
         : `${Math.round(compactDisplayWidth * plotScale / DEFAULT_PLOT_SCALE)}px`;
+    const fallbackSpectrumWidth = compactDisplayWidth ?? baseChartWidth;
+    const [measuredSpectrumWidth, setMeasuredSpectrumWidth] = useState<number | null>(null);
+    const spectrumWidth = measuredSpectrumWidth ?? fallbackSpectrumWidth;
     const spectrumLeft = 42;
-    const spectrumRight = chartWidth - 8;
+    const spectrumRight = spectrumWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
     const responseLabel = payload.measurement_mode === 'conventional' ? 'detector peaks' : 'spectra';
     const signatureTabLabel = payload.measurement_mode === 'conventional' ? 'PEAKS' : 'SPECTRA';
@@ -107,6 +110,23 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     useEffect(() => {
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });
     }, [tab]);
+
+    useLayoutEffect(() => {
+        const plot = spectrumPlotRef.current;
+        if (!plot) return undefined;
+
+        const updateWidth = () => {
+            const nextWidth = Math.round(plot.getBoundingClientRect().width);
+            if (nextWidth > 0) {
+                setMeasuredSpectrumWidth((current) => current === nextWidth ? current : nextWidth);
+            }
+        };
+        updateWidth();
+        if (typeof ResizeObserver === 'undefined') return undefined;
+        const observer = new ResizeObserver(updateWidth);
+        observer.observe(plot);
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => () => spectrumResizeCleanupRef.current?.(), []);
 
@@ -265,10 +285,9 @@ export const PanelVisualizations = memo(function PanelVisualizations({
             />
             <svg
                 className="spectrum-svg"
-                width={chartWidth}
+                width={spectrumWidth}
                 height={spectrumHeight}
-                viewBox={`0 0 ${chartWidth} ${spectrumHeight}`}
-                preserveAspectRatio="none"
+                viewBox={`0 0 ${spectrumWidth} ${spectrumHeight}`}
                 role="img"
                 aria-label={`Combined ${responseLabel}`}
             >
