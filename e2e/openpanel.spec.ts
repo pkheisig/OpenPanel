@@ -618,8 +618,15 @@ test('adapts the workspace and wizard to BD LSRFortessa 3L detectors', async ({ 
     const style = getComputedStyle(element)
     return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
   })
-  expect(fortessaPlotWidth).toBeCloseTo(848, 0)
+  expect(fortessaPlotWidth).toBeCloseTo(804, 0)
   expect(fortessaPlotWidth).toBeLessThan(fortessaPlotContainerWidth)
+  const detectorTickPositions = await fortessaPeaks.locator('.detector-spectrum-axis > g > line').evaluateAll((lines) => (
+    lines
+      .filter((line) => line.getAttribute('y2') === '206')
+      .map((line) => Number(line.getAttribute('x1')))
+  ))
+  expect(detectorTickPositions).toHaveLength(14)
+  expect(detectorTickPositions[1] - detectorTickPositions[0]).toBeCloseTo(58, 0)
   await expect(page.getByRole('button', { name: 'PEAKS', exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
