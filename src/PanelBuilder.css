@@ -859,44 +859,18 @@
   user-select: none;
 }
 
-.spectrum-plot-resize-handle::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-  opacity: 0.28;
-  transition: opacity 120ms ease;
-}
-
 .spectrum-plot-resize-handle-left {
   left: 0;
-}
-
-.spectrum-plot-resize-handle-left::after {
-  left: 6px;
 }
 
 .spectrum-plot-resize-handle-right {
   right: 0;
 }
 
-.spectrum-plot-resize-handle-right::after {
-  right: 6px;
-}
-
-.spectrum-plot-resize-handle:hover::after,
-.spectrum-plot-resize-handle:focus-visible::after,
-.spectrum-plot-resize-handle.is-resizing::after {
-  opacity: 0.9;
-}
-
 .spectrum-svg {
   display: block;
   width: 100%;
-  height: auto;
+  height: var(--spectrum-display-height);
   max-width: none;
   filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.05));
 }

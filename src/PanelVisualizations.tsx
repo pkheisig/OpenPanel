@@ -237,7 +237,14 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     }, [spectrumHover]);
 
     return (
-<main className="main-panel" style={{ '--plot-zoom': plotZoom, '--spectrum-display-width': spectrumDisplayWidth } as CSSProperties}>
+<main
+    className="main-panel"
+    style={{
+        '--plot-zoom': plotZoom,
+        '--spectrum-display-width': spectrumDisplayWidth,
+        '--spectrum-display-height': `${spectrumHeight}px`,
+    } as CSSProperties}
+>
     <div className="top-spectrum" ref={spectrumContainerRef}>
         <div
             className="spectrum-plot-shell"
@@ -256,7 +263,15 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                 onPointerDown={(event) => beginSpectrumResize('left', event)}
                 onKeyDown={(event) => resizeSpectrumByKeyboard('left', event)}
             />
-            <svg className="spectrum-svg" width={chartWidth} height={spectrumHeight} viewBox={`0 0 ${chartWidth} ${spectrumHeight}`} role="img" aria-label={`Combined ${responseLabel}`}>
+            <svg
+                className="spectrum-svg"
+                width={chartWidth}
+                height={spectrumHeight}
+                viewBox={`0 0 ${chartWidth} ${spectrumHeight}`}
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={`Combined ${responseLabel}`}
+            >
             {[0, 25, 50, 75, 100].map(tick => {
                 const y = chartHeight - (tick / 100) * (chartHeight - 32) - 24;
                 return (

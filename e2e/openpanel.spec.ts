@@ -133,7 +133,8 @@ test('resizes the spectrum plot from either edge', async ({ page }) => {
   const plot = page.locator('.spectrum-plot-shell')
   const leftHandle = page.getByRole('separator', { name: 'Resize spectrum plot from left edge' })
   const rightHandle = page.getByRole('separator', { name: 'Resize spectrum plot from right edge' })
-  const initialWidth = (await spectrum.boundingBox())!.width
+  const initialBounds = await spectrum.boundingBox()
+  expect(initialBounds).not.toBeNull()
   const rightBox = await rightHandle.boundingBox()
   expect(rightBox).not.toBeNull()
 
@@ -142,8 +143,10 @@ test('resizes the spectrum plot from either edge', async ({ page }) => {
   await expect(plot).toHaveClass(/is-resizing/)
   await page.mouse.move(rightBox!.x + rightBox!.width / 2 + 96, rightBox!.y + rightBox!.height / 2, { steps: 6 })
   await page.waitForTimeout(50)
-  const expandedWidth = (await spectrum.boundingBox())!.width
-  expect(expandedWidth).toBeGreaterThan(initialWidth + 40)
+  const expandedBounds = await spectrum.boundingBox()
+  expect(expandedBounds).not.toBeNull()
+  expect(expandedBounds!.width).toBeGreaterThan(initialBounds!.width + 40)
+  expect(expandedBounds!.height).toBeCloseTo(initialBounds!.height, 0)
   await page.mouse.up()
   await expect(plot).not.toHaveClass(/is-resizing/)
 
@@ -153,8 +156,10 @@ test('resizes the spectrum plot from either edge', async ({ page }) => {
   await page.mouse.down()
   await page.mouse.move(leftBox!.x + leftBox!.width / 2 + 64, leftBox!.y + leftBox!.height / 2, { steps: 6 })
   await page.waitForTimeout(50)
-  const reducedWidth = (await spectrum.boundingBox())!.width
-  expect(reducedWidth).toBeLessThan(expandedWidth - 30)
+  const reducedBounds = await spectrum.boundingBox()
+  expect(reducedBounds).not.toBeNull()
+  expect(reducedBounds!.width).toBeLessThan(expandedBounds!.width - 30)
+  expect(reducedBounds!.height).toBeCloseTo(initialBounds!.height, 0)
   await page.mouse.up()
 
   await rightHandle.focus()
