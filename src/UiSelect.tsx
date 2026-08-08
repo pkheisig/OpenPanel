@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- portal target resolution is a tested select contract */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -8,6 +9,49 @@ export type UiSelectOption = {
   value: string
   label: string
   searchText?: string
+}
+
+export function uiSelectPortalTarget(element: Element): Element {
+  return element.closest('.panel-builder, .launch-screen') ?? document.body
+}
+
+export function positionPortalMenu(
+  trigger: HTMLElement | null,
+  menu: HTMLElement | null,
+  viewport: { width: number; height: number },
+  setStyle: (style: CSSProperties) => void,
+): void {
+  if (!trigger) return
+  const rect = trigger.getBoundingClientRect()
+  const estimatedHeight = Math.min(menu?.offsetHeight ?? 260, 260)
+  const roomBelow = viewport.height - rect.bottom
+  const openUpward = roomBelow < estimatedHeight + 12 && rect.top > roomBelow
+  const width = rect.width
+  setStyle({
+    left: Math.max(8, Math.min(rect.left, viewport.width - width - 8)),
+    width,
+    ...(openUpward
+      ? { top: 'auto', bottom: viewport.height - rect.top + 5 }
+      : { top: rect.bottom + 5, bottom: 'auto' }),
+  })
+}
+
+export function positionPortalMenuFromRoot(
+  root: HTMLElement | null,
+  menu: HTMLElement | null,
+  viewport: { width: number; height: number },
+  setStyle: (style: CSSProperties) => void,
+): void {
+  positionPortalMenu(root?.querySelector<HTMLElement>('.ui-select-trigger') ?? null, menu, viewport, setStyle)
+}
+
+export function chooseUiSelectOption(
+  options: UiSelectOption[],
+  index: number,
+  onChoose: (option: UiSelectOption) => void,
+): void {
+  const option = options[index]
+  if (option) onChoose(option)
 }
 
 type UiSelectProps = {
@@ -92,20 +136,12 @@ export function UiSelect({
     if (!open || !portalMenu) return
 
     const positionMenu = () => {
-      const trigger = rootRef.current?.querySelector<HTMLElement>('.ui-select-trigger')
-      if (!trigger) return
-      const rect = trigger.getBoundingClientRect()
-      const estimatedHeight = Math.min(menuRef.current?.offsetHeight ?? 260, 260)
-      const roomBelow = window.innerHeight - rect.bottom
-      const openUpward = roomBelow < estimatedHeight + 12 && rect.top > roomBelow
-      const width = rect.width
-      setMenuStyle({
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
-        width,
-        ...(openUpward
-          ? { top: 'auto', bottom: window.innerHeight - rect.top + 5 }
-          : { top: rect.bottom + 5, bottom: 'auto' }),
-      })
+      positionPortalMenuFromRoot(
+        rootRef.current,
+        menuRef.current,
+        { width: window.innerWidth, height: window.innerHeight },
+        setMenuStyle,
+      )
     }
 
     positionMenu()
@@ -150,7 +186,7 @@ export function UiSelect({
           ? (triggerSelectedIndex + 1) % Math.max(1, triggerOptions.length)
           : (triggerSelectedIndex - 1 + triggerOptions.length) % Math.max(1, triggerOptions.length))
       if (portalMenu) {
-        setPortalTarget(event.currentTarget.closest('.panel-builder, .launch-screen') ?? document.body)
+        setPortalTarget(uiSelectPortalTarget(event.currentTarget))
       }
       setOpen(true)
     }
@@ -197,8 +233,7 @@ export function UiSelect({
       move(displayedOptions.length - 1)
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      const option = displayedOptions[index]
-      if (option) choose(option)
+      chooseUiSelectOption(displayedOptions, index, choose)
     } else if (event.key === 'Escape') {
       event.preventDefault()
       closeAndRestoreFocus()
@@ -281,9 +316,7 @@ export function UiSelect({
             if (!open) {
               setQuery('')
               setActiveIndex(searchable ? 0 : selectedIndex)
-              if (portalMenu) {
-                setPortalTarget(event.currentTarget.closest('.panel-builder, .launch-screen') ?? document.body)
-              }
+              setPortalTarget(uiSelectPortalTarget(event.currentTarget))
             }
             setOpen((current) => !current)
           }}

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure visualization helpers share the component's domain contract */
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
     CSSProperties,
@@ -65,6 +66,41 @@ type SpectrumResizeEdge = 'left' | 'right';
 
 const PLOT_RESIZE_KEYBOARD_STEP = 10;
 
+export function resolveSpectrumHover(
+    spectrumHover: { fluor: string } | null,
+    hoveredFluor: string | null,
+): string | null {
+    return spectrumHover?.fluor ?? hoveredFluor;
+}
+
+export function entriesForLaser<T>(entriesByLaser: Map<string, T[]>, laser: string): T[] {
+    return entriesByLaser.get(laser) || [];
+}
+
+export function observeSpectrumPlot(
+    plot: HTMLDivElement | null,
+    onWidth: (width: number) => void,
+): (() => void) | undefined {
+    if (!plot) return undefined;
+    const updateWidth = () => {
+        const nextWidth = Math.round(plot.getBoundingClientRect().width);
+        if (nextWidth > 0) onWidth(nextWidth);
+    };
+    updateWidth();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(plot);
+    return () => observer.disconnect();
+}
+
+export function withSpectrumPlotResizeTarget(
+    plot: HTMLDivElement | null,
+    onReady: (plot: HTMLDivElement) => void,
+): void {
+    if (!plot) return;
+    onReady(plot);
+}
+
 export const PanelVisualizations = memo(function PanelVisualizations({
     payload,
     selected,
@@ -113,20 +149,9 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     }, [tab]);
 
     useLayoutEffect(() => {
-        const plot = spectrumPlotRef.current;
-        if (!plot) return undefined;
-
-        const updateWidth = () => {
-            const nextWidth = Math.round(plot.getBoundingClientRect().width);
-            if (nextWidth > 0) {
-                setMeasuredSpectrumWidth((current) => current === nextWidth ? current : nextWidth);
-            }
-        };
-        updateWidth();
-        if (typeof ResizeObserver === 'undefined') return undefined;
-        const observer = new ResizeObserver(updateWidth);
-        observer.observe(plot);
-        return () => observer.disconnect();
+        return observeSpectrumPlot(spectrumPlotRef.current, (nextWidth) => {
+            setMeasuredSpectrumWidth((current) => current === nextWidth ? current : nextWidth);
+        });
     }, []);
 
     useEffect(() => () => spectrumResizeCleanupRef.current?.(), []);
@@ -138,69 +163,68 @@ export const PanelVisualizations = memo(function PanelVisualizations({
         event.preventDefault();
         spectrumResizeCleanupRef.current?.();
 
-        const plot = spectrumPlotRef.current;
         const handle = event.currentTarget;
-        if (!plot) return;
+        withSpectrumPlotResizeTarget(spectrumPlotRef.current, (measuredPlot) => {
+            const startX = event.clientX;
+            const startScale = plotScale;
+            const startWidth = measuredPlot.getBoundingClientRect().width;
+            const pointerId = event.pointerId;
+            const previousCursor = document.body.style.cursor;
+            const previousUserSelect = document.body.style.userSelect;
+            let nextScale = startScale;
+            let animationFrame = 0;
 
-        const startX = event.clientX;
-        const startScale = plotScale;
-        const startWidth = plot.getBoundingClientRect().width;
-        const pointerId = event.pointerId;
-        const previousCursor = document.body.style.cursor;
-        const previousUserSelect = document.body.style.userSelect;
-        let nextScale = startScale;
-        let animationFrame = 0;
+            const applyScale = () => {
+                animationFrame = 0;
+                onPlotScaleChange(nextScale);
+            };
+            const queueScale = () => {
+                if (!animationFrame) animationFrame = window.requestAnimationFrame(applyScale);
+            };
+            const move = (moveEvent: PointerEvent) => {
+                if (startWidth <= 0) return;
+                const signedDelta = edge === 'right'
+                    ? moveEvent.clientX - startX
+                    : startX - moveEvent.clientX;
+                nextScale = Math.min(
+                    MAX_PLOT_SCALE,
+                    Math.max(
+                        MIN_PLOT_SCALE,
+                        Math.round(startScale * (startWidth + signedDelta) / startWidth),
+                    ),
+                );
+                queueScale();
+            };
+            const cleanup = () => {
+                handle.removeEventListener('pointermove', move);
+                handle.removeEventListener('pointerup', finish);
+                handle.removeEventListener('pointercancel', finish);
+                if (animationFrame) {
+                    window.cancelAnimationFrame(animationFrame);
+                    applyScale();
+                }
+                if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+                measuredPlot.classList.remove('is-resizing');
+                handle.classList.remove('is-resizing');
+                document.body.style.cursor = previousCursor;
+                document.body.style.userSelect = previousUserSelect;
+                spectrumResizeCleanupRef.current = null;
+            };
+            const finish = () => {
+                cleanup();
+                onPlotScaleChange(nextScale);
+            };
 
-        const applyScale = () => {
-            animationFrame = 0;
-            onPlotScaleChange(nextScale);
-        };
-        const queueScale = () => {
-            if (!animationFrame) animationFrame = window.requestAnimationFrame(applyScale);
-        };
-        const move = (moveEvent: PointerEvent) => {
-            if (startWidth <= 0) return;
-            const signedDelta = edge === 'right'
-                ? moveEvent.clientX - startX
-                : startX - moveEvent.clientX;
-            nextScale = Math.min(
-                MAX_PLOT_SCALE,
-                Math.max(
-                    MIN_PLOT_SCALE,
-                    Math.round(startScale * (startWidth + signedDelta) / startWidth),
-                ),
-            );
-            queueScale();
-        };
-        const cleanup = () => {
-            handle.removeEventListener('pointermove', move);
-            handle.removeEventListener('pointerup', finish);
-            handle.removeEventListener('pointercancel', finish);
-            if (animationFrame) {
-                window.cancelAnimationFrame(animationFrame);
-                applyScale();
-            }
-            if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
-            plot.classList.remove('is-resizing');
-            handle.classList.remove('is-resizing');
-            document.body.style.cursor = previousCursor;
-            document.body.style.userSelect = previousUserSelect;
-            spectrumResizeCleanupRef.current = null;
-        };
-        const finish = () => {
-            cleanup();
-            onPlotScaleChange(nextScale);
-        };
-
-        plot.classList.add('is-resizing');
-        handle.classList.add('is-resizing');
-        document.body.style.cursor = 'ew-resize';
-        document.body.style.userSelect = 'none';
-        handle.setPointerCapture(pointerId);
-        handle.addEventListener('pointermove', move);
-        handle.addEventListener('pointerup', finish);
-        handle.addEventListener('pointercancel', finish);
-        spectrumResizeCleanupRef.current = cleanup;
+            measuredPlot.classList.add('is-resizing');
+            handle.classList.add('is-resizing');
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+            handle.setPointerCapture(pointerId);
+            handle.addEventListener('pointermove', move);
+            handle.addEventListener('pointerup', finish);
+            handle.addEventListener('pointercancel', finish);
+            spectrumResizeCleanupRef.current = cleanup;
+        });
     };
 
     const resizeSpectrumByKeyboard = (edge: SpectrumResizeEdge, event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -319,7 +343,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
             {selected.map(fluor => {
                 const row = spectraByName.get(fluor);
                 if (!row) return null;
-                const effectiveHoveredFluor = spectrumHover?.fluor ?? hoveredFluor;
+                const effectiveHoveredFluor = resolveSpectrumHover(spectrumHover, hoveredFluor);
                 const isHovered = effectiveHoveredFluor === fluor;
                 const hasHoverActive = effectiveHoveredFluor !== null;
                 const fluorColor = colorByFluor.get(fluor) || '#2688e8';
@@ -449,7 +473,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                                         <td className="emission-cell" rowSpan={maxEntries}>{emission}</td>
                                     ) : null}
                                     {lasers.flatMap(laser => {
-                                        const entries = laserEntriesMap.get(laser) || [];
+                                        const entries = entriesForLaser(laserEntriesMap, laser);
                                         const entry = entries[subIndex];
                                         const occupied = !!entry;
                                         const isImpossible = emission < laserWavelength(laser);

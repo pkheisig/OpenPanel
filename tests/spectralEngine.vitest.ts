@@ -3,9 +3,13 @@ import {
   buildPanelPayload,
   calculatePanelComplexity,
   calculateSimilarityMatrix,
+  detectorKeys,
   getSpectralPanelLibraries,
   getSpectralPanelConfigurations,
+  initializeSpectralEngine,
+  normalizeDetectorToken,
   parseCsv,
+  resetSpectralEngineForTests,
   resolveConfiguration,
   resolveCytometer,
 } from '../src/spectralEngine'
@@ -107,6 +111,40 @@ describe('browser spectral engine parity', () => {
     expect(failedAuroraRequest).toBe(true)
   })
 
+  test('rejects a configuration whose library has no matching detectors', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (source.endsWith('/aurora_spectra.csv')) {
+        return new Response('fluorophore,Unknown-A\nFITC,1\n', { status: 200 })
+      }
+      return bundledFetch(input)
+    })
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('no matching detectors')
+  })
+
+  test('shares dictionary and library failures across concurrent initializers before retrying', async () => {
+    const bundledFetch = globalThis.fetch
+    let failedDictionaryRequest = false
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (!failedDictionaryRequest && source.endsWith('/cytometer_dictionary.csv')) {
+        failedDictionaryRequest = true
+        return new Response('Unavailable', { status: 503 })
+      }
+      return bundledFetch(input)
+    })
+
+    const first = initializeSpectralEngine()
+    const second = initializeSpectralEngine()
+    await expect(first).rejects.toThrow('cytometer_dictionary.csv')
+    await expect(second).rejects.toThrow('cytometer_dictionary.csv')
+    expect(failedDictionaryRequest).toBe(true)
+
+    vi.stubGlobal('fetch', bundledFetch)
+    await expect(initializeSpectralEngine()).resolves.toBeUndefined()
+  })
+
   test('retains the complete instrument/configuration catalog and aliases', async () => {
     const payloads = await Promise.all([
       buildPanelPayload('aurora'),
@@ -129,6 +167,8 @@ describe('browser spectral engine parity', () => {
     expect(resolveConfiguration('aurora', '4L UV')).toBe('4l_uv_v_b_r')
     expect(resolveConfiguration('id7000', 'ID7000 3 laser')).toBe('id7000_3l')
     expect(resolveConfiguration('fortessa', '4L')).toBe('fortessa_4l')
+    expect(resolveConfiguration('fortessa', '3L')).toBe('fortessa_3l')
+    expect(resolveConfiguration('fortessa', 'fortessa3l')).toBe('fortessa_3l')
     expect(resolveConfiguration('celesta', 'BVUV')).toBe('celesta_bvuv')
     expect(resolveConfiguration('attune_nxt', '4L')).toBe('attune_nxt_4l')
     expect(resolveConfiguration('accuri_c6_plus', 'standard')).toBe('accuri_c6_plus_standard')
@@ -147,7 +187,9 @@ describe('browser spectral engine parity', () => {
     expect(resolveCytometer('BD FACSAria Fusion')).toBe('facsaria_fusion')
     expect(resolveConfiguration('canto', '3-laser 4-2-2')).toBe('canto_3l_4_2_2')
     expect(resolveConfiguration('lyric', '12-color')).toBe('lyric_3l_12')
+    expect(resolveConfiguration('lyric', '3L 10-color')).toBe('lyric_3l_10')
     expect(resolveConfiguration('ze5', '5-laser')).toBe('ze5_5l_27')
+    expect(resolveConfiguration('ze5', '3L 17')).toBe('ze5_3l_17')
     expect(resolveConfiguration('cytpix', 'BYRV6')).toBe('cytpix_byrv6')
     expect(resolveConfiguration('quanteon', '4025')).toBe('quanteon_4025')
     expect(resolveConfiguration('macsquant', 'Analyzer 16')).toBe('macsquant_analyzer16')
@@ -157,6 +199,33 @@ describe('browser spectral engine parity', () => {
     expect(resolveConfiguration('navios', '2-laser 8-color')).toBe('navios_2l_8')
     expect(resolveConfiguration('dxflex', 'B5-R3-V5')).toBe('dxflex_b5_r3_v5')
     expect(resolveConfiguration('facsaria_fusion', 'BUV optimized')).toBe('facsaria_fusion_buv')
+    expect(resolveCytometer()).toBe('aurora')
+    expect(resolveCytometer(null)).toBe('aurora')
+    expect(() => resolveCytometer('not an instrument')).toThrow('Panel builder supports')
+    const aliases: Array<[string, string, string]> = [
+      ['fortessa', '3L', 'fortessa_3l'], ['attune_nxt', '4laser', 'attune_nxt_4l'],
+      ['celesta', 'BVR', 'celesta_bvr'],
+      ['accuri_c6_plus', '3blue1red', 'accuri_c6_plus_standard'],
+      ['accuri_c6_plus', '3b1r', 'accuri_c6_plus_standard'],
+      ['accuri_c6_plus', '4color', 'accuri_c6_plus_standard'],
+      ['accuri_c6_plus', '4colour', 'accuri_c6_plus_standard'],
+      ['facscalibur', '2l4', 'facscalibur_2l_4'],
+      ['facscalibur', '4color', 'facscalibur_2l_4'],
+      ['facscalibur', '4colour', 'facscalibur_2l_4'],
+      ['lyric', '2L 4-color', 'lyric_2l_4'], ['lyric', '2L 6-color', 'lyric_2l_6'],
+      ['lyric', '3L 8-color', 'lyric_3l_8'], ['lyric', '3L 10-color', 'lyric_3l_10'],
+      ['ze5', '3L 17 option 2', 'ze5_3l_17_option2'], ['ze5', '3L 20', 'ze5_3l_20'],
+      ['ze5', '4L 24', 'ze5_4l_24'], ['facsverse', '1-laser 4-color', 'facsverse_1l_4'],
+      ['facsverse', '2-laser 6-color', 'facsverse_2l_6'], ['facsverse', '4-2-2', 'facsverse_3l_8'],
+      ['facsverse', '422', 'facsverse_3l_8'], ['lsrii', '6B-2V-0UV-3R', 'lsrii_6b_2v_0uv_3r'],
+      ['lsrii', '6B-0V-2UV-3R', 'lsrii_6b_0v_2uv_3r'], ['cytoflex_lx', '5L19', 'cytoflex_lx_u3_v5_b3_y5_r3_i0'],
+      ['navios', '8-color', 'navios_2l_8'], ['dxflex', '13-color', 'dxflex_b5_r3_v5'],
+      ['facsaria_fusion', 'BUV optimized facility configuration', 'facsaria_fusion_buv'],
+      ['cytoflex_lx', '5L19', 'cytoflex_lx_u3_v5_b3_y5_r3_i0'],
+      ['navios', '8-color', 'navios_2l_8'], ['navios', '2L8', 'navios_2l_8'],
+    ]
+    for (const [id, alias, expected] of aliases) expect(resolveConfiguration(id, alias)).toBe(expected)
+    expect(resolveConfiguration('aurora', 'unknown')).toBe('5l_uv_v_b_yg_r')
   })
 
   test('validates every declared configuration has a complete detector mapping', async () => {
@@ -427,9 +496,11 @@ describe('browser spectral engine parity', () => {
       [1, expect.any(Number)],
       [expect.any(Number), 1],
     ])
+    expect(calculateSimilarityMatrix([[0, 0], [1, 0]])[0][0]).toBe(0)
     expect(calculatePanelComplexity([[0.2, 1]])).toBe(1)
     expect(calculatePanelComplexity([[0, 0], [0, 0]])).toBeNull()
     expect(calculatePanelComplexity([[0.2, 1], [1, 0.1]])).toBe(1.35)
+    expect(calculatePanelComplexity([[Number.MAX_VALUE, 0], [0, Number.MIN_VALUE]])).toBeNull()
   })
 
   test('parses quoted bundled CSV syntax without changing values', () => {
@@ -437,5 +508,52 @@ describe('browser spectral engine parity', () => {
       ['fluorophore', 'B1-A'],
       ['A "quoted" dye', '1e-3'],
     ])
+    expect(parseCsv('\n')).toEqual([])
+    expect(normalizeDetectorToken(undefined)).toBe('')
+    expect(detectorKeys('')).toEqual([])
+  })
+
+  test('retries dictionary initialization after a transient bundled-data failure', async () => {
+    const bundledFetch = globalThis.fetch
+    let failed = false
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (!failed && source.endsWith('/cytometer_dictionary.csv')) {
+        failed = true
+        return new Response('Unavailable', { status: 503 })
+      }
+      return bundledFetch(input)
+    })
+    await expect(initializeSpectralEngine()).rejects.toThrow('cytometer_dictionary.csv')
+    await expect(initializeSpectralEngine()).resolves.toBeUndefined()
+    expect(failed).toBe(true)
+  })
+
+  test('does not let a stale initializer clear a newer retry', async () => {
+    const bundledFetch = globalThis.fetch
+    let dictionaryRequests = 0
+    let rejectFirstDictionary: ((reason?: unknown) => void) | undefined
+    const firstDictionary = new Promise<Response>((_resolve, reject) => {
+      rejectFirstDictionary = reject
+    })
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (source.endsWith('/cytometer_dictionary.csv')) {
+        dictionaryRequests += 1
+        if (dictionaryRequests === 1) return firstDictionary
+      }
+      return bundledFetch(input)
+    })
+
+    const stale = initializeSpectralEngine()
+    expect(dictionaryRequests).toBe(1)
+    resetSpectralEngineForTests()
+    await expect(initializeSpectralEngine()).resolves.toBeUndefined()
+    rejectFirstDictionary?.(new Error('stale dictionary failure'))
+    await expect(stale).rejects.toThrow('stale dictionary failure')
+
+    const requestsAfterRetry = dictionaryRequests
+    await expect(initializeSpectralEngine()).resolves.toBeUndefined()
+    expect(dictionaryRequests).toBe(requestsAfterRetry)
   })
 })

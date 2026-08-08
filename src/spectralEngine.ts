@@ -771,12 +771,16 @@ export function parseCsv(text: string): string[][] {
   return rows
 }
 
-function rowsToObjects(rows: string[][]): CsvRow[] {
+export function rowsToObjects(rows: string[][]): CsvRow[] {
   const headers = rows[0] ?? []
   return rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])))
 }
 
-function dataUrl(filename: string): string {
+export function dictionaryText(value: unknown): string {
+  return value == null ? '' : String(value)
+}
+
+export function dataUrl(filename: string): string {
   const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
   return new URL(`data/${filename}`, new URL(import.meta.env.BASE_URL, origin)).toString()
 }
@@ -787,7 +791,7 @@ async function loadCsv(filename: string): Promise<string[][]> {
   return parseCsv(await response.text())
 }
 
-function parseLibrary(rows: string[][]): SpectralLibrary {
+export function parseLibrary(rows: string[][]): SpectralLibrary {
   const headers = rows[0] ?? []
   if (headers.length < 2) throw new Error('A bundled spectral library has no detector columns.')
   const detectors = headers.slice(1)
@@ -839,7 +843,7 @@ function initializeLibrary(cytometer: CytometerId): Promise<void> {
     ? initializeDictionaries().then(() => {
       libraries.set(cytometer, buildConventionalLibrary(cytometer))
     })
-    : loadCsv(LIBRARY_FILES[cytometer] ?? '').then((rows) => {
+    : loadCsv(LIBRARY_FILES[cytometer]!).then((rows) => {
       libraries.set(cytometer, parseLibrary(rows))
     })
   libraryInitializations.set(cytometer, pending)
@@ -864,7 +868,7 @@ function normalizeToken(value: unknown): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
-function normalizeLaserName(value: unknown): string {
+export function normalizeLaserName(value: unknown): string {
   const token = normalizeToken(value)
   if (token === 'v' || token === 'violet') return 'Violet'
   if (token === 'b' || token === 'blue') return 'Blue'
@@ -876,11 +880,11 @@ function normalizeLaserName(value: unknown): string {
   return String(value ?? '').trim()
 }
 
-function normalizeDetectorToken(value: unknown): string {
+export function normalizeDetectorToken(value: unknown): string {
   return String(value ?? '').trim().toUpperCase().replace(/\s+/g, '').replace(/([A-Z]+)-([0-9])/g, '$1$2')
 }
 
-function detectorKeys(detector: string): string[] {
+export function detectorKeys(detector: string): string[] {
   const noParentheses = detector.trim().replace(/\s*\([^)]*\)/g, '')
   const base = noParentheses.replace(/-A$/i, '')
   return Array.from(new Set([
@@ -961,10 +965,10 @@ function dictionaryCandidates(cytometer: CytometerId): CsvRow[] {
 
 function matchingDictionaryRow(cytometer: CytometerId, detector: string): CsvRow | undefined {
   const requested = new Set(detectorKeys(detector))
-  return dictionaryCandidates(cytometer).find((row) => detectorKeys(row.detector ?? '').some((key) => requested.has(key)))
+  return dictionaryCandidates(cytometer).find((row) => detectorKeys(dictionaryText(row.detector)).some((key) => requested.has(key)))
 }
 
-function detectorLaser(cytometer: CytometerId, detector: string): string {
+export function detectorLaser(cytometer: CytometerId, detector: string): string {
   const dictionaryLaser = matchingDictionaryRow(cytometer, detector)?.laser
   if (dictionaryLaser) return dictionaryLaser
   if (/^320/i.test(detector)) return 'DeepUV'
@@ -985,7 +989,7 @@ const AURORA_EMISSIONS: Record<string, number[]> = {
   R: [660, 680, 700, 730, 730, 750, 780, 800],
 }
 
-function id7000Emission(detector: string): number | null {
+export function id7000Emission(detector: string): number | null {
   const match = detector.trim().toUpperCase().replace(/-A$/, '').match(/^(320|355|405|488|561|637|808)CH(\d+)$/)
   if (!match) return null
   const startChannel: Record<string, number> = { 320: 1, 355: 1, 405: 1, 488: 4, 561: 10, 637: 17, 808: 36 }
@@ -993,7 +997,7 @@ function id7000Emission(detector: string): number | null {
   return startEmission[match[1]] + (Number(match[2]) - startChannel[match[1]]) * 15
 }
 
-function detectorEmission(cytometer: CytometerId, detector: string): number {
+export function detectorEmission(cytometer: CytometerId, detector: string): number {
   const description = matchingDictionaryRow(cytometer, detector)?.description ?? ''
   const descriptionMatch = description.match(/(\d{3})(?=\/|\/LP|-A)/)
   if (descriptionMatch) return Number(descriptionMatch[1])
@@ -1063,7 +1067,7 @@ type DetectorFilter = {
   type: 'bandpass' | 'longpass'
 }
 
-function detectorFilter(cytometer: CytometerId, detector: string): DetectorFilter | null {
+export function detectorFilter(cytometer: CytometerId, detector: string): DetectorFilter | null {
   const description = matchingDictionaryRow(cytometer, detector)?.description ?? detector
   const match = description.match(/(\d{3})\s*\/\s*(\d{1,3})/)
   if (match) return { center: Number(match[1]), width: Number(match[2]), type: 'bandpass' }
@@ -1080,16 +1084,40 @@ function detectorFilter(cytometer: CytometerId, detector: string): DetectorFilte
 
 function fluorophoreCanonicalLookup(): Map<string, string> {
   const lookup = new Map<string, string>()
-  fluorophoreDictionary.forEach((row) => {
-    const canonical = canonicalizeFluorophoreName((row.fluorophore ?? '').trim())
-    if (!canonical) return
-    const aliases = [row.fluorophore, ...(row.aliases ?? '').split(';')]
-    aliases.forEach((alias) => {
-      const key = normalizeToken(alias)
-      if (key && !lookup.has(key)) lookup.set(key, canonical)
-    })
-  })
+  fluorophoreDictionary.forEach((row) => addFluorophoreDictionaryRow(lookup, row))
   return lookup
+}
+
+export function addFluorophoreDictionaryRow(
+  lookup: Map<string, string>,
+  row: CsvRow,
+): void {
+  const canonical = canonicalizeFluorophoreName(dictionaryText(row.fluorophore).trim())
+  if (!canonical) return
+  const aliases = [row.fluorophore, ...dictionaryText(row.aliases).split(';')]
+  aliases.forEach((alias) => {
+    const key = normalizeToken(alias)
+    if (key && !lookup.has(key)) lookup.set(key, canonical)
+  })
+}
+
+export function addCanonicalFluorophoreRow(
+  rows: Map<string, CsvRow>,
+  canonical: string | undefined,
+  row: CsvRow,
+): void {
+  if (canonical) rows.set(canonical, row)
+}
+
+export function applyPreferredDetectorFallback(
+  row: number[],
+  detectors: string[],
+  preferredDetector: string,
+): void {
+  if (Math.max(...row) <= 0 && preferredDetector) {
+    const preferredIndex = detectors.indexOf(preferredDetector)
+    if (preferredIndex >= 0) row[preferredIndex] = 1
+  }
 }
 
 function conventionalFluorophoreWavelengths(): Map<string, number> {
@@ -1103,7 +1131,7 @@ function conventionalFluorophoreWavelengths(): Map<string, number> {
   return wavelengths
 }
 
-function approximateDetectorResponse(emission: number, filter: DetectorFilter): number {
+export function approximateDetectorResponse(emission: number, filter: DetectorFilter): number {
   // Public reference tables provide peak emission and filter passbands, not a
   // complete instrument-specific spillover matrix. A smooth generic emission
   // envelope keeps the conventional preview useful without presenting it as
@@ -1120,7 +1148,7 @@ function approximateDetectorResponse(emission: number, filter: DetectorFilter): 
   }, 0) / samples.length
 }
 
-function ninePointBandpass(center: number, width: number): number[] {
+export function ninePointBandpass(center: number, width: number): number[] {
   return Array.from({ length: 9 }, (_, index) => center - width / 2 + ((index + 0.5) / 9) * width)
 }
 
@@ -1138,7 +1166,7 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
   }>()
   rows.forEach((row) => {
     if (row.is_scatter?.toUpperCase() === 'TRUE') return
-    const names = (row.common_fluorophores ?? '').split(';').map((name) => name.trim()).filter(Boolean)
+    const names = dictionaryText(row.common_fluorophores).split(';').map((name) => name.trim()).filter(Boolean)
     names.forEach((name) => {
       const canonical = canonicalLookup.get(normalizeToken(name)) ?? canonicalizeFluorophoreName(name)
       if (!canonical || normalizeToken(canonical) === 'ssc') return
@@ -1163,8 +1191,7 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
   }))
   const fluorophoreRows = new Map<string, CsvRow>()
   fluorophoreDictionary.forEach((row) => {
-    const canonical = canonicalLookup.get(normalizeToken(row.fluorophore))
-    if (canonical) fluorophoreRows.set(canonical, row)
+    addCanonicalFluorophoreRow(fluorophoreRows, canonicalLookup.get(normalizeToken(row.fluorophore)), row)
   })
 
   // These rows are public peak/laser references, not measured compensation data.
@@ -1207,8 +1234,7 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
       return filter && emission > 0 ? approximateDetectorResponse(emission, filter) : 0
     })
     if (Math.max(...row) <= 0 && specification.preferredDetector) {
-      const preferredIndex = detectors.indexOf(specification.preferredDetector)
-      if (preferredIndex >= 0) row[preferredIndex] = 1
+      applyPreferredDetectorFallback(row, detectors, specification.preferredDetector)
     }
     return { fluorophore, row }
   })
@@ -1224,7 +1250,7 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
   }
 }
 
-function normalizeRow(values: number[]): number[] {
+export function normalizeRow(values: number[]): number[] {
   let denominator = 0
   values.forEach((value) => { denominator = Math.max(denominator, Math.abs(value)) })
   if (!Number.isFinite(denominator) || denominator <= 0) denominator = 1
@@ -1250,7 +1276,7 @@ function fluorophoreLookup(library: SpectralLibrary): Map<string, number> {
   fluorophoreDictionary.forEach((row) => {
     const canonicalIndex = lookup.get(normalizeToken(row.fluorophore))
     if (canonicalIndex === undefined) return
-    const aliases = [row.fluorophore, ...(row.aliases ?? '').split(';')]
+    const aliases = [row.fluorophore, ...dictionaryText(row.aliases).split(';')]
     aliases.forEach((alias) => {
       const key = normalizeToken(alias)
       if (key && !lookup.has(key)) lookup.set(key, canonicalIndex)
@@ -1298,7 +1324,7 @@ function configurationBase(
   const detectors = detectorIndices.map((index) => library.detectors[index])
   const detectorInfo = detectorMetadata(id, detectors)
   const sortedDetectorIndex = new Map(detectors.map((detector, index) => [detector, index]))
-  const outputIndices = detectorInfo.map((detector) => detectorIndices[sortedDetectorIndex.get(detector.detector) ?? 0])
+  const outputIndices = detectorInfo.map((detector) => detectorIndices[sortedDetectorIndex.get(detector.detector)!])
   const retainedSignal = library.values.map((row) => outputIndices.reduce(
     (maximum, detectorIndex) => Math.max(maximum, Math.abs(row[detectorIndex])),
     0,
@@ -1311,7 +1337,7 @@ function configurationBase(
     normalizeRow(outputIndices.map((detectorIndex) => library.values[libraryIndex][detectorIndex])),
   ]))
   const fluorophores: FluorInfo[] = availableIndices.map((libraryIndex) => {
-    const row = normalizedRowsByLibraryIndex.get(libraryIndex) ?? []
+    const row = normalizedRowsByLibraryIndex.get(libraryIndex)!
     const peakIndex = row.reduce(
       (best, value, index, values) => value > values[best] ? index : best,
       0,
@@ -1341,12 +1367,19 @@ function configurationBase(
   return base
 }
 
+export function requireSpectralLibrary(
+  library: SpectralLibrary | undefined,
+  cytometer: CytometerId,
+): SpectralLibrary {
+  if (!library) throw new Error(`Spectral library file is missing for cytometer '${cytometer}'.`)
+  return library
+}
+
 function rememberPanelPayload(key: string, payload: PanelPayload): PanelPayload {
   panelPayloadCache.delete(key)
   panelPayloadCache.set(key, payload)
   if (panelPayloadCache.size > MAX_PANEL_PAYLOAD_CACHE) {
-    const oldestKey = panelPayloadCache.keys().next().value
-    if (oldestKey !== undefined) panelPayloadCache.delete(oldestKey)
+    panelPayloadCache.delete(panelPayloadCache.keys().next().value!)
   }
   return payload
 }
@@ -1359,8 +1392,7 @@ export async function buildPanelPayload(
   const id = resolveCytometer(cytometer)
   const config = resolveConfiguration(id, configuration)
   await initializeCytometer(id)
-  const library = libraries.get(id)
-  if (!library) throw new Error(`Spectral library file is missing for cytometer '${id}'.`)
+  const library = requireSpectralLibrary(libraries.get(id), id)
   const uniqueRequested = Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean)))
   const payloadCacheKey = `${id}:${config}:${uniqueRequested.join('\u0000')}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
@@ -1376,8 +1408,7 @@ export async function buildPanelPayload(
   uniqueRequested.forEach((requested) => {
     const libraryIndex = base.lookup.get(normalizeToken(requested))
     if (libraryIndex === undefined || base.retainedSignal[libraryIndex] < 0.02) return
-    const values = base.normalizedRowsByLibraryIndex.get(libraryIndex)
-    if (!values) return
+    const values = base.normalizedRowsByLibraryIndex.get(libraryIndex)!
     selectedLabels.push(requested)
     selectedValues.push(values)
   })
@@ -1387,12 +1418,12 @@ export async function buildPanelPayload(
   const peaks = selectedValues.map((row) => base.detectorInfo[row.reduce(
     (best, value, index, values) => value > values[best] ? index : best,
     0,
-  )]?.detector ?? '')
+  )].detector)
 
   return rememberPanelPayload(payloadCacheKey, {
     cytometer: id,
     configuration: config,
-    measurement_mode: LIBRARIES.find((libraryInfo) => libraryInfo.id === id)?.measurement_mode ?? 'spectral',
+    measurement_mode: LIBRARIES.find((libraryInfo) => libraryInfo.id === id)!.measurement_mode,
     libraries: LIBRARIES,
     configurations: CONFIGURATIONS[id],
     detectors: base.detectorInfo,

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- wizard formatting/state helpers are part of the tested view contract */
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
@@ -146,15 +147,15 @@ const CYTOMETER_LABELS: Record<string, string> = {
   facsaria_fusion: 'FACSAria Fusion',
 }
 
-function formatCytometerLabel(cytometer: string): string {
+export function formatCytometerLabel(cytometer: string): string {
   return CYTOMETER_LABELS[cytometer.toLocaleLowerCase()]
     ?? cytometer.replace(/\b\w/g, (letter) => letter.toLocaleUpperCase())
 }
 
-function formatConfigurationLabel(configuration: string, label: string): string {
+export function formatConfigurationLabel(configuration: string, label: string): string {
   const [instrumentPart, laserPart] = label.split(':').map((part) => part.trim())
   if (laserPart) {
-    const configurationName = instrumentPart.split(/\s+/).at(-1) ?? instrumentPart
+    const configurationName = instrumentPart.split(/\s+/).at(-1) || instrumentPart
     const lasers = laserPart
       .split(/[/\s-]+/)
       .filter(Boolean)
@@ -169,7 +170,7 @@ function formatConfigurationLabel(configuration: string, label: string): string 
     .join('-')
 }
 
-function initialMarkerSettings(
+export function initialMarkerSettings(
   desiredSize: number,
   slots: string[],
   markerNames: Record<number, string>,
@@ -201,11 +202,37 @@ function initialMarkerSettings(
   })
 }
 
-function formatMetric(value: number, digits = 2): string {
+export function resizeWizardMarkers(
+  current: WizardMarker[],
+  nextSize: number,
+  slots: string[],
+): WizardMarker[] {
+  if (current.length === nextSize) return current
+  if (current.length > nextSize) return current.slice(0, nextSize)
+  const next = [...current]
+  const usedIndices = new Set(next.map((marker) => marker.slotIndex))
+  let slotIndex = 0
+  while (next.length < nextSize) {
+    if (!usedIndices.has(slotIndex)) {
+      next.push({
+        id: `marker-${slotIndex}`,
+        slotIndex,
+        name: '',
+        antigenDensity: 'medium',
+        currentFluorophore: slots[slotIndex] || '',
+      })
+      usedIndices.add(slotIndex)
+    }
+    slotIndex += 1
+  }
+  return next
+}
+
+export function formatMetric(value: number, digits = 2): string {
   return Number.isFinite(value) ? value.toFixed(digits) : 'NA'
 }
 
-function BrightnessIndicator({ level }: { level: number | null | undefined }) {
+export function BrightnessIndicator({ level }: { level: number | null | undefined }) {
   const normalizedLevel = Number.isFinite(level)
     ? Math.max(1, Math.min(5, Math.round(level as number)))
     : null
@@ -240,7 +267,7 @@ function BrightnessIndicator({ level }: { level: number | null | undefined }) {
   )
 }
 
-function sortRows(rows: WizardRecommendation[], sort: WizardResultSort): WizardRecommendation[] {
+export function sortRows(rows: WizardRecommendation[], sort: WizardResultSort): WizardRecommendation[] {
   return [...rows].sort((left, right) => {
     const leftIsExisting = left.isExisting === true
     const rightIsExisting = right.isExisting === true
@@ -254,6 +281,31 @@ function sortRows(rows: WizardRecommendation[], sort: WizardResultSort): WizardR
     }
     return right.recommendedScore - left.recommendedScore
   })
+}
+
+export async function runWizardApplication(
+  activeResult: WizardPanelResult | null,
+  markers: WizardMarker[],
+  desiredSize: number,
+  onApply: (application: WizardApplication) => void | Promise<void>,
+  onClose: () => void,
+): Promise<void> {
+  if (!activeResult) return
+  await onApply({ markers, recommendations: activeResult.rows, desiredSize })
+  onClose()
+}
+
+export function runWizardTabTransition(
+  nextTab: WizardTab,
+  recommendationsUnlocked: boolean,
+  onVisitCoexpression: () => void,
+  onCompleteCoexpression: () => void,
+  onSetActiveTab: (tab: WizardTab) => void,
+): void {
+  if (nextTab === 'recommendations' && !recommendationsUnlocked) return
+  if (nextTab === 'coexpression') onVisitCoexpression()
+  if (nextTab === 'recommendations') onCompleteCoexpression()
+  onSetActiveTab(nextTab)
 }
 
 export function PanelWizard({
@@ -462,27 +514,7 @@ export function PanelWizard({
       Math.min(maxPanelSize, Math.round(nextValue || lockedCount)),
     )
     setDesiredSize(nextSize)
-    setMarkers((current) => {
-      if (current.length === nextSize) return current
-      if (current.length > nextSize) return current.slice(0, nextSize)
-      const next = [...current]
-      const usedIndices = new Set(next.map((marker) => marker.slotIndex))
-      let slotIndex = 0
-      while (next.length < nextSize) {
-        if (!usedIndices.has(slotIndex)) {
-          next.push({
-            id: `marker-${slotIndex}`,
-            slotIndex,
-            name: '',
-            antigenDensity: 'medium',
-            currentFluorophore: slots[slotIndex] || '',
-          })
-          usedIndices.add(slotIndex)
-        }
-        slotIndex += 1
-      }
-      return next
-    })
+    setMarkers((current) => resizeWizardMarkers(current, nextSize, slots))
     setWizardInputsChanged(true)
     setCoexpressionVisited(false)
     setCoexpressionCompleted(false)
@@ -515,10 +547,13 @@ export function PanelWizard({
   }
 
   const switchTab = (nextTab: WizardTab) => {
-    if (nextTab === 'recommendations' && !recommendationsUnlocked) return
-    if (nextTab === 'coexpression') setCoexpressionVisited(true)
-    if (nextTab === 'recommendations') setCoexpressionCompleted(true)
-    setActiveTab(nextTab)
+    runWizardTabTransition(
+      nextTab,
+      recommendationsUnlocked,
+      () => setCoexpressionVisited(true),
+      () => setCoexpressionCompleted(true),
+      setActiveTab,
+    )
   }
 
   const colorOptions = (markerId: string) => {
@@ -614,11 +649,9 @@ export function PanelWizard({
   }
 
   const applyRecommendations = async () => {
-    if (!activeResult) return
     setApplying(true)
     try {
-      await onApply({ markers, recommendations: activeResult.rows, desiredSize })
-      onClose()
+      await runWizardApplication(activeResult, markers, desiredSize, onApply, onClose)
     } catch (applyError) {
       setError(applyError instanceof Error ? applyError.message : 'The recommendations could not be applied.')
     } finally {

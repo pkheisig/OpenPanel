@@ -1,0 +1,108 @@
+import { describe, expect, test, vi } from 'vitest'
+import {
+  approximateDetectorResponse,
+  addCanonicalFluorophoreRow,
+  addFluorophoreDictionaryRow,
+  applyPreferredDetectorFallback,
+  detectorEmission,
+  detectorFilter,
+  detectorLaser,
+  dataUrl,
+  dictionaryText,
+  id7000Emission,
+  normalizeLaserName,
+  normalizeRow,
+  ninePointBandpass,
+  parseLibrary,
+  requireSpectralLibrary,
+  rowsToObjects,
+  resolveConfiguration,
+} from '../src/spectralEngine'
+
+describe('spectral engine defensive and reference helpers', () => {
+  test('parses sparse library rows and rejects missing detector columns', () => {
+    expect(() => parseLibrary([])).toThrow('no detector columns')
+    const library = parseLibrary([
+      ['fluorophore', 'B1-A', 'V1-A'],
+      ['FITC', '1', 'not-a-number'],
+      ['FITC', '2', '2'],
+      ['', '4', '5'],
+      [],
+    ])
+    expect(library).toMatchObject({ detectors: ['B1-A', 'V1-A'], fluorophores: ['FITC'], values: [[1, 0]] })
+    expect(parseLibrary([['fluorophore', 'B1-A'], ['PE', '0.5']]).fluorophores).toEqual(['PE'])
+    expect(rowsToObjects([])).toEqual([])
+    expect(rowsToObjects([['name', 'value'], ['x']])).toEqual([{ name: 'x', value: '' }])
+    expect(dictionaryText(undefined)).toBe('')
+    expect(dictionaryText('known')).toBe('known')
+    const rows = new Map<string, Record<string, string>>()
+    addCanonicalFluorophoreRow(rows, undefined, { fluorophore: 'ignored' })
+    addCanonicalFluorophoreRow(rows, 'FITC', { fluorophore: 'FITC' })
+    expect(rows.get('FITC')?.fluorophore).toBe('FITC')
+    const aliases = new Map<string, string>()
+    addFluorophoreDictionaryRow(aliases, {})
+    addFluorophoreDictionaryRow(aliases, { fluorophore: 'FITC', aliases: 'Fluorescein' })
+    expect(aliases.get('fluorescein')).toBe('FITC')
+    const fallbackRow = [0, 0]
+    applyPreferredDetectorFallback(fallbackRow, ['V1-A'], 'missing')
+    expect(fallbackRow).toEqual([0, 0])
+    const populatedRow = [1, 0]
+    applyPreferredDetectorFallback(populatedRow, ['V1-A'], 'V1-A')
+    expect(populatedRow).toEqual([1, 0])
+  })
+
+  test('normalizes laser aliases and derives detector fallback metadata', () => {
+    expect(['V', 'violet', 'B', 'blue', 'Y', 'YG', 'yellow-green', 'R', 'red', 'U', 'uv', 'DUV', 'deepuv', 'IR']
+      .map((value) => normalizeLaserName(value))).toEqual([
+      'Violet', 'Violet', 'Blue', 'Blue', 'YellowGreen', 'YellowGreen', 'YellowGreen', 'Red', 'Red', 'UV', 'UV', 'DeepUV', 'DeepUV', 'IR',
+    ])
+    expect(normalizeLaserName('Other laser')).toBe('Other laser')
+    expect(normalizeLaserName(undefined)).toBe('')
+    expect(detectorLaser('aurora', '320-A')).toBe('DeepUV')
+    expect(detectorLaser('aurora', 'UV1-A')).toBe('UV')
+    expect(detectorLaser('aurora', 'V1-A')).toBe('Violet')
+    expect(detectorLaser('aurora', 'B1-A')).toBe('Blue')
+    expect(detectorLaser('aurora', 'YG1-A')).toBe('YellowGreen')
+    expect(detectorLaser('aurora', 'R1-A')).toBe('Red')
+    expect(detectorLaser('aurora', 'IR1-A')).toBe('IR')
+    expect(detectorLaser('aurora', 'mystery')).toBe('Other')
+  })
+
+  test('maps ID7000 channels and detector emission fallback patterns', () => {
+    expect(id7000Emission('488CH4-A')).toBe(500)
+    expect(id7000Emission('637CH19-A')).toBe(690)
+    expect(id7000Emission('not-a-channel')).toBeNull()
+    expect(detectorEmission('id7000', 'not-a-channel')).toBe(400)
+    expect(detectorEmission('aurora', 'B1-A')).toBe(500)
+    expect(detectorEmission('aurora', 'V2-A')).toBe(440)
+    expect(detectorEmission('aurora', 'B1 (530)-A')).toBe(530)
+    expect(detectorEmission('aurora', 'X530-A')).toBe(530)
+    expect(detectorEmission('id7000', '405CH1-A')).toBe(420)
+    expect(detectorEmission('aurora', 'mystery')).toBe(400)
+  })
+
+  test('recognizes detector filters, response curves, and normalization edges', () => {
+    expect(detectorFilter('aurora', '530/30-B-A')).toEqual({ center: 530, width: 30, type: 'bandpass' })
+    expect(detectorFilter('aurora', '500-550')).toEqual({ center: 525, width: 50, type: 'bandpass' })
+    expect(detectorFilter('aurora', '700 LP')).toEqual({ center: 700, width: 0, type: 'longpass' })
+    expect(detectorFilter('aurora', 'unknown')).toBeNull()
+    expect(approximateDetectorResponse(700, { center: 650, width: 0, type: 'longpass' })).toBeGreaterThan(0.9)
+    expect(approximateDetectorResponse(530, { center: 530, width: 30, type: 'bandpass' })).toBeGreaterThan(0.5)
+    expect(ninePointBandpass(500, 90)).toHaveLength(9)
+    expect(normalizeRow([0, -2, 1])).toEqual([0, -1, 0.5])
+    expect(normalizeRow([0, 0])).toEqual([0, 0])
+  })
+
+  test('covers configuration aliases and the server-side data URL', () => {
+    expect(resolveConfiguration('lsrii', '6b999v999uv999r')).toBe('lsrii_6b_0v_0uv_3r')
+    expect(resolveConfiguration('lsrii', '6b')).toBe('lsrii_6b_0v_0uv_3r')
+    expect(resolveConfiguration('dxflex', '13colour')).toBe('dxflex_b5_r3_v5')
+    expect(() => requireSpectralLibrary(undefined, 'aurora')).toThrow('Spectral library file is missing')
+    const originalWindow = globalThis.window
+    vi.stubGlobal('window', undefined)
+    expect(dataUrl('fixture.csv')).toBe('http://localhost/data/fixture.csv')
+    vi.stubGlobal('window', { location: { origin: 'https://example.test' } })
+    expect(dataUrl('fixture.csv')).toBe('https://example.test/data/fixture.csv')
+    vi.stubGlobal('window', originalWindow)
+  })
+})

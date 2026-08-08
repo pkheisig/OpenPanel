@@ -266,7 +266,7 @@ const parseCsvLikeRows = (text: string) => {
         return { delimiter, rows, score: multiColumnRows * 1000 + totalCells };
     });
     parsed.sort((a, b) => b.score - a.score);
-    return parsed[0]?.rows || [];
+    return parsed[0].rows;
 };
 
 const rowHasHeaderWords = (row: string[]) => row.some(value => {
@@ -311,7 +311,7 @@ const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]) => {
     if (rows.length === 0) throw new Error('The imported CSV file is empty.');
 
     const lookup = buildFluorLookup(fluorophores);
-    const firstRow = rows[0] || [];
+    const firstRow = rows[0];
     const firstRowHasFluor = firstRow.some(value => !!matchImportedFluor(value, lookup));
     const hasHeader = rowHasHeaderWords(firstRow) || (!firstRowHasFluor && rows.length > 1);
     const headers = hasHeader ? firstRow.map(normalizeImportToken) : [];
@@ -375,6 +375,7 @@ export {
     PdfIcon,
     bandColor,
     binEmission,
+    buildFluorLookup,
     csvEscape,
     detectorColumnCenterX,
     detectorPointX,
@@ -388,6 +389,7 @@ export {
     laserWavelength,
     linePath,
     mapDetectorToEmission,
+    matchImportedFluor,
     normalizeMarkers,
     signatureBandBins,
     signatureY,

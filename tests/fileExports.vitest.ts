@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
+import { jsPDF } from 'jspdf'
 import { projectJsonFilename } from '../src/browserFiles'
-import { createPanelOverviewPdf } from '../src/pdfExport'
+import { addSimilarityPage, createPanelOverviewPdf } from '../src/pdfExport'
 import { detectImportedPanelRows } from '../src/panelBuilderShared'
 import { buildPanelPayload } from '../src/spectralEngine'
 import { mockBundledData } from './helpers'
@@ -57,5 +58,60 @@ describe('browser imports and exports', () => {
     expect(text.startsWith('%PDF-')).toBe(true)
     expect(bytes.byteLength).toBeGreaterThan(5_000)
     expect(text.match(/\/Type \/Page\b/g)?.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('creates the single-row conventional report and skips missing spectra safely', async () => {
+    const payload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['Alexa Fluor 488'])
+    const conventional = { ...payload, measurement_mode: 'conventional' as const }
+    const pdf = createPanelOverviewPdf(conventional, [{ fluor: 'Alexa Fluor 488', marker: '' }])
+    const bytes = new Uint8Array(await pdf.arrayBuffer())
+    expect(bytes.byteLength).toBeGreaterThan(1_000)
+
+    const missing = createPanelOverviewPdf(payload, [{ fluor: 'Not in spectra', marker: 'CD3' }])
+    expect((await missing.arrayBuffer()).byteLength).toBeGreaterThan(500)
+  })
+
+  test('renders similarity-page empty and dense matrix branches directly', async () => {
+    const payload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['Alexa Fluor 488', 'Alexa Fluor 647'])
+    const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' })
+    const fallbackPayload = {
+      ...payload,
+      cytometer: 'unknown-cytometer',
+      configuration: 'unknown-configuration',
+      libraries: [],
+      configurations: [],
+      complexity_index: null,
+      similarity: [
+        { fluorophore: 'Alexa Fluor 488', 'Alexa Fluor 488': 1, 'Alexa Fluor 647': 0.95 },
+        { fluorophore: 'Alexa Fluor 647', 'Alexa Fluor 488': 0.95, 'Alexa Fluor 647': 1 },
+      ],
+    }
+    addSimilarityPage(document, fallbackPayload, [{ fluor: 'Alexa Fluor 488', marker: 'CD3' }])
+    addSimilarityPage(document, fallbackPayload, [
+      { fluor: 'Alexa Fluor 488', marker: 'CD3' },
+      { fluor: 'Alexa Fluor 647', marker: 'CD3' },
+    ])
+    const spectralBytes = new Uint8Array(document.output('arraybuffer') as ArrayBuffer)
+    expect(spectralBytes.byteLength).toBeGreaterThan(1_000)
+
+    const conventionalDocument = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' })
+    addSimilarityPage(
+      conventionalDocument,
+      { ...fallbackPayload, measurement_mode: 'conventional' },
+      [{ fluor: 'Alexa Fluor 488', marker: '' }],
+    )
+    expect((conventionalDocument.output('arraybuffer') as ArrayBuffer).byteLength).toBeGreaterThan(500)
+
+    const densePayload = {
+      ...payload,
+      complexity_index: 0,
+      similarity: [],
+      spectra: [{ fluorophore: 'Alexa Fluor 488', V1: 'not numeric' } as never],
+    }
+    const duplicateDocument = createPanelOverviewPdf(densePayload, [
+      { fluor: 'Alexa Fluor 488', marker: 'CD3' },
+      { fluor: 'Alexa Fluor 488', marker: 'CD3' },
+    ])
+    expect((await duplicateDocument.arrayBuffer()).byteLength).toBeGreaterThan(1_000)
   })
 })

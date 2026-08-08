@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- OMIP action guards are pure, tested view-contract helpers */
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
@@ -36,6 +37,36 @@ type OmipLibraryProps = {
   activeConfigurationLabel?: string
   canUseRecommendedConfiguration?: (entry: OmipCatalogEntry) => boolean
   onUseRecommendedConfiguration?: (template: OmipTemplate, entry: OmipCatalogEntry) => void
+}
+
+export function applyOmipTemplateIfAvailable(
+  template: OmipTemplate | null | undefined,
+  onApplyTemplate?: (template: OmipTemplate) => void,
+): void {
+  if (!template || !onApplyTemplate) return
+  onApplyTemplate(template)
+}
+
+export function applyRecommendedOmipTemplate(
+  entry: OmipCatalogEntry | null,
+  onUseRecommendedConfiguration?: (template: OmipTemplate, entry: OmipCatalogEntry) => void,
+): void {
+  if (!entry?.template || !onUseRecommendedConfiguration) return
+  onUseRecommendedConfiguration(entry.template, entry)
+}
+
+export function runOmipPreviewAction(
+  preview: OmipCatalogEntry | null,
+  requiresCompatibilityWarning: boolean,
+  onApplyTemplate: ((template: OmipTemplate) => void) | undefined,
+  onWarn: (entry: OmipCatalogEntry) => void,
+): void {
+  if (!preview?.template || !onApplyTemplate) return
+  if (requiresCompatibilityWarning) {
+    onWarn(preview)
+    return
+  }
+  onApplyTemplate(preview.template)
 }
 
 const SPECIES_OPTIONS = [
@@ -199,12 +230,7 @@ export function OmipLibrary({
   )
 
   const applyPreview = () => {
-    if (!preview?.template || !onApplyTemplate) return
-    if (requiresCompatibilityWarning) {
-      setPendingIncompatibleEntry(preview)
-      return
-    }
-    onApplyTemplate(preview.template)
+    runOmipPreviewAction(preview, requiresCompatibilityWarning, onApplyTemplate, setPendingIncompatibleEntry)
   }
 
   return (
@@ -482,9 +508,9 @@ export function OmipLibrary({
                   type="button"
                   className="omip-compatibility-current"
                   onClick={() => {
-                    const template = pendingIncompatibleEntry.template
+                    const template = pendingIncompatibleEntry?.template
                     setPendingIncompatibleEntry(null)
-                    if (template) onApplyTemplate?.(template)
+                    applyOmipTemplateIfAvailable(template, onApplyTemplate)
                   }}
                 >
                   Use current config
@@ -497,10 +523,9 @@ export function OmipLibrary({
                     ? undefined
                     : 'This configuration is not available in OpenPanel'}
                   onClick={() => {
-                    const template = pendingIncompatibleEntry.template
                     const entry = pendingIncompatibleEntry
                     setPendingIncompatibleEntry(null)
-                    if (template) onUseRecommendedConfiguration?.(template, entry)
+                    applyRecommendedOmipTemplate(entry, onUseRecommendedConfiguration)
                   }}
                 >
                   Use recommended config

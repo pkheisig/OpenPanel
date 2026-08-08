@@ -531,7 +531,7 @@ const legacyOmipMetadataById = new Map(
   LEGACY_OMIP_METADATA.map((template) => [template.id, template]),
 )
 
-function omipSpecies(title: string, template: OmipTemplate | null): OmipCatalogEntry['species'] {
+export function omipSpecies(title: string, template: OmipTemplate | null): OmipCatalogEntry['species'] {
   if (template?.context.species === 'human' || template?.context.species === 'mouse') {
     return template.context.species
   }
@@ -583,6 +583,13 @@ const FLOW_OMIP_NUMBERS = new Set(Object.keys(flowOmipTemplateRowsByNumber).map(
 const flowOmipCytometersByNumber = FLOW_OMIP_CYTOMETERS as Readonly<Record<number, readonly string[]>>
 const flowOmipSourceUrlsByNumber = FLOW_OMIP_TABLE_SOURCE_URLS as Readonly<Record<number, string>>
 
+export function flowOmipTemplateRowsForNumber(
+  number: number,
+  rowsByNumber: Readonly<Record<number, readonly ImportedOmipTemplateRow[]>> = flowOmipTemplateRowsByNumber,
+): readonly ImportedOmipTemplateRow[] {
+  return rowsByNumber[number] ?? []
+}
+
 function spectralOmipContext(title: string): CoexpressionContext {
   const normalized = title.toLocaleLowerCase()
   const species: CoexpressionContext['species'] = /\b(mouse|mice|murine)\b/.test(normalized)
@@ -625,7 +632,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = OMIP_CATALOG_RECORDS
       sourceUrl: legacyMetadata?.sourceUrl ?? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
       tableSourceUrl: flowOmipSourceUrlsByNumber[number],
       context: legacyMetadata?.context ?? spectralOmipContext(title),
-      markers: (flowOmipTemplateRowsByNumber[number] ?? []).map(([name, fluorophore]) => ({
+      markers: flowOmipTemplateRowsForNumber(number).map(([name, fluorophore]) => ({
         name,
         fluorophore,
       })),
@@ -635,7 +642,7 @@ export const OMIP_TEMPLATES: OmipTemplate[] = OMIP_CATALOG_RECORDS
 
 const omipTemplatesById = new Map(OMIP_TEMPLATES.map((template) => [template.id, template]))
 
-function omipMethod(title: string): OmipCatalogEntry['method'] {
+export function omipMethod(title: string): OmipCatalogEntry['method'] {
   const normalized = title.toLocaleLowerCase()
   if (/\b(imaging mass cytometry|multiplex(?:ed)? imaging|image cytometry)\b/.test(normalized)) return 'imaging'
   if (/\b(mass cytometry|cytof)\b/.test(normalized)) return 'mass'
@@ -667,34 +674,68 @@ export const OMIP_CATALOG: OmipCatalogEntry[] = OMIP_CATALOG_RECORDS
   )
   .filter((entry) => entry.method === 'spectral' || entry.method === 'conventional')
 
-export function validateOmipFlowTemplateImport(): void {
-  const flowRecords = OMIP_CATALOG_RECORDS.filter(([number]) => FLOW_OMIP_NUMBERS.has(number))
-  const importedMarkerRowCount = Object.values(flowOmipTemplateRowsByNumber)
-    .reduce((total, rows) => total + rows.length, 0)
-  if (flowRecords.length !== FLOW_OMIP_IMPORT_MANIFEST.flowOmipCount) {
+type FlowOmipValidationInput = {
+  flowRecords: ReadonlyArray<readonly [number, ...unknown[]]>
+  importedMarkerRowCount: number
+  flowNumberCount: number
+  rowsByNumber: Readonly<Record<number, readonly ImportedOmipTemplateRow[]>>
+  sourceUrlsByNumber: Readonly<Record<number, string>>
+  cytometersByNumber: Readonly<Record<number, readonly string[]>>
+  templatesById: ReadonlyMap<string, Pick<OmipTemplate, 'tableSourceUrl' | 'allowDuplicateFluorophores'>>
+  manifest: Pick<typeof FLOW_OMIP_IMPORT_MANIFEST, 'flowOmipCount' | 'markerRowCount'>
+}
+
+export function validateOmipFlowTemplateImportData(input: FlowOmipValidationInput): void {
+  const {
+    flowRecords,
+    importedMarkerRowCount,
+    flowNumberCount,
+    rowsByNumber,
+    sourceUrlsByNumber,
+    cytometersByNumber,
+    templatesById,
+    manifest,
+  } = input
+  if (flowRecords.length !== manifest.flowOmipCount) {
     throw new Error(`OMIP flow record count mismatch: ${flowRecords.length}`)
   }
-  if (FLOW_OMIP_NUMBERS.size !== flowRecords.length) {
-    throw new Error(`OMIP flow template count mismatch: ${FLOW_OMIP_NUMBERS.size}`)
+  if (flowNumberCount !== flowRecords.length) {
+    throw new Error(`OMIP flow template count mismatch: ${flowNumberCount}`)
   }
-  if (importedMarkerRowCount !== FLOW_OMIP_IMPORT_MANIFEST.markerRowCount) {
+  if (importedMarkerRowCount !== manifest.markerRowCount) {
     throw new Error(`OMIP marker row count mismatch: ${importedMarkerRowCount}`)
   }
 
   const incomplete = flowRecords.filter(([number]) => {
-    const rows = flowOmipTemplateRowsByNumber[number]
-    const template = omipTemplatesById.get(`omip-${String(number).padStart(3, '0')}`)
+    const rows = rowsByNumber[number]
+    const template = templatesById.get(`omip-${String(number).padStart(3, '0')}`)
     return !rows
       || rows.length === 0
       || rows.some(([marker]) => !marker.trim())
-      || !flowOmipSourceUrlsByNumber[number]
-      || !(flowOmipCytometersByNumber[number]?.length)
+      || !sourceUrlsByNumber[number]
+      || !(cytometersByNumber[number]?.length)
       || !template?.tableSourceUrl
       || template.allowDuplicateFluorophores !== true
   })
   if (incomplete.length > 0) {
     throw new Error(`Incomplete OMIP flow imports: ${incomplete.map(([number]) => number).join(', ')}`)
   }
+}
+
+export function validateOmipFlowTemplateImport(): void {
+  const flowRecords = OMIP_CATALOG_RECORDS.filter(([number]) => FLOW_OMIP_NUMBERS.has(number))
+  const importedMarkerRowCount = Object.values(flowOmipTemplateRowsByNumber)
+    .reduce((total, rows) => total + rows.length, 0)
+  validateOmipFlowTemplateImportData({
+    flowRecords,
+    importedMarkerRowCount,
+    flowNumberCount: FLOW_OMIP_NUMBERS.size,
+    rowsByNumber: flowOmipTemplateRowsByNumber,
+    sourceUrlsByNumber: flowOmipSourceUrlsByNumber,
+    cytometersByNumber: flowOmipCytometersByNumber,
+    templatesById: omipTemplatesById,
+    manifest: FLOW_OMIP_IMPORT_MANIFEST,
+  })
 }
 
 validateOmipFlowTemplateImport()

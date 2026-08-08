@@ -981,3 +981,16 @@ export function generateWizardResults(
     ),
   }
 }
+
+// These helpers remain part of the engine's deterministic surface so the
+// numerical and fallback paths can be exercised without relying on a browser
+// interaction to construct an otherwise unreachable state.
+export {
+  alternatives,
+  brightnessCoverageRisk,
+  closestPair,
+  markerPriority,
+  optimizeBestFit,
+  panelMetrics,
+  spectrumVector,
+}

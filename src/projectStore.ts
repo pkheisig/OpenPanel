@@ -82,7 +82,7 @@ function isAntigenDensity(value: unknown): value is AntigenDensity {
   return value === 'low' || value === 'medium' || value === 'high'
 }
 
-function normalizeWizardPanelResult(value: unknown): WizardPanelResult | null {
+export function normalizeWizardPanelResult(value: unknown): WizardPanelResult | null {
   if (!isRecord(value)) return null
   if (value.kind !== 'recommended' && value.kind !== 'best-fit') return null
   if (!Array.isArray(value.rows) || !Array.isArray(value.alternatives)) return null
@@ -113,6 +113,13 @@ function normalizeWizardPanelResult(value: unknown): WizardPanelResult | null {
       }
     }),
   } as unknown as WizardPanelResult
+}
+
+export function normalizeWizardResults(value: unknown): WizardResults | null {
+  if (!isRecord(value)) return null
+  const recommended = normalizeWizardPanelResult(value.recommended)
+  const bestFit = normalizeWizardPanelResult(value.bestFit)
+  return recommended && bestFit ? { recommended, bestFit } : null
 }
 
 function normalizeWizardState(value: unknown): WizardProjectState | null {
@@ -146,15 +153,7 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
     && ['baseline', 'inflammatory', 'tumor'].includes(String(rawContext.condition))
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
-  const recommended = isRecord(value.results)
-    ? normalizeWizardPanelResult(value.results.recommended)
-    : null
-  const bestFit = isRecord(value.results)
-    ? normalizeWizardPanelResult(value.results.bestFit)
-    : null
-  const rawResults: WizardResults | null = recommended && bestFit
-    ? { recommended, bestFit }
-    : null
+  const rawResults = normalizeWizardResults(value.results)
   const activeTab = value.activeTab === 'coexpression' || value.activeTab === 'recommendations'
     ? value.activeTab
     : 'frequency'

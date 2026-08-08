@@ -165,7 +165,137 @@ describe('OpenPanel project files', () => {
   })
 
   test('rejects unrelated and future project formats', () => {
+    expect(() => parseProject('not json')).toThrow('valid JSON')
+    expect(() => parseProject('null')).toThrow('does not contain')
+    expect(() => parseProject('[]')).toThrow('does not contain')
     expect(() => parseProject('{"kind":"Elsewhere","version":1}')).toThrow('different application')
     expect(() => parseProject(`{"kind":"${PROJECT_FILE_KIND}","version":99}`)).toThrow('not supported')
+  })
+
+  test('drops malformed wizard and cytometer-panel records while preserving valid defaults', () => {
+    const malformed = {
+      cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', slots: [], markers: {},
+      cytometerPanels: { broken: null, array: [], valid: { configuration: '', slots: [], markers: {}, wizard: null } },
+      wizard: {
+        desiredSize: 2,
+        markers: [{ id: '', slotIndex: 'bad', name: 42, frequency: 'high', currentFluorophore: ['PE'] }],
+        coexpression: { good: 2, bad: 8, fraction: 1.5 },
+        coexpressionContext: { species: 'human', tissue: 'bad', population: 'all', condition: 'baseline' },
+        activeTab: 'unknown', resultMode: 'unknown', resultSort: 'unknown',
+        results: { recommended: { kind: 'bad', rows: [], alternatives: [] }, bestFit: null },
+      },
+    }
+    const parsed = parseProject(JSON.stringify(malformed))
+    expect(parsed.cytometerPanels).toHaveProperty('aurora')
+    expect(parsed.cytometerPanels).toHaveProperty('valid')
+    expect(parsed.wizard?.markers[0]).toMatchObject({ id: 'marker-0', name: '', antigenDensity: 'high', currentFluorophore: '' })
+    expect(parsed.wizard?.coexpression).toEqual({ good: 2 })
+    expect(parsed.wizard?.coexpressionContext).toBeUndefined()
+    expect(parsed.wizard?.results).toBeNull()
+  })
+
+  test('normalizes legacy wizard result rows, scalar arrays, and bounded settings', () => {
+    const legacy = {
+      cytometer: ['discover'],
+      configuration: ['discover_s8'],
+      slots: [['LIVE/DEAD Near-IR'], ['PE']],
+      markers: { 0: ['CD3'], 1: [''] },
+      tab: 'signatures', theme: 'dark', sidebarWidth: 999,
+      plotScale: 999, plotScaleMode: 'fit-width', sidebarCollapsed: 'true',
+      wizard: {
+        desiredSize: 0,
+        markers: [null, [], { id: 'm', slotIndex: -2.4, name: 'CD3', antigenDensity: 'low', currentFluorophore: 'PE' }],
+        coexpression: { valid: '4', invalid: 5, decimal: 1.5 },
+        coexpressionContext: { species: 'mouse', tissue: 'pbmc', population: 'nk-cells', condition: 'tumor' },
+        coexpressionScale: 5, coexpressionVisited: true, coexpressionCompleted: false, inputsChanged: false,
+        activeTab: 'coexpression', resultMode: 'bestFit', resultSort: 'marker',
+        results: {
+          recommended: {
+            kind: 'recommended',
+            rows: [{ markerId: 'm', markerName: 'CD3', slotIndex: 0, frequency: 'high', fluorophore: 'PE' }],
+            alternatives: [{ fluorophore: 'FITC' }],
+          },
+          bestFit: {
+            kind: 'best-fit',
+            rows: [{ markerId: 'm', markerName: 'CD3', slotIndex: 0, antigenDensity: 'medium', fluorophore: 'PE' }],
+            alternatives: [{ fluorophore: 'APC' }],
+          },
+        },
+      },
+      cytometerPanels: {
+        discover: { configuration: ['discover_s8'], slots: [['PE']], markers: { 0: ['CD3'] }, wizard: null },
+        malformed: { configuration: 42, slots: 'bad', markers: [], wizard: [] },
+      },
+    }
+    const parsed = parseProject(JSON.stringify(legacy))
+    expect(parsed.cytometer).toBe('discover')
+    expect(parsed.configuration).toBe('discover_s8')
+    expect(parsed.slots).toEqual(['LIVE DEAD NIR', 'PE'])
+    expect(parsed.markers).toEqual({ 0: 'CD3', 1: '' })
+    expect(parsed.tab).toBe('signatures')
+    expect(parsed.sidebarWidth).toBe(440)
+    expect(parsed.plotScale).toBe(180)
+    expect(parsed.wizard?.markers).toEqual([{ id: 'm', slotIndex: 0, name: 'CD3', antigenDensity: 'low', currentFluorophore: 'PE' }])
+    expect(parsed.wizard?.coexpression).toEqual({ valid: 4 })
+    expect(parsed.wizard?.coexpressionContext).toMatchObject({ species: 'mouse', population: 'nk-cells' })
+    expect(parsed.wizard?.results?.recommended.rows[0]).toMatchObject({ antigenDensity: 'high' })
+    expect(parsed.wizard?.results?.recommended.rows[0]).not.toHaveProperty('frequency')
+    expect(parsed.wizard?.results?.bestFit.rows[0]).toMatchObject({ antigenDensity: 'medium' })
+    expect(parsed.cytometerPanels).toHaveProperty('discover')
+    expect(parsed.cytometerPanels.malformed).toMatchObject({ configuration: '' })
+  })
+
+  test('uses defaults and legacy plot-height conversion for incomplete state', () => {
+    const parsed = parseProject(JSON.stringify({
+      cytometer: 42,
+      configuration: null,
+      slots: null,
+      markers: [],
+      tab: 'unknown',
+      theme: 'light',
+      sidebarWidth: 'not-a-number',
+      plotHeight: 460,
+      plotScaleMode: 'fit-width',
+      wizard: { markers: [] },
+    }))
+    expect(parsed.cytometer).toBe('aurora')
+    expect(parsed.configuration).toBe('5l_uv_v_b_yg_r')
+    expect(parsed.slots).toHaveLength(18)
+    expect(parsed.sidebarWidth).toBe(214)
+    expect(parsed.plotScale).toBe(180)
+    expect(parsed.wizard).toBeNull()
+  })
+
+  test('rejects malformed wizard result shapes and fills conservative defaults', () => {
+    const base = {
+      markers: [
+        { id: 'm0', slotIndex: 0, name: 'CD3', antigenDensity: 'invalid', frequency: 'invalid', currentFluorophore: null },
+        { id: 'm1', slotIndex: 1, name: 'CD4', antigenDensity: 'medium', currentFluorophore: 'FITC' },
+      ],
+      coexpression: null,
+      results: {
+        recommended: { kind: 'recommended', rows: 'bad', alternatives: [] },
+        bestFit: { kind: 'best-fit', rows: [], alternatives: 'bad' },
+      },
+    }
+    const parsed = parseProject(JSON.stringify({ cytometer: 'aurora', configuration: '', slots: [null], markers: { 0: null }, wizard: base }))
+    expect(parsed.configuration).toBe('')
+    expect(parsed.slots).toEqual([''])
+    expect(parsed.markers).toEqual({ 0: '' })
+    expect(parsed.wizard?.markers[0]).toMatchObject({ antigenDensity: 'medium', currentFluorophore: '' })
+    expect(parsed.wizard?.coexpression).toEqual({})
+    expect(parsed.wizard?.results).toBeNull()
+
+    const invalidAlternatives = parseProject(JSON.stringify({ wizard: {
+      markers: [{ id: 'm', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: '' }],
+      results: {
+        recommended: { kind: 'recommended', rows: [], alternatives: [{ fluorophore: 42 }] },
+        bestFit: { kind: 'best-fit', rows: [], alternatives: [] },
+      },
+    } }))
+    expect(invalidAlternatives.wizard?.results).toBeNull()
+
+    const noResults = parseProject(JSON.stringify({ wizard: { markers: [base.markers[1]], results: 'bad' } }))
+    expect(noResults.wizard?.results).toBeNull()
   })
 })

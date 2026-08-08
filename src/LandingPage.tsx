@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- deterministic view helpers are tested alongside the landing component */
 import {
   Archive,
   ArchiveRestore,
@@ -69,7 +70,7 @@ const projectOrderOptions = [
   { value: 'name-asc', label: 'Name A–Z' },
 ] satisfies Array<{ value: ProjectOrder; label: string }>
 
-function sortPanelProjects(panels: StoredPanelProject[], order: ProjectOrder): StoredPanelProject[] {
+export function sortPanelProjects(panels: StoredPanelProject[], order: ProjectOrder): StoredPanelProject[] {
   return [...panels].sort((left, right) => {
     if (order === 'created-asc') {
       return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)
@@ -90,6 +91,20 @@ function sortPanelProjects(panels: StoredPanelProject[], order: ProjectOrder): S
   })
 }
 
+export function resolveLibraryLabel(
+  id: string,
+  libraries: ReadonlyArray<{ id: string; label: string }>,
+): string {
+  return libraries.find((library) => library.id === id)?.label ?? id
+}
+
+export function resolveConfigurationLabel(
+  configuration: string,
+  configurations: ReadonlyArray<{ id: string; label: string }>,
+): string {
+  return configurations.find((candidate) => candidate.id === configuration)?.label ?? configuration
+}
+
 function formatUpdatedAt(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
@@ -106,7 +121,7 @@ type InstrumentSetup = {
   configuration: string
 }
 
-function recommendedSetupForOmip(entry: OmipCatalogEntry): InstrumentSetup | null {
+export function recommendedSetupForOmip(entry: OmipCatalogEntry): InstrumentSetup | null {
   for (const reported of entry.cytometers) {
     const normalized = reported.toLocaleLowerCase()
     let setup: InstrumentSetup | null = null
@@ -354,31 +369,34 @@ export function LandingPage({
       const payload = target.cytometer === cytometer && target.configuration === configuration
         ? omipPayload
         : await buildPanelPayload(target.cytometer, target.configuration)
-      if (!payload) return
-      const maxPanelSize = payload.max_panel_size
-      const availableFluorophores = payload.fluorophores.map((item) => item.fluorophore)
-      const assignments = omipTemplateAssignmentsForPanel(
-        template,
-        availableFluorophores,
-        maxPanelSize,
-      ) ?? omipTemplateAssignmentsForPanelBestEffort(
-        template,
-        availableFluorophores,
-        maxPanelSize,
-      )
-      if (assignments.length === 0) return
+      if (payload === null) {
+        return
+      } else {
+        const maxPanelSize = payload.max_panel_size
+        const availableFluorophores = payload.fluorophores.map((item) => item.fluorophore)
+        const assignments = omipTemplateAssignmentsForPanel(
+          template,
+          availableFluorophores,
+          maxPanelSize,
+        ) ?? omipTemplateAssignmentsForPanelBestEffort(
+          template,
+          availableFluorophores,
+          maxPanelSize,
+        )
+        if (assignments.length === 0) return
 
-      writeLocalStorage('spectreasy_cytometer', target.cytometer)
-      writeLocalStorage('spectreasy_configuration', target.configuration)
-      await onStart({
-        name: template.name,
-        cytometer: target.cytometer,
-        configuration: target.configuration,
-        slots: assignments.map((assignment) => assignment.fluorophore),
-        markers: Object.fromEntries(
-          assignments.map((assignment, index) => [index, assignment.marker]),
-        ),
-      })
+        writeLocalStorage('spectreasy_cytometer', target.cytometer)
+        writeLocalStorage('spectreasy_configuration', target.configuration)
+        await onStart({
+          name: template.name,
+          cytometer: target.cytometer,
+          configuration: target.configuration,
+          slots: assignments.map((assignment) => assignment.fluorophore),
+          markers: Object.fromEntries(
+            assignments.map((assignment, index) => [index, assignment.marker]),
+          ),
+        })
+      }
     } catch (createError) {
       setError(errorMessage(createError, 'Could not create a panel from this OMIP.'))
     } finally {
@@ -399,13 +417,14 @@ export function LandingPage({
   }
 
   const cytometerLabel = (id: string) => (
-    libraries.find((library) => library.id === id)?.label ?? id
+    resolveLibraryLabel(id, libraries)
   )
 
   const configurationLabel = (panel: StoredPanelProject) => (
-    getSpectralPanelConfigurations(panel.state.cytometer)
-      .find((candidate) => candidate.id === panel.state.configuration)?.label
-      ?? panel.state.configuration
+    resolveConfigurationLabel(
+      panel.state.configuration,
+      getSpectralPanelConfigurations(panel.state.cytometer),
+    )
   )
 
   const openMenu = (panel: StoredPanelProject, x: number, y: number) => {
@@ -682,8 +701,8 @@ export function LandingPage({
           theme={theme}
           availableFluorophores={omipPayload?.fluorophores.map((item) => item.fluorophore)}
           maxPanelSize={omipPayload?.max_panel_size}
-          activeCytometerLabel={libraries.find((library) => library.id === cytometer)?.label ?? cytometer}
-          activeConfigurationLabel={configurations.find((candidate) => candidate.id === configuration)?.label ?? configuration}
+          activeCytometerLabel={resolveLibraryLabel(cytometer, libraries)}
+          activeConfigurationLabel={resolveConfigurationLabel(configuration, configurations)}
           actionLabel={creatingFromOmip ? 'Creating panel…' : 'Create panel from OMIP'}
           actionDisabled={!omipPayload || creatingFromOmip}
           onClose={() => {
