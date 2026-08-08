@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">OpenPanel OPn monogram</title>
+  <rect width="512" height="512" rx="108" fill="#152324"/>
+  <rect x="18" y="18" width="476" height="476" rx="94" fill="none" stroke="#315856" stroke-width="12"/>
+  <ellipse cx="110" cy="258" rx="64" ry="104" fill="none" stroke="#e7b84b" stroke-width="42"/>
+  <path
+    d="M220 370V145M220 155H278C348 155 348 260 278 260H220"
+    fill="none"
+    stroke="#71c3b8"
+    stroke-width="42"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M375 370V245M375 292C375 232 458 232 458 299V370"
+    fill="none"
+    stroke="#71c3b8"
+    stroke-width="42"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
