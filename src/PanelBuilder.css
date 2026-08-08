@@ -851,7 +851,8 @@
   z-index: 2;
   top: 0;
   bottom: 0;
-  width: 14px;
+  /* Keep the visible grip at the plot edge while providing a touch-sized target. */
+  width: 44px;
   border: 0;
   background: transparent;
   color: color-mix(in srgb, var(--text-muted) 42%, transparent);
@@ -881,10 +882,12 @@
 
 .spectrum-plot-resize-handle-left {
   left: 0;
+  justify-content: flex-start;
 }
 
 .spectrum-plot-resize-handle-right {
   right: 0;
+  justify-content: flex-end;
 }
 
 .spectrum-svg {

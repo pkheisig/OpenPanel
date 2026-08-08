@@ -77,4 +77,15 @@ describe('OMIP catalog sorting', () => {
     expect(isOmipDesignedForActiveSetup(entries[1], 'Cytek Aurora', 'Aurora 5L: UV/V/B/YG/R')).toBe(true)
     expect(isOmipDesignedForActiveSetup(entries[0], 'Cytek Aurora', 'Aurora 5L: UV/V/B/YG/R')).toBe(false)
   })
+
+  test('handles empty reports and catalog names without numeric suffixes', () => {
+    const undated: OmipCatalogEntry = {
+      ...entries[0], id: 'custom', name: 'Custom panel', cytometers: [],
+    }
+    expect(isOmipDesignedForActiveSetup(undated, 'Cytek Aurora', 'Aurora 5L: UV/V/B/YG/R')).toBe(false)
+    expect(sortOmipEntriesForActiveSetup([undated, entries[0]], 'Cytek Aurora', 'Aurora 4L: UV/V/B/R').map((entry) => entry.name))
+      .toEqual(['OMIP-120', 'Custom panel'])
+    const secondUndated = { ...undated, id: 'custom-2', name: 'Another panel' }
+    expect(sortOmipEntriesForActiveSetup([undated, secondUndated])).toHaveLength(2)
+  })
 })

@@ -156,6 +156,10 @@ function addSignatureChart(
   })
 }
 
+// Exported for focused coverage of the report-page rendering contract; the public
+// builder below remains the normal entry point used by the UI.
+export { addSimilarityPage }
+
 export function createPanelOverviewPdf(payload: PanelPayload, rows: PanelReportRow[]): Blob {
   const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter', compress: true })
   if (rows.length >= 2) addSimilarityPage(document, payload, rows)

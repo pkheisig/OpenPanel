@@ -41,4 +41,22 @@ describe('browser storage guards', () => {
     expect(() => writeLocalStorage('theme', 'dark')).not.toThrow()
     expect(() => removeLocalStorage('theme')).not.toThrow()
   })
+
+  test('handles missing window and per-operation storage failures', () => {
+    vi.stubGlobal('window', undefined)
+    expect(readLocalStorage('theme')).toBeNull()
+    expect(() => writeLocalStorage('theme', 'dark')).not.toThrow()
+    expect(() => removeLocalStorage('theme')).not.toThrow()
+
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: () => { throw new Error('read blocked') },
+        setItem: () => { throw new Error('write blocked') },
+        removeItem: () => { throw new Error('remove blocked') },
+      },
+    })
+    expect(readLocalStorage('theme')).toBeNull()
+    expect(() => writeLocalStorage('theme', 'dark')).not.toThrow()
+    expect(() => removeLocalStorage('theme')).not.toThrow()
+  })
 })

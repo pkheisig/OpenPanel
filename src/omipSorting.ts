@@ -15,8 +15,8 @@ export function isOmipDesignedForActiveSetup(
 }
 
 function omipNumber(entry: Pick<OmipCatalogEntry, 'name'>): number {
-  const value = Number(entry.name.match(/\d+$/)?.[0] ?? '')
-  return Number.isFinite(value) ? value : -1
+  const suffix = entry.name.match(/\d+$/)?.[0]
+  return suffix ? Number(suffix) : -1
 }
 
 export function sortOmipEntriesForActiveSetup(

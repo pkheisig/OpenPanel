@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure panel helpers remain colocated with their component contract */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Trash2, Undo2, Upload, WandSparkles, X } from 'lucide-react';
@@ -62,6 +63,236 @@ const MAX_PANEL_HISTORY = 100;
 const panelCapacityMessage = (colorCount: number, detectorCount: number) => (
     `This panel has ${colorCount} colors, but the selected configuration has only ${detectorCount} detectors. Remove colors before calculating or adding to the panel.`
 );
+
+export function shouldSkipSlotUpdate(currentSlots: string[], index: number, fluor: string): boolean {
+    return Boolean(fluor && currentSlots.some((existing, slotIndex) => slotIndex !== index && existing === fluor))
+        || currentSlots[index] === fluor;
+}
+
+export function panelErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
+export function filterPanelOptions(
+    payload: PanelPayload | null,
+    query: string,
+    selected: ReadonlySet<string>,
+    currentSlot: string,
+): FluorInfo[] {
+    if (!payload) return [];
+    const baseOptions = payload.fluorophores
+        .filter((fluorophore) => !selected.has(fluorophore.fluorophore) || currentSlot === fluorophore.fluorophore);
+    return rankUiSelectOptions(
+        baseOptions.map((option) => ({ value: option.fluorophore, label: option.fluorophore, option })),
+        query,
+    ).map(({ option }) => option).slice(0, 80);
+}
+
+export function assertPanelPayload(payload: PanelPayload | null): PanelPayload {
+    if (!payload) throw new Error('Panel data is not ready.');
+    return payload;
+}
+
+export function popHistorySnapshot<T>(historyBusy: boolean, snapshots: T[]): T | null {
+    if (historyBusy) return null;
+    return snapshots.pop() ?? null;
+}
+
+export async function runHistoryAction<T>(
+    historyBusy: boolean,
+    snapshots: T[],
+    action: (snapshot: T) => void | Promise<void>,
+): Promise<void> {
+    const snapshot = popHistorySnapshot(historyBusy, snapshots);
+    if (!snapshot) return;
+    await action(snapshot);
+}
+
+export function canBeginSidebarResize(sidebarCollapsed: boolean, sidebar: HTMLElement | null): boolean {
+    return !sidebarCollapsed && Boolean(sidebar);
+}
+
+export function withSidebarResizeTarget(
+    sidebarCollapsed: boolean,
+    sidebar: HTMLElement | null,
+    onReady: (sidebar: HTMLElement) => void,
+): void {
+    if (!canBeginSidebarResize(sidebarCollapsed, sidebar) || !sidebar) return;
+    onReady(sidebar);
+}
+
+export function appendPanelSlot(
+    payload: PanelPayload | null,
+    currentSlots: string[],
+    onCapacityError: (message: string) => void,
+    onAppend: (nextSlots: string[]) => void,
+): void {
+    if (payload && currentSlots.length >= payload.max_panel_size) {
+        onCapacityError(`The selected configuration supports a maximum of ${payload.max_panel_size} colors because it has ${payload.max_panel_size} detectors.`);
+        return;
+    }
+    onAppend([...currentSlots, '']);
+}
+
+export function trimInitialPanel(
+    slots: string[],
+    markers: Record<number, string>,
+    maxPanelSize: number,
+): { slots: string[]; markers: Record<number, string> } | null {
+    const colorCount = new Set(slots.filter(Boolean)).size;
+    if (colorCount > maxPanelSize || slots.length <= maxPanelSize) return null;
+    const nextSlots = slots.slice(0, maxPanelSize);
+    const nextMarkers = Object.fromEntries(
+        Object.entries(markers)
+            .map(([key, value]) => [Number(key), value] as const)
+            .filter(([slotIndex]) => slotIndex < maxPanelSize),
+    );
+    return { slots: nextSlots, markers: nextMarkers };
+}
+
+export function resolvePanelBuilderTheme(
+    embedded: boolean,
+    cockpitTheme: 'light' | 'dark' | null,
+    theme: 'light' | 'dark',
+): 'light' | 'dark' {
+    return embedded && cockpitTheme ? cockpitTheme : theme;
+}
+
+export function createPanelBuilderProjectState(
+    cytometer: string,
+    configuration: string,
+    theme: 'light' | 'dark',
+    slots: string[],
+    markers: Record<number, string>,
+    tab: TabId,
+    sidebarWidth: number,
+    sidebarCollapsed: boolean,
+    plotScale: number,
+    wizard: WizardProjectState | null,
+    cytometerPanels: Record<string, CytometerPanelState>,
+): ProjectState {
+    const activeCytometer = getCytometerName(cytometer);
+    const activePanel: CytometerPanelState = {
+        configuration: getCytometerName(configuration),
+        slots,
+        markers,
+        wizard,
+    };
+    return {
+        cytometer: activeCytometer,
+        configuration: activePanel.configuration,
+        theme,
+        slots,
+        markers,
+        tab,
+        sidebarWidth,
+        sidebarCollapsed,
+        plotScale,
+        plotScaleMode: 'fit-width',
+        wizard,
+        cytometerPanels: {
+            ...cytometerPanels,
+            [activeCytometer]: activePanel,
+        },
+    };
+}
+
+export function synchronizeWizardPanelState(
+    current: WizardProjectState | null,
+    nextSlots: string[],
+    removedSlotIndex?: number,
+    invalidateResults = true,
+): WizardProjectState | null {
+    if (!current) return null;
+    let changed = false;
+    const remainingMarkers = current.markers
+        .filter((marker) => marker.slotIndex !== removedSlotIndex);
+    if (remainingMarkers.length !== current.markers.length) changed = true;
+    const nextMarkers = remainingMarkers
+        .map((marker) => {
+            const slotIndex = removedSlotIndex !== undefined && marker.slotIndex > removedSlotIndex
+                ? marker.slotIndex - 1
+                : marker.slotIndex;
+            const currentFluorophore = nextSlots[slotIndex] ?? '';
+            if (slotIndex === marker.slotIndex && currentFluorophore === marker.currentFluorophore) {
+                return marker;
+            }
+            changed = true;
+            return { ...marker, slotIndex, currentFluorophore };
+        });
+    const desiredSize = removedSlotIndex === undefined
+        ? current.desiredSize
+        : Math.min(current.desiredSize, nextSlots.length);
+    if (desiredSize !== current.desiredSize) changed = true;
+    if (!changed) return null;
+    return {
+        ...current,
+        desiredSize,
+        markers: nextMarkers,
+        results: invalidateResults && current.results ? null : current.results,
+    };
+}
+
+export function panelFilterValues(
+    queries: Record<number, string>,
+    slots: string[],
+    slotIndex: number,
+): { query: string; currentSlot: string } {
+    return {
+        query: queries[slotIndex] ?? '',
+        currentSlot: slots[slotIndex] ?? '',
+    };
+}
+
+export function ensureBootPromise<T>(
+    existing: Promise<T> | null,
+    create: () => Promise<T>,
+): Promise<T> {
+    return existing ?? create();
+}
+
+export function panelOutsideClickActions(
+    target: HTMLElement | null,
+    fileActionsContains: boolean,
+): { clearActiveSlot: boolean; clearFileMenu: boolean } {
+    if (!target || typeof target.closest !== 'function') {
+        return { clearActiveSlot: false, clearFileMenu: false };
+    }
+    return {
+        clearActiveSlot: !target.closest('.selector-row') && !target.closest('.clear-slot'),
+        clearFileMenu: !fileActionsContains,
+    };
+}
+
+export function shouldDismissClearConfirmation(clearingPanel: boolean): boolean {
+    return !clearingPanel;
+}
+
+export function hasSelectedFile(file: File | null): file is File {
+    return Boolean(file);
+}
+
+export function resetFileInputValue(input: HTMLInputElement | null): void {
+    if (input) input.value = '';
+}
+
+export function bootErrorLabel(error: string): string {
+    return error || 'The bundled spectral data could not be opened.';
+}
+
+export function selectorDisplayValue(
+    activeSlot: number | null,
+    index: number,
+    queries: Record<number, string>,
+    fluor: string,
+): string {
+    return activeSlot === index ? (queries[index] ?? fluor) : fluor;
+}
+
+export function reindexRemovedSlot(slotIndex: number, removedIndex: number): number {
+    return slotIndex > removedIndex ? slotIndex - 1 : slotIndex;
+}
+
 const loadPanelWizard = () => import('./PanelWizard');
 const PanelWizard = lazy(() => loadPanelWizard().then((module) => ({ default: module.PanelWizard })));
 
@@ -133,35 +364,8 @@ const PanelBuilder = ({
         removedSlotIndex?: number,
         invalidateResults = true,
     ) => {
-        const current = wizardStateRef.current;
-        if (!current) return;
-        let changed = false;
-        const remainingMarkers = current.markers
-            .filter((marker) => marker.slotIndex !== removedSlotIndex);
-        if (remainingMarkers.length !== current.markers.length) changed = true;
-        const nextMarkers = remainingMarkers
-            .map((marker) => {
-                const slotIndex = removedSlotIndex !== undefined && marker.slotIndex > removedSlotIndex
-                    ? marker.slotIndex - 1
-                    : marker.slotIndex;
-                const currentFluorophore = nextSlots[slotIndex] ?? '';
-                if (slotIndex === marker.slotIndex && currentFluorophore === marker.currentFluorophore) {
-                    return marker;
-                }
-                changed = true;
-                return { ...marker, slotIndex, currentFluorophore };
-            });
-        const desiredSize = removedSlotIndex === undefined
-            ? current.desiredSize
-            : Math.min(current.desiredSize, nextSlots.length);
-        if (desiredSize !== current.desiredSize) changed = true;
-        if (!changed) return;
-        const nextState = {
-            ...current,
-            desiredSize,
-            markers: nextMarkers,
-            results: invalidateResults && current.results ? null : current.results,
-        };
+        const nextState = synchronizeWizardPanelState(wizardStateRef.current, nextSlots, removedSlotIndex, invalidateResults);
+        if (!nextState) return;
         wizardStateRef.current = nextState;
         setWizardState(nextState);
         setWizardSyncRevision((revision) => revision + 1);
@@ -224,16 +428,9 @@ const PanelBuilder = ({
     }, [markers]);
 
     const projectState = useMemo<ProjectState>(() => {
-        const activeCytometer = getCytometerName(cytometer);
-        const activePanel: CytometerPanelState = {
-            configuration: getCytometerName(configuration),
-            slots,
-            markers,
-            wizard: wizardState,
-        };
-        return {
-            cytometer: activeCytometer,
-            configuration: activePanel.configuration,
+        return createPanelBuilderProjectState(
+            cytometer,
+            configuration,
             theme,
             slots,
             markers,
@@ -241,13 +438,9 @@ const PanelBuilder = ({
             sidebarWidth,
             sidebarCollapsed,
             plotScale,
-            plotScaleMode: 'fit-width',
-            wizard: wizardState,
-            cytometerPanels: {
-                ...cytometerPanels,
-                [activeCytometer]: activePanel,
-            },
-        };
+            wizardState,
+            cytometerPanels,
+        );
     }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
@@ -404,6 +597,7 @@ const PanelBuilder = ({
         if (showLoading) setLoading(true);
         try {
             const nextPayload = await requestPanel(nextCytometer, nextConfiguration, nextSelected);
+            if (!nextPayload) return null;
             if (!panelRequestSequenceRef.current.isCurrent(requestSequence)) return null;
             setPayload(nextPayload);
             setCytometer(getCytometerName(nextPayload.cytometer));
@@ -435,36 +629,34 @@ const PanelBuilder = ({
         writeLocalStorage('spectreasy_slots', JSON.stringify(snapshot.slots));
         writeLocalStorage('spectreasy_markers', JSON.stringify(snapshot.markers));
         await fetchPanel(cytometer, configuration, snapshot.slots.filter(Boolean)).catch((historyError) => {
-            setError(historyError instanceof Error ? historyError.message : 'Could not restore panel edit.');
+            setError(panelErrorMessage(historyError, 'Could not restore panel edit.'));
         });
     };
 
     const undoPanelEdit = async () => {
-        if (historyBusy) return;
-        const previous = panelHistoryRef.current.past.pop();
-        if (!previous) return;
-        panelHistoryRef.current.future.push(capturePanelEdit());
-        syncHistoryAvailability();
-        setHistoryBusy(true);
-        try {
-            await restorePanelEdit(previous);
-        } finally {
-            setHistoryBusy(false);
-        }
+        await runHistoryAction(historyBusy, panelHistoryRef.current.past, async (previous) => {
+            panelHistoryRef.current.future.push(capturePanelEdit());
+            syncHistoryAvailability();
+            setHistoryBusy(true);
+            try {
+                await restorePanelEdit(previous);
+            } finally {
+                setHistoryBusy(false);
+            }
+        });
     };
 
     const redoPanelEdit = async () => {
-        if (historyBusy) return;
-        const next = panelHistoryRef.current.future.pop();
-        if (!next) return;
-        panelHistoryRef.current.past.push(capturePanelEdit());
-        syncHistoryAvailability();
-        setHistoryBusy(true);
-        try {
-            await restorePanelEdit(next);
-        } finally {
-            setHistoryBusy(false);
-        }
+        await runHistoryAction(historyBusy, panelHistoryRef.current.future, async (next) => {
+            panelHistoryRef.current.past.push(capturePanelEdit());
+            syncHistoryAvailability();
+            setHistoryBusy(true);
+            try {
+                await restorePanelEdit(next);
+            } finally {
+                setHistoryBusy(false);
+            }
+        });
     };
 
     useEffect(() => {
@@ -479,30 +671,24 @@ const PanelBuilder = ({
                 setCytometer(getCytometerName(initial.cytometer));
                 setConfiguration(getCytometerName(initial.configuration));
                 const initialColorCount = new Set(slotsRef.current.filter(Boolean)).size;
-                if (initialColorCount <= initial.max_panel_size && slotsRef.current.length > initial.max_panel_size) {
-                    const nextSlots = slotsRef.current.slice(0, initial.max_panel_size);
-                    const nextMarkers = Object.fromEntries(
-                        Object.entries(markersRef.current)
-                            .map(([key, value]) => [Number(key), value] as const)
-                            .filter(([slotIndex]) => slotIndex < initial.max_panel_size),
-                    );
-                    slotsRef.current = nextSlots;
-                    markersRef.current = nextMarkers;
-                    setSlots(nextSlots);
-                    setMarkers(nextMarkers);
+                const trimmed = trimInitialPanel(slotsRef.current, markersRef.current, initial.max_panel_size);
+                if (trimmed) {
+                    slotsRef.current = trimmed.slots;
+                    markersRef.current = trimmed.markers;
+                    setSlots(trimmed.slots);
+                    setMarkers(trimmed.markers);
                 }
                 if (initialColorCount > initial.max_panel_size) {
                     setError(panelCapacityMessage(initialColorCount, initial.max_panel_size));
                 }
                 setGuiStateLoaded(true);
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Could not load bundled spectral libraries.');
+                setError(panelErrorMessage(err, 'Could not load bundled spectral libraries.'));
             } finally {
                 setLoading(false);
             }
         };
-        if (!bootPromiseRef.current) bootPromiseRef.current = boot();
-        void bootPromiseRef.current;
+        bootPromiseRef.current = ensureBootPromise(bootPromiseRef.current, boot);
     }, [bootAttempt, requestPanel]);
 
     const retryBoot = () => {
@@ -516,19 +702,16 @@ const PanelBuilder = ({
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as HTMLElement;
-            if (target && typeof target.closest === 'function') {
-                if (!target.closest('.selector-row') && !target.closest('.clear-slot')) {
-                    setActiveSlot(null);
-                }
-                if (!fileActionsRef.current?.contains(target)) setFileMenu(null);
-            }
+            const actions = panelOutsideClickActions(target, Boolean(fileActionsRef.current?.contains(target)));
+            if (actions.clearActiveSlot) setActiveSlot(null);
+            if (actions.clearFileMenu) setFileMenu(null);
         };
         const handleEscape = (event: KeyboardEvent) => {
             if (event.key !== 'Escape' || event.defaultPrevented) return;
             if (showPanelWizard) return;
             event.preventDefault();
             if (showClearConfirmation) {
-                if (!clearingPanel) setShowClearConfirmation(false);
+                if (shouldDismissClearConfirmation(clearingPanel)) setShowClearConfirmation(false);
                 return;
             }
             if (showPdfConfirm) {
@@ -555,8 +738,7 @@ const PanelBuilder = ({
 
     const updateSlot = async (index: number, fluor: string) => {
         const currentSlots = slotsRef.current;
-        if (fluor && currentSlots.some((existing, i) => i !== index && existing === fluor)) return;
-        if (currentSlots[index] === fluor) return;
+        if (shouldSkipSlotUpdate(currentSlots, index, fluor)) return;
         recordPanelEdit();
         const nextSlots = currentSlots.map((existing, i) => (i === index ? fluor : existing));
         slotsRef.current = nextSlots;
@@ -566,7 +748,7 @@ const PanelBuilder = ({
         setQueries(prev => ({ ...prev, [index]: '' }));
         setActiveSlot(null);
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
-            setError(err instanceof Error ? err.message : 'Could not update panel.');
+            setError(panelErrorMessage(err, 'Could not update panel.'));
         });
     };
 
@@ -577,7 +759,7 @@ const PanelBuilder = ({
             Object.entries(markersRef.current)
                 .map(([key, value]) => [Number(key), value] as const)
                 .filter(([slotIndex]) => slotIndex !== index)
-                .map(([slotIndex, value]) => [slotIndex > index ? slotIndex - 1 : slotIndex, value]),
+            .map(([slotIndex, value]) => [reindexRemovedSlot(slotIndex, index), value]),
         );
         slotsRef.current = nextSlots;
         markersRef.current = nextMarkers;
@@ -588,28 +770,25 @@ const PanelBuilder = ({
             Object.entries(current)
                 .map(([key, value]) => [Number(key), value] as const)
                 .filter(([slotIndex]) => slotIndex !== index)
-                .map(([slotIndex, value]) => [slotIndex > index ? slotIndex - 1 : slotIndex, value]),
+                .map(([slotIndex, value]) => [reindexRemovedSlot(slotIndex, index), value]),
         ));
         setActiveSlot(null);
         writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
         writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
-            setError(err instanceof Error ? err.message : 'Could not update panel.');
+            setError(panelErrorMessage(err, 'Could not update panel.'));
         });
         await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
     };
 
     const addSlot = () => {
-        if (payload && slotsRef.current.length >= payload.max_panel_size) {
-            setError(`The selected configuration supports a maximum of ${payload.max_panel_size} colors because it has ${payload.max_panel_size} detectors.`);
-            return;
-        }
-        recordPanelEdit();
-        const nextSlots = [...slotsRef.current, ''];
-        slotsRef.current = nextSlots;
-        setSlots(nextSlots);
-        syncWizardColorsWithPanel(nextSlots);
-        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+        appendPanelSlot(payload, slotsRef.current, setError, (nextSlots) => {
+            recordPanelEdit();
+            slotsRef.current = nextSlots;
+            setSlots(nextSlots);
+            syncWizardColorsWithPanel(nextSlots);
+            writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+        });
     };
 
     const updateMarkerWithHistory = useCallback((slotIndex: number, value: string) => {
@@ -641,7 +820,7 @@ const PanelBuilder = ({
         writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
         writeLocalStorage('spectreasy_markers', '{}');
         await fetchPanel(cytometer, configuration, []).catch((clearError) => {
-            setError(clearError instanceof Error ? clearError.message : 'Could not clear the panel.');
+            setError(panelErrorMessage(clearError, 'Could not clear the panel.'));
         });
         const activeCytometer = getCytometerName(cytometer);
         await persistProjectState({
@@ -702,27 +881,14 @@ const PanelBuilder = ({
         writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
         writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((wizardError) => {
-            throw wizardError instanceof Error ? wizardError : new Error('Could not apply the panel recommendations.');
+            throw new Error(panelErrorMessage(wizardError, 'Could not apply the panel recommendations.'));
         });
         await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
     };
 
     const filteredOptions = (slotIndex: number) => {
-        if (!payload) return [];
-        const query = queries[slotIndex] ?? '';
-        const baseOptions = payload.fluorophores
-            .filter(f => !selectedSet.has(f.fluorophore) || slots[slotIndex] === f.fluorophore);
-
-        return rankUiSelectOptions(
-            baseOptions.map(option => ({
-                value: option.fluorophore,
-                label: option.fluorophore,
-                option,
-            })),
-            query,
-        )
-            .map(({ option }) => option)
-            .slice(0, 80);
+        const { query, currentSlot } = panelFilterValues(queries, slots, slotIndex);
+        return filterPanelOptions(payload, query, selectedSet, currentSlot);
     };
 
     const exportPanelCsv = async () => {
@@ -750,9 +916,9 @@ const PanelBuilder = ({
         setError('');
         setExporting(true);
         try {
-            if (!payload) throw new Error('Panel data is not ready.')
+            const readyPayload = assertPanelPayload(payload);
             const { createPanelOverviewPdf } = await import('./pdfExport');
-            const pdf = createPanelOverviewPdf(payload, selectedRows);
+            const pdf = createPanelOverviewPdf(readyPayload, selectedRows);
             await saveBlob(pdf, {
                 suggestedName: `spectreasy_${cytometer}_${configuration}_panel_overview.pdf`,
                 description: 'Panel overview PDF',
@@ -760,72 +926,71 @@ const PanelBuilder = ({
                 extensions: ['.pdf'],
             });
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not export panel overview.');
+            setError(panelErrorMessage(err, 'Could not export panel overview.'));
         } finally {
             setExporting(false);
         }
     };
 
     const beginSidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-        if (sidebarCollapsed) return;
-        event.preventDefault();
-        sidebarResizeCleanupRef.current?.();
+        withSidebarResizeTarget(sidebarCollapsed, sidebarRef.current, (sidebar) => {
+            event.preventDefault();
+            sidebarResizeCleanupRef.current?.();
 
-        const sidebar = sidebarRef.current;
-        const handle = event.currentTarget;
-        if (!sidebar) return;
+            const handle = event.currentTarget;
 
-        const startX = event.clientX;
-        const startWidth = sidebarWidth;
-        const pointerId = event.pointerId;
-        const previousCursor = document.body.style.cursor;
-        const previousUserSelect = document.body.style.userSelect;
-        let nextWidth = startWidth;
-        let animationFrame = 0;
+            const startX = event.clientX;
+            const startWidth = sidebarWidth;
+            const pointerId = event.pointerId;
+            const previousCursor = document.body.style.cursor;
+            const previousUserSelect = document.body.style.userSelect;
+            let nextWidth = startWidth;
+            let animationFrame = 0;
 
-        const applyWidth = () => {
-            animationFrame = 0;
-            sidebar.style.setProperty('--panel-sidebar-width', `${nextWidth}px`);
-        };
-        const queueWidth = () => {
-            if (!animationFrame) animationFrame = window.requestAnimationFrame(applyWidth);
-        };
-        const move = (moveEvent: PointerEvent) => {
-            nextWidth = Math.min(
-                MAX_SIDEBAR_WIDTH,
-                Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX),
-            );
-            queueWidth();
-        };
-        const cleanup = () => {
-            handle.removeEventListener('pointermove', move);
-            handle.removeEventListener('pointerup', finish);
-            handle.removeEventListener('pointercancel', finish);
-            if (animationFrame) {
-                window.cancelAnimationFrame(animationFrame);
-                applyWidth();
-            }
-            if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
-            sidebar.classList.remove('is-resizing');
-            handle.classList.remove('is-resizing');
-            document.body.style.cursor = previousCursor;
-            document.body.style.userSelect = previousUserSelect;
-            sidebarResizeCleanupRef.current = null;
-        };
-        const finish = () => {
-            cleanup();
-            setSidebarWidth(nextWidth);
-        };
+            const applyWidth = () => {
+                animationFrame = 0;
+                sidebar.style.setProperty('--panel-sidebar-width', `${nextWidth}px`);
+            };
+            const queueWidth = () => {
+                if (!animationFrame) animationFrame = window.requestAnimationFrame(applyWidth);
+            };
+            const move = (moveEvent: PointerEvent) => {
+                nextWidth = Math.min(
+                    MAX_SIDEBAR_WIDTH,
+                    Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX),
+                );
+                queueWidth();
+            };
+            const cleanup = () => {
+                handle.removeEventListener('pointermove', move);
+                handle.removeEventListener('pointerup', finish);
+                handle.removeEventListener('pointercancel', finish);
+                if (animationFrame) {
+                    window.cancelAnimationFrame(animationFrame);
+                    applyWidth();
+                }
+                if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+                sidebar.classList.remove('is-resizing');
+                handle.classList.remove('is-resizing');
+                document.body.style.cursor = previousCursor;
+                document.body.style.userSelect = previousUserSelect;
+                sidebarResizeCleanupRef.current = null;
+            };
+            const finish = () => {
+                cleanup();
+                setSidebarWidth(nextWidth);
+            };
 
-        sidebar.classList.add('is-resizing');
-        handle.classList.add('is-resizing');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-        handle.setPointerCapture(pointerId);
-        handle.addEventListener('pointermove', move);
-        handle.addEventListener('pointerup', finish);
-        handle.addEventListener('pointercancel', finish);
-        sidebarResizeCleanupRef.current = cleanup;
+            sidebar.classList.add('is-resizing');
+            handle.classList.add('is-resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            handle.setPointerCapture(pointerId);
+            handle.addEventListener('pointermove', move);
+            handle.addEventListener('pointerup', finish);
+            handle.addEventListener('pointercancel', finish);
+            sidebarResizeCleanupRef.current = cleanup;
+        });
     };
 
     const resizeSidebarByKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -872,10 +1037,10 @@ const PanelBuilder = ({
             setActiveSlot(null);
             await fetchPanel(cytometer, configuration, imported.map(row => row.fluor));
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not import panel CSV.');
+            setError(panelErrorMessage(err, 'Could not import panel CSV.'));
         } finally {
             setImporting(false);
-            if (importInputRef.current) importInputRef.current.value = '';
+            resetFileInputValue(importInputRef.current);
         }
     };
 
@@ -885,7 +1050,7 @@ const PanelBuilder = ({
             mimeType: 'text/csv',
             extensions: ['.csv', '.tsv', '.txt'],
         }, importInputRef.current);
-        if (file) await importPanelCsv(file);
+        if (hasSelectedFile(file)) await importPanelCsv(file);
     };
 
     const currentProjectState = (): ProjectState => projectState;
@@ -951,10 +1116,10 @@ const PanelBuilder = ({
                 cytometerPanels: nextCytometerPanels,
             });
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not import this OpenPanel project.');
+            setError(panelErrorMessage(err, 'Could not import this OpenPanel project.'));
         } finally {
             setImporting(false);
-            if (projectInputRef.current) projectInputRef.current.value = '';
+            resetFileInputValue(projectInputRef.current);
         }
     };
 
@@ -964,19 +1129,19 @@ const PanelBuilder = ({
             mimeType: 'application/json',
             extensions: ['.openpanel.json', '.json'],
         }, projectInputRef.current);
-        if (file) await importProject(file);
+        if (hasSelectedFile(file)) await importProject(file);
     };
 
     if (loading) {
-        return <ModuleLoadingState label="Loading Spectral Panel Builder" theme={embedded && cockpitTheme ? cockpitTheme : theme} />;
+        return <ModuleLoadingState label="Loading Spectral Panel Builder" theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)} />;
     }
 
     if (!payload) {
         return (
-            <div className={`panel-builder panel-boot-failure ${embedded && cockpitTheme ? cockpitTheme : theme}`}>
+            <div className={`panel-builder panel-boot-failure ${resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}`}>
                 <div className="panel-boot-error" role="alert">
                     <strong>Spectral Panel Builder could not load</strong>
-                    <span>{error || 'The bundled spectral data could not be opened.'}</span>
+                    <span>{bootErrorLabel(error)}</span>
                     <button type="button" onClick={retryBoot}>Try again</button>
                     {embedded && onRequestExit && <button type="button" className="secondary" onClick={onRequestExit}>Return to cockpit</button>}
                 </div>
@@ -985,7 +1150,7 @@ const PanelBuilder = ({
     }
 
     return (
-        <div className={`panel-builder ${embedded && cockpitTheme ? cockpitTheme : theme}`}>
+        <div className={`panel-builder ${resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}`}>
             <header className="panel-topbar">
                 <div className="panel-title-group">
                     {!embedded && onRequestExit && (
@@ -1213,7 +1378,7 @@ const PanelBuilder = ({
                     </button>
                     <div className="selector-list">
                         {slots.map((fluor, index) => {
-                            const display = activeSlot === index ? (queries[index] ?? fluor) : fluor;
+                            const display = selectorDisplayValue(activeSlot, index, queries, fluor);
                             const color = colorByFluor.get(fluor) || '#d1d5db';
                             const isHovered = hoveredFluor === fluor;
                             return (
@@ -1318,14 +1483,14 @@ const PanelBuilder = ({
                     similarityByName={similarityByName}
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
-                    theme={embedded && cockpitTheme ? cockpitTheme : theme}
+                    theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
                     error={error}
                     plotScale={plotScale}
                     onPlotScaleChange={setPlotScale}
                 />
             </div>
             {showPanelWizard && (
-                <Suspense fallback={<div className={`panel-wizard-backdrop ${embedded && cockpitTheme ? cockpitTheme : theme}`} />}>
+                <Suspense fallback={<div className={`panel-wizard-backdrop ${resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}`} />}>
                     <PanelWizard
                         key={`panel-wizard-${wizardSyncRevision}`}
                         cytometer={cytometer}
@@ -1336,7 +1501,7 @@ const PanelBuilder = ({
                         measurementMode={payload.measurement_mode}
                         slots={slots}
                         markerNames={markers}
-                        theme={embedded && cockpitTheme ? cockpitTheme : theme}
+                        theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
                         initialState={wizardState}
                         onStateChange={handleWizardStateChange}
                         onClearPanel={clearPanelContent}

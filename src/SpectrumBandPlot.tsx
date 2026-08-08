@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- canvas drawing primitives are tested with the plot component */
 import { memo, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import {
@@ -123,6 +124,30 @@ function drawSpectrum(
   })
 }
 
+export { canvasPixelRatio, drawSpectrum }
+
+export function drawMountedSpectrum(
+  canvas: HTMLCanvasElement | null,
+  row: NumericRow,
+  detectors: DetectorInfo[],
+  chartWidth: number,
+  theme: 'light' | 'dark',
+): void {
+  if (!canvas) return
+  drawSpectrum(canvas, row, detectors, chartWidth, theme)
+}
+
+export function releaseMountedSpectrum(canvas: HTMLCanvasElement | null): void {
+  if (!canvas) return
+  canvas.width = 1
+  canvas.height = 1
+}
+
+export function observeMountedSpectrum(canvas: HTMLCanvasElement | null, observer: IntersectionObserver): void {
+  if (!canvas) return
+  observer.observe(canvas)
+}
+
 export const SpectrumBandPlot = memo(function SpectrumBandPlot({
   fluorophore,
   row,
@@ -135,12 +160,8 @@ export const SpectrumBandPlot = memo(function SpectrumBandPlot({
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
-    const draw = () => drawSpectrum(canvas, row, detectors, chartWidth, theme)
-    const release = () => {
-      canvas.width = 1
-      canvas.height = 1
-    }
+    const draw = () => drawMountedSpectrum(canvas, row, detectors, chartWidth, theme)
+    const release = () => releaseMountedSpectrum(canvas)
 
     if (eager || typeof IntersectionObserver === 'undefined') {
       draw()
@@ -151,7 +172,7 @@ export const SpectrumBandPlot = memo(function SpectrumBandPlot({
       if (entry?.isIntersecting) draw()
       else release()
     }, { rootMargin: '700px 0px' })
-    observer.observe(canvas)
+    observeMountedSpectrum(canvas, observer)
     return () => observer.disconnect()
   }, [chartWidth, detectors, eager, row, theme])
 

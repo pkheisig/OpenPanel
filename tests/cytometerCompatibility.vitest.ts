@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import {
   canonicalizeOmipCytometerLabel,
+  baseLabel,
   isCytometerSetupMatch,
+  normalizedChannelLayout,
 } from '../src/cytometerCompatibility'
 import { OMIP_CATALOG } from '../src/panelWizardKnowledge'
 import { isOmipDesignedForActiveSetup } from '../src/omipSorting'
@@ -12,9 +14,15 @@ import {
 
 describe('cytometer compatibility normalization', () => {
   test('canonicalizes published instrument names and preserves reported configurations', () => {
+    expect(canonicalizeOmipCytometerLabel('')).toBe('')
+    expect(canonicalizeOmipCytometerLabel('BD LSRFortessa')).toBe('BD LSRFortessa')
     expect(canonicalizeOmipCytometerLabel('BD LSR Fortessa')).toBe('BD LSRFortessa')
     expect(canonicalizeOmipCytometerLabel('BD LSR Fortessa X20')).toBe('BD LSRFortessa X-20')
     expect(canonicalizeOmipCytometerLabel('BD LSR Fortessa 3L')).toBe('BD LSRFortessa 3L')
+    expect(canonicalizeOmipCytometerLabel('Beckman Coulter CytoFLEX')).toBe('Beckman Coulter CytoFLEX')
+    expect(baseLabel('cytoflex', 'CytoFLEX')).toBe('Beckman Coulter CytoFLEX')
+    expect(normalizedChannelLayout('3-blue 4-red')).toBe('3-4')
+    expect(normalizedChannelLayout('3-4 12/13')).toBe('12/13')
     expect(canonicalizeOmipCytometerLabel('Cytek Aurora 5L (UV-V-B-YG-R)'))
       .toBe('Cytek Aurora 5L: UV/V/B/YG/R')
     expect(canonicalizeOmipCytometerLabel('BD FACSDiscover S8 5L')).toBe('BD FACSDiscover S8 (5L)')
@@ -28,6 +36,10 @@ describe('cytometer compatibility normalization', () => {
       .toBe('Miltenyi MACSQuant: Analyzer 16')
     expect(canonicalizeOmipCytometerLabel('Thermo Fisher Attune Xenith full detector set'))
       .toBe('Thermo Fisher Attune Xenith: full detector set')
+    expect(canonicalizeOmipCytometerLabel('Agilent NovoCyte Quanteon 4025'))
+      .toBe('Agilent NovoCyte Quanteon: 4025')
+    expect(canonicalizeOmipCytometerLabel('Thermo Fisher Attune CytPix BYRV6 3-blue 4-red'))
+      .toContain('BYRV6')
   })
 
   test('matches configurations by explicit model, laser, and detector-layout signatures', () => {

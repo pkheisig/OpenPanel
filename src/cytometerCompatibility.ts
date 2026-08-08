@@ -47,7 +47,7 @@ function familyFor(value: string): string {
   return normalized || 'unknown'
 }
 
-function baseLabel(family: string, value: string): string {
+export function baseLabel(family: string, value: string): string {
   const labels: Record<string, string> = {
     'facsaria-fusion': 'BD FACSAria Fusion',
     'northern-lights': 'Cytek Northern Lights',
@@ -72,10 +72,10 @@ function baseLabel(family: string, value: string): string {
     lsrii: 'BD LSR II',
     'cytoflex-lx': 'Beckman Coulter CytoFLEX LX',
     'cytoflex-s': 'Beckman Coulter CytoFLEX S',
-    cytoflex: 'Beckman Coulter CytoFLEX',
     navios: 'Beckman Coulter Navios',
     dxflex: 'Beckman Coulter DxFLEX',
   }
+  if (family === 'cytoflex') return 'Beckman Coulter CytoFLEX'
   return labels[family] ?? cleanText(value)
 }
 
@@ -108,7 +108,7 @@ function normalizedLayout(value: string): string | null {
   return layout?.replace(/\s+/g, '').toUpperCase() ?? normalizedLaserSequence(value)
 }
 
-function normalizedChannelLayout(value: string): string | null {
+export function normalizedChannelLayout(value: string): string | null {
   const clean = cleanText(value)
   const numericLayouts = [...clean.matchAll(/\b\d+(?:\s*[-/]\s*\d+)+\b/g)]
     .map(([layout]) => layout.replace(/\s+/g, ''))

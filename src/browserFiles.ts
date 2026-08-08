@@ -7,7 +7,7 @@ export type SaveFileOptions = {
 
 export function projectJsonFilename(projectName: string): string {
   const withoutControlCharacters = Array.from(projectName.trim())
-    .filter((character) => (character.codePointAt(0) ?? 0) >= 32)
+    .filter((character) => (character.codePointAt(0) as number) >= 32)
     .join('')
   const safeName = withoutControlCharacters
     .replace(/[<>:"/\\|?*]/g, '_')

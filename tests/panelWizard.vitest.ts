@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { buildPanelPayload } from '../src/spectralEngine'
 import {
   antigenDensityScore,
@@ -17,19 +17,85 @@ import { loadPanelWizardReferences } from '../src/panelWizardReferences'
 import {
   FLOW_OMIP_IMPORT_MANIFEST,
   inferOmipCellTypes,
+  flowOmipTemplateRowsForNumber,
   markerOptionsForPanel,
   OMIP_CATALOG,
   omipTemplateAssignmentsForPanel,
   omipTemplateAssignmentsForPanelBestEffort,
   validateOmipFlowTemplateImport,
+  validateOmipFlowTemplateImportData,
 } from '../src/panelWizardKnowledge'
 import type { CoexpressionLevel, WizardMarker } from '../src/panelWizardEngine'
 import { mockBundledData } from './helpers'
+import { resetPanelWizardReferencesForTests } from '../src/panelWizardReferences'
 
 beforeEach(mockBundledData)
 
 describe('panel wizard recommendation engine', () => {
+  test('falls back cleanly when reference files are unavailable or malformed', async () => {
+    resetPanelWizardReferencesForTests()
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response('cytometer,configuration,fluorophore,brightness_score\n*,*,FITC,3\n', { status: 200 })
+      }
+      if (source.includes('antigen_density')) return new Response('unavailable', { status: 404 })
+      throw new Error('network down')
+    })
+    const references = await loadPanelWizardReferences('aurora', 'config')
+    expect(references.brightnessByFluorophore).toEqual({ fitc: 3 })
+    expect(references.antigenDensityByContext).toEqual({})
+    expect(references.markerOptions.length).toBeGreaterThan(0)
+    vi.unstubAllGlobals()
+  })
+
+  test('filters reference rows by cytometer and configuration', async () => {
+    resetPanelWizardReferencesForTests()
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response(
+          'cytometer,configuration,fluorophore,brightness_score\n'
+          + 'other,*,FITC,1\n'
+          + 'aurora,other,PE,2\n'
+          + '*,5l_uv_v_b_yg_r,APC,3\n'
+          + '*,*,BV421,4\n'
+          + '*,*,Invalid,not-a-number\n',
+          { status: 200 },
+        )
+      }
+      if (source.includes('antigen_density')) return new Response(
+        'cell_type,antigen,molecules_per_cell\nT cells,CD3,100\nB cells,CD19,not-a-number',
+        { status: 200 },
+      )
+      return new Response('marker,aliases\nCD3,T-cell\nCD4', { status: 200 })
+    })
+    const references = await loadPanelWizardReferences('aurora', '5l_uv_v_b_yg_r')
+    expect(references.brightnessByFluorophore).toEqual({ apc: 3, bv421: 4 })
+    expect(references.antigenDensityByContext['tcells::cd3']).toBe(100)
+    expect(references.antigenDensityByContext['bcells::cd19']).toBeUndefined()
+    expect((await loadPanelWizardReferences('aurora', '5l_uv_v_b_yg_r')).markerOptions.length).toBeGreaterThan(0)
+    vi.unstubAllGlobals()
+  })
+
+  test('builds reference URLs without a browser window', async () => {
+    resetPanelWizardReferencesForTests()
+    vi.stubGlobal('window', undefined)
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) return new Response('cytometer,configuration,fluorophore,brightness_score\n', { status: 200 })
+      if (source.includes('antigen_density')) return new Response('cell_type,antigen,molecules_per_cell\n', { status: 200 })
+      return new Response('marker,aliases\nCD3,T-cell', { status: 200 })
+    })
+    await expect(loadPanelWizardReferences('aurora', 'config')).resolves.toMatchObject({
+      brightnessByFluorophore: {}, antigenDensityByContext: {},
+    })
+    vi.unstubAllGlobals()
+  })
+
   test('bundles every published flow OMIP as an editable template', () => {
+    expect(flowOmipTemplateRowsForNumber(999, {})).toEqual([])
+    expect(flowOmipTemplateRowsForNumber(1).length).toBeGreaterThan(0)
     expect(OMIP_CATALOG).toHaveLength(113)
     expect(new Set(OMIP_CATALOG.map((entry) => entry.id)).size).toBe(113)
     expect(OMIP_CATALOG[0]).toMatchObject({ name: 'OMIP-120', year: '2026' })
@@ -78,6 +144,30 @@ describe('panel wizard recommendation engine', () => {
     expect(OMIP_CATALOG.find((entry) => entry.name === 'OMIP-102')?.cellTypes).toEqual(
       expect.arrayContaining(['T cells', 'Dendritic cells']),
     )
+  })
+
+  test('reports each imported-flow integrity failure with actionable diagnostics', () => {
+    const valid = {
+      flowRecords: [[1, 'pmid', '2020', 'title']] as const,
+      importedMarkerRowCount: 1,
+      flowNumberCount: 1,
+      rowsByNumber: { 1: [['CD3', 'FITC']] },
+      sourceUrlsByNumber: { 1: 'https://example.test/table' },
+      cytometersByNumber: { 1: ['Aurora'] },
+      templatesById: new Map([['omip-001', { tableSourceUrl: 'https://example.test/table', allowDuplicateFluorophores: true }]]),
+      manifest: { flowOmipCount: 1, markerRowCount: 1 },
+    }
+    expect(() => validateOmipFlowTemplateImportData(valid)).not.toThrow()
+    expect(() => validateOmipFlowTemplateImportData({ ...valid, flowRecords: [] })).toThrow('record count')
+    expect(() => validateOmipFlowTemplateImportData({ ...valid, flowNumberCount: 0 })).toThrow('template count')
+    expect(() => validateOmipFlowTemplateImportData({ ...valid, importedMarkerRowCount: 0 })).toThrow('marker row count')
+    const incomplete = (change: Partial<typeof valid>) => expect(() => validateOmipFlowTemplateImportData({ ...valid, ...change })).toThrow('Incomplete')
+    incomplete({ rowsByNumber: { 1: [] } })
+    incomplete({ rowsByNumber: { 1: [['', 'FITC']] } })
+    incomplete({ sourceUrlsByNumber: {} })
+    incomplete({ cytometersByNumber: { 1: [] } })
+    incomplete({ templatesById: new Map([['omip-001', { allowDuplicateFluorophores: true }]]) })
+    incomplete({ templatesById: new Map([['omip-001', { tableSourceUrl: 'https://example.test/table' }]]) })
   })
 
   test('matches OMIP templates to the active cytometer configuration', async () => {
@@ -273,6 +363,8 @@ describe('panel wizard recommendation engine', () => {
     }
     expect(markerFluorophoreBrightnessScore(lowDensityMarker, 'PE', references)).toBe(100)
     expect(markerFluorophoreBrightnessScore(lowDensityMarker, 'FITC', references)).toBe(12)
+    expect(markerFluorophoreBrightnessScore({ ...lowDensityMarker, antigenDensity: 'medium' }, 'FITC', references)).toBe(100)
+    expect(markerFluorophoreBrightnessScore(lowDensityMarker, 'PE')).toBeNull()
     expect(markerFluorophoreBrightnessScore(
       { ...lowDensityMarker, name: 'Unknown antigen' },
       'PE',
@@ -335,6 +427,19 @@ describe('panel wizard recommendation engine', () => {
 
   test('uses a symmetric co-expression key', () => {
     expect(coexpressionKey('CD3', 'CD4')).toBe(coexpressionKey('CD4', 'CD3'))
+  })
+
+  test('returns stable empty results when no candidates or spectra exist', () => {
+    const emptyPayload = {
+      cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral',
+      libraries: [], configurations: [], detectors: [], fluorophores: [], selected: [], spectra: [],
+      similarity: [], complexity_index: null, peak_detectors: [], max_panel_size: 18,
+    } as never
+    const results = generateWizardResults(emptyPayload, [], {}, 0)
+    expect(results.recommended.rows).toEqual([])
+    expect(results.recommended.alternatives).toEqual([])
+    expect(results.recommended.averageAvailability).toBe(0)
+    expect(results.bestFit.spectralRisk).toBe(1000)
   })
 
   test('prioritizes high-density markers when assigning spectrally clean colors', async () => {

@@ -105,6 +105,7 @@ test('accepts legacy scalar array wrappers for cytometer names', () => {
 test('detector fallbacks and wavelength parsing cover nonstandard panels', () => {
   assert.equal(detectorAxisChartWidth(1), 1040)
   assert.equal(detectorAxisChartWidth(100), 1800)
+  assert.equal(detectorAxisDisplayWidth(0, 'conventional'), 640)
   assert.equal(detectorAxisDisplayWidth(4, 'conventional'), 640)
   assert.equal(detectorAxisDisplayWidth(14, 'conventional'), 804)
   assert.equal(detectorAxisDisplayWidth(19, 'conventional'), 1094)

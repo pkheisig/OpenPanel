@@ -1,0 +1,36 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import {
+  antigenDensityKey,
+  fluorophoreBrightnessKey,
+  loadPanelWizardReferences,
+  resetPanelWizardReferencesForTests,
+} from '../src/panelWizardReferences'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  resetPanelWizardReferencesForTests()
+})
+
+describe('panel wizard reference loading in a browser origin', () => {
+  test('normalizes context keys and loads relative data URLs', async () => {
+    const requests: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+      requests.push(String(input))
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response('cytometer,configuration,fluorophore,brightness_score\n*,*,PE,5', { status: 200 })
+      }
+      if (source.includes('antigen_density')) {
+        return new Response('cell_type,antigen,molecules_per_cell\nT cells,CD3,123', { status: 200 })
+      }
+      return new Response('marker,aliases\nCD3,T cell', { status: 200 })
+    }))
+    expect(antigenDensityKey('T cells', 'CD3')).toBe('tcells::cd3')
+    expect(fluorophoreBrightnessKey('PE-Cy7')).toBe('pecy7')
+    const references = await loadPanelWizardReferences('aurora', 'config')
+    expect(references.brightnessByFluorophore).toEqual({ pe: 5 })
+    expect(references.antigenDensityByContext).toEqual({ 'tcells::cd3': 123 })
+    expect(requests.every((url) => url.startsWith('http://localhost'))).toBe(true)
+  })
+})
