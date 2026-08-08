@@ -421,7 +421,7 @@ test('selects the instrument and configuration before opening a clean workspace'
   expect(clearButtonBox!.x + clearButtonBox!.width).toBeLessThan(themeButtonBox!.x)
   await page.mouse.move(0, 0)
   await clearProjectPanel.evaluate((button) => (button as HTMLButtonElement).blur())
-  await expect(clearProjectPanel).toHaveCSS('color', 'rgb(255, 118, 95)')
+  await expect(clearProjectPanel).toHaveCSS('color', 'rgb(189, 81, 73)')
   await clearProjectPanel.click()
   const editorClearConfirmation = page.getByRole('alertdialog', { name: 'Clear the panel?' })
   await expect(editorClearConfirmation).toContainText(
@@ -432,9 +432,9 @@ test('selects the instrument and configuration before opening a clean workspace'
     description: getComputedStyle(dialog.querySelector('p')!).fontSize,
     button: getComputedStyle(dialog.querySelector('button')!).fontSize,
   }))).toEqual({
-    title: '24px',
-    description: '16.5px',
-    button: '15px',
+    title: '22px',
+    description: '14px',
+    button: '12px',
   })
   await editorClearConfirmation.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(16 colors)')
@@ -525,11 +525,11 @@ test('selects the instrument and configuration before opening a clean workspace'
     .toHaveAttribute('stroke-width', '0.9')
   await expect(savedCard.locator('.panel-preview-complexity')).toHaveText('44.00')
   await expect(savedCard.locator('.panel-preview-grid')).toHaveCount(0)
-  expect(await savedPanel.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(255, 255, 255)')
+  expect(await savedPanel.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(247, 246, 240)')
   await page.getByRole('button', { name: 'Use dark mode' }).click()
   await expect.poll(
     () => savedPanel.evaluate((element) => getComputedStyle(element).backgroundColor),
-  ).toBe('rgb(16, 24, 21)')
+  ).toBe('rgb(35, 30, 26)')
   const countMetric = await savedCard.locator('.panel-preview-count').boundingBox()
   const complexityMetric = await savedCard.locator('.panel-preview-complexity').boundingBox()
   expect(countMetric!.x).toBeLessThan(complexityMetric!.x)
@@ -1352,7 +1352,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     search: 16.5,
     databaseLink: 13.5,
     filterLabel: 10.5,
-    filterValue: 13.5,
+    filterValue: 13,
   })
   await chooseOption(page, 'Method', 'Conventional')
   await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-120' })).toHaveCount(0)
