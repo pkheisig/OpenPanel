@@ -1,4 +1,4 @@
-name: Test and build every push; deploy GitHub Pages from main
+name: Test and build every push; deploy GitHub Pages from main2
 
 on:
   push:
@@ -52,7 +52,7 @@ jobs:
           path: dist
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main2'
     needs: build
     runs-on: ubuntu-latest
     permissions:
