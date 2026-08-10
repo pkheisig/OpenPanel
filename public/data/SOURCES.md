@@ -49,7 +49,7 @@ peak-channel assignments do not override that calculation.
 The Fortessa detector/filter definitions in
 [`conventional_detector_dictionary.csv`](./conventional_detector_dictionary.csv)
 are transcribed from the public [FCS Manager Fortessa 3L and 4L
-configurations](https://github.com/pkheisig/fcs-manager/blob/master/src/fcs-web.ts#L108-L151).
+configurations](https://github.com/pkheisig/fcs-manager/blob/master2/src/fcs-web.ts#L108-L151).
 The 3L configuration contains 14 fluorescence channels plus a 488/10 side-scatter
 channel; the 4L configuration contains 16 fluorescence channels plus side
 scatter. OpenPanel excludes the scatter channel from the color/panel ceiling.
