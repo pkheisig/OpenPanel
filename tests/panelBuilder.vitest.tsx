@@ -637,6 +637,13 @@ describe('PanelBuilder', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
 
     await waitFor(() => expect(screen.queryByText('storage offline')).toBeNull(), { timeout: 2000 })
+
+    mocks.savePanelProject.mockRejectedValueOnce(new Error('direct storage offline'))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove fluorophore row' })[0])
+    await waitFor(() => expect(screen.getByText('direct storage offline')).not.toBeNull(), { timeout: 2000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    await waitFor(() => expect(screen.queryByText('direct storage offline')).toBeNull(), { timeout: 2000 })
   })
 
   test('covers delayed persistence rejection, stale refreshes, and null project payloads', async () => {
