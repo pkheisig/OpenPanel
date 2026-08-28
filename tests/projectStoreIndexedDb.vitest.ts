@@ -37,7 +37,9 @@ import {
   restorePanelProject,
   saveActiveProject,
   savePanelProject,
+  serializeProject,
   setActivePanelProject,
+  ProjectPersistenceError,
 } from '../src/projectStore'
 import type { ProjectState } from '../src/projectStore'
 
@@ -54,6 +56,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('IndexedDB project persistence', () => {
@@ -96,6 +99,31 @@ describe('IndexedDB project persistence', () => {
       expect.objectContaining({ id: panel.id, name: 'Fallback copy' }),
     ])
     expect(await loadActiveProject()).toMatchObject({ slots: ['FITC'] })
+  })
+
+  test('rejects deletion when a retained fallback copy cannot be changed', async () => {
+    const panel = await createPanelProject('Retained fallback', state)
+    const storage = localStorage
+    const readOnlyStorage = {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: () => { throw new Error('localStorage is read-only') },
+      removeItem: () => { throw new Error('localStorage is read-only') },
+    }
+    vi.stubGlobal('window', { localStorage: readOnlyStorage })
+    fakeDb.put.mockRejectedValueOnce(new Error('tombstone write failed'))
+
+    await expect(deletePanelProject(panel.id)).rejects.toBeInstanceOf(ProjectPersistenceError)
+    expect(await loadPanelProject(panel.id)).toMatchObject({ id: panel.id, name: 'Retained fallback' })
+  })
+
+  test('preserves legacy IndexedDB active precedence during migration', async () => {
+    fakeDb.records.set('active', state)
+    localStorage.setItem(
+      'openpanel.panel-builder.state.v1',
+      serializeProject({ ...state, slots: ['PE'] }, '2026-08-28T09:00:00.000Z'),
+    )
+
+    await expect(loadActiveProject()).resolves.toMatchObject({ slots: ['FITC'] })
   })
 
   test('keeps active project selection and ignores non-panel records', async () => {

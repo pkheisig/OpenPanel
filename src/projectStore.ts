@@ -409,6 +409,13 @@ type PanelTombstone = {
 type ActiveProjectValue = {
   state: ProjectState
   updatedAt: string
+  legacy?: boolean
+}
+
+type DeleteBackendResult = {
+  available: boolean
+  removed: boolean
+  tombstoned: boolean
 }
 
 type ProjectSnapshot = {
@@ -493,6 +500,7 @@ function parseIndexedDbActive(value: unknown): ActiveProjectValue | null {
     return {
       state: normalizeState(rawState),
       updatedAt,
+      ...(isEnvelope ? {} : { legacy: true }),
     }
   } catch {
     return null
@@ -582,10 +590,16 @@ function mergePanels(...snapshots: ProjectSnapshot[]): StoredPanelProject[] {
 }
 
 function latestActive(...snapshots: ProjectSnapshot[]): ActiveProjectValue | null {
-  const latest = snapshots
+  const activeValues = snapshots
     .map((snapshot) => snapshot.active)
     .filter((active): active is ActiveProjectValue => active !== null)
-    .sort((left, right) => compareTimestamp(right.updatedAt, left.updatedAt))[0] ?? null
+  // Before timestamped envelopes existed, IndexedDB was the authoritative
+  // active-project store. Preserve that migration precedence rather than
+  // treating the legacy record as older than every valid localStorage copy.
+  const legacyIndexedDb = activeValues.find((active) => active.legacy)
+  const latest = legacyIndexedDb
+    ?? activeValues.sort((left, right) => compareTimestamp(right.updatedAt, left.updatedAt))[0]
+    ?? null
   if (latest) rememberPersistenceTimestamp(latest.updatedAt)
   return latest
 }
@@ -656,13 +670,14 @@ async function publishPanel(panel: StoredPanelProject, includeActiveState: boole
   }
 }
 
-async function deleteIndexedDbPanel(id: string, deletedAt: string): Promise<boolean> {
+async function deleteIndexedDbPanel(id: string, deletedAt: string): Promise<DeleteBackendResult> {
   try {
     const db = await database()
-    let changed = false
+    let removed = false
+    let tombstoned = false
     try {
       await db.delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
-      changed = true
+      removed = true
     } catch {
       // A tombstone still makes a failed physical delete safe to read.
     }
@@ -674,19 +689,21 @@ async function deleteIndexedDbPanel(id: string, deletedAt: string): Promise<bool
         deletedAt,
       }
       await db.put(PROJECT_STORE, tombstone, `${PANEL_TOMBSTONE_PREFIX}${id}`)
-      changed = true
+      tombstoned = true
     } catch {
       // A successful physical delete is already sufficient for this backend.
     }
-    return changed
+    return { available: true, removed, tombstoned }
   } catch {
-    return false
+    return { available: false, removed: false, tombstoned: false }
   }
 }
 
-function deleteFallbackPanel(id: string, deletedAt: string): boolean {
+function deleteFallbackPanel(id: string, deletedAt: string): DeleteBackendResult {
   const snapshot = fallbackSnapshot()
-  if (!snapshot.libraryAvailable && !snapshot.tombstonesAvailable) return false
+  if (!snapshot.libraryAvailable && !snapshot.tombstonesAvailable) {
+    return { available: false, removed: false, tombstoned: false }
+  }
   const libraryWritten = snapshot.libraryAvailable
     ? writeLocalStorageChecked(
       PANEL_LIBRARY_STORAGE_KEY,
@@ -699,7 +716,7 @@ function deleteFallbackPanel(id: string, deletedAt: string): boolean {
   const tombstoneWritten = snapshot.tombstonesAvailable
     ? writeLocalStorageChecked(PANEL_TOMBSTONES_STORAGE_KEY, serializeTombstones(tombstones))
     : false
-  return libraryWritten || tombstoneWritten
+  return { available: true, removed: libraryWritten, tombstoned: tombstoneWritten }
 }
 
 export async function listPanelProjects(): Promise<StoredPanelProject[]> {
@@ -774,7 +791,21 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
 
   const legacy = await loadActiveProject()
   if (!legacy || !legacy.slots.some(Boolean)) return null
-  return createPanelProject('Recovered panel', legacy)
+  try {
+    return await createPanelProject('Recovered panel', legacy)
+  } catch (error) {
+    if (!(error instanceof ProjectPersistenceError)) throw error
+    // Keep startup recovery usable: the editor can hold this state in memory
+    // while its normal persistence error feedback explains the durable failure.
+    const now = nextPersistenceTimestamp()
+    return {
+      id: createPanelId(),
+      name: 'Recovered panel',
+      createdAt: now,
+      updatedAt: now,
+      state: legacy,
+    }
+  }
 }
 
 async function writeStoredPanel(panel: StoredPanelProject): Promise<StoredPanelProject> {
@@ -850,11 +881,28 @@ export async function restorePanelProject(
 export async function deletePanelProject(id: string): Promise<void> {
   const existing = await loadPanelProject(id)
   const deletedAt = nextPersistenceTimestamp(existing?.updatedAt, existing?.archivedAt)
+  const [indexedDbBefore, fallbackBefore] = await Promise.all([
+    indexedDbSnapshot(),
+    Promise.resolve(fallbackSnapshot()),
+  ])
   const results = await Promise.all([
     deleteIndexedDbPanel(id, deletedAt),
     Promise.resolve(deleteFallbackPanel(id, deletedAt)),
   ])
-  if (!results.some(Boolean)) throw new ProjectPersistenceError('delete this panel')
+  const [indexedDbResult, fallbackResult] = results
+  const backends = [
+    { result: indexedDbResult, hadPanel: indexedDbBefore.panels.some((panel) => panel.id === id) },
+    { result: fallbackResult, hadPanel: fallbackBefore.panels.some((panel) => panel.id === id) },
+  ]
+  const hasDurableChange = backends.some(({ result }) => (
+    result.available && (result.removed || result.tombstoned)
+  ))
+  const everyExistingCopyIsSafe = backends.every(({ result, hadPanel }) => (
+    !hadPanel || result.removed || result.tombstoned
+  ))
+  if (!hasDurableChange || !everyExistingCopyIsSafe) {
+    throw new ProjectPersistenceError('delete this panel')
+  }
   if (readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
     removeLocalStorageChecked(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
