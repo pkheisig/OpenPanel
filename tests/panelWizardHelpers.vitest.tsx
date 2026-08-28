@@ -31,6 +31,7 @@ describe('panel wizard presentation helpers', () => {
     expect(formatConfigurationLabel('full', '')).toBe('Full detector set')
     expect(formatConfigurationLabel('3l_v_b_r', '')).toBe('3L-V-B-R')
     expect(formatMetric(1.234)).toBe('1.23')
+    expect(formatMetric(Number.POSITIVE_INFINITY)).toBe('Non-identifiable')
     expect(formatMetric(Number.NaN)).toBe('NA')
     expect(initialMarkerSettings(3, ['FITC', '', 'PE'], { 1: 'CD4' })).toEqual([
       expect.objectContaining({ slotIndex: 0, currentFluorophore: 'FITC' }),

@@ -170,9 +170,16 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject('[]')).toThrow('does not contain')
     expect(() => parseProject('{"kind":"Elsewhere","version":1}')).toThrow('different application')
     expect(() => parseProject(`{"kind":"${PROJECT_FILE_KIND}","version":99}`)).toThrow('not supported')
+    expect(() => parseProject(JSON.stringify({
+      cytometer: 'aurora',
+      configuration: '5l_uv_v_b_yg_r',
+      cytometerPanels: {
+        discover: { configuration: 'unknown', slots: [], markers: {}, wizard: null },
+      },
+    }))).toThrow(/Unsupported persisted configuration 'unknown'/)
   })
 
-  test('drops malformed wizard and cytometer-panel records while preserving valid defaults', () => {
+  test('rejects unknown persisted panel setups while preserving wizard normalization', () => {
     const malformed = {
       cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', slots: [], markers: {},
       cytometerPanels: { broken: null, array: [], valid: { configuration: '', slots: [], markers: {}, wizard: null } },
@@ -185,9 +192,14 @@ describe('OpenPanel project files', () => {
         results: { recommended: { kind: 'bad', rows: [], alternatives: [] }, bestFit: null },
       },
     }
-    const parsed = parseProject(JSON.stringify(malformed))
+    expect(() => parseProject(JSON.stringify(malformed))).toThrow(/Unsupported persisted cytometer 'broken'/)
+    const parsed = parseProject(JSON.stringify({
+      ...malformed,
+      cytometerPanels: {
+        aurora: { configuration: '5l_uv_v_b_yg_r', slots: [], markers: {}, wizard: null },
+      },
+    }))
     expect(parsed.cytometerPanels).toHaveProperty('aurora')
-    expect(parsed.cytometerPanels).toHaveProperty('valid')
     expect(parsed.wizard?.markers[0]).toMatchObject({ id: 'marker-0', name: '', antigenDensity: 'high', currentFluorophore: '' })
     expect(parsed.wizard?.coexpression).toEqual({ good: 2 })
     expect(parsed.wizard?.coexpressionContext).toBeUndefined()
@@ -224,7 +236,6 @@ describe('OpenPanel project files', () => {
       },
       cytometerPanels: {
         discover: { configuration: ['discover_s8'], slots: [['PE']], markers: { 0: ['CD3'] }, wizard: null },
-        malformed: { configuration: 42, slots: 'bad', markers: [], wizard: [] },
       },
     }
     const parsed = parseProject(JSON.stringify(legacy))
@@ -242,13 +253,10 @@ describe('OpenPanel project files', () => {
     expect(parsed.wizard?.results?.recommended.rows[0]).not.toHaveProperty('frequency')
     expect(parsed.wizard?.results?.bestFit.rows[0]).toMatchObject({ antigenDensity: 'medium' })
     expect(parsed.cytometerPanels).toHaveProperty('discover')
-    expect(parsed.cytometerPanels.malformed).toMatchObject({ configuration: '' })
   })
 
   test('uses defaults and legacy plot-height conversion for incomplete state', () => {
     const parsed = parseProject(JSON.stringify({
-      cytometer: 42,
-      configuration: null,
       slots: null,
       markers: [],
       tab: 'unknown',
@@ -264,6 +272,8 @@ describe('OpenPanel project files', () => {
     expect(parsed.sidebarWidth).toBe(214)
     expect(parsed.plotScale).toBe(180)
     expect(parsed.wizard).toBeNull()
+    expect(() => parseProject(JSON.stringify({ cytometer: 42, configuration: null })))
+      .toThrow(/Unsupported persisted cytometer '42'/)
   })
 
   test('rejects malformed wizard result shapes and fills conservative defaults', () => {
@@ -278,13 +288,15 @@ describe('OpenPanel project files', () => {
         bestFit: { kind: 'best-fit', rows: [], alternatives: 'bad' },
       },
     }
-    const parsed = parseProject(JSON.stringify({ cytometer: 'aurora', configuration: '', slots: [null], markers: { 0: null }, wizard: base }))
-    expect(parsed.configuration).toBe('')
+    const parsed = parseProject(JSON.stringify({ cytometer: 'aurora', slots: [null], markers: { 0: null }, wizard: base }))
+    expect(parsed.configuration).toBe('5l_uv_v_b_yg_r')
     expect(parsed.slots).toEqual([''])
     expect(parsed.markers).toEqual({ 0: '' })
     expect(parsed.wizard?.markers[0]).toMatchObject({ antigenDensity: 'medium', currentFluorophore: '' })
     expect(parsed.wizard?.coexpression).toEqual({})
     expect(parsed.wizard?.results).toBeNull()
+    expect(() => parseProject(JSON.stringify({ cytometer: 'aurora', configuration: 'unknown', wizard: base })))
+      .toThrow(/Unsupported persisted configuration 'unknown'/)
 
     const invalidAlternatives = parseProject(JSON.stringify({ wizard: {
       markers: [{ id: 'm', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: '' }],

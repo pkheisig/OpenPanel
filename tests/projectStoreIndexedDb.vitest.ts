@@ -83,7 +83,19 @@ describe('IndexedDB project persistence', () => {
     expect(await restorePanelProject(first.id)).toMatchObject({ id: first.id })
     await deletePanelProject(first.id)
     expect(await loadPanelProject(first.id)).toBeNull()
+    expect(fakeDb.records.get(`deleted:${first.id}`)).toMatchObject({ id: first.id })
     expect(await renamePanelProject('missing', 'Nope')).toBeNull()
+  })
+
+  test('keeps the fallback backend usable when an IndexedDB write fails', async () => {
+    fakeDb.put.mockRejectedValueOnce(new Error('panel write failed'))
+    const panel = await createPanelProject('Fallback copy', state)
+
+    expect(await loadPanelProject(panel.id)).toMatchObject({ id: panel.id, name: 'Fallback copy' })
+    expect(await listPanelProjects()).toEqual([
+      expect.objectContaining({ id: panel.id, name: 'Fallback copy' }),
+    ])
+    expect(await loadActiveProject()).toMatchObject({ slots: ['FITC'] })
   })
 
   test('keeps active project selection and ignores non-panel records', async () => {

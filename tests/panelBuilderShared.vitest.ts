@@ -45,6 +45,7 @@ const fluorophores: FluorInfo[] = [
 describe('panel rendering helpers', () => {
   test('formats numeric values and clamps similarity inputs', () => {
     expect(formatMetric(1.234)).toBe('1.23')
+    expect(formatMetric(Number.POSITIVE_INFINITY)).toBe('Non-identifiable')
     expect(formatMetric('2')).toBe('2.00')
     expect(formatMetric(undefined)).toBe('NA')
     expect(formatMetric('not-a-number')).toBe('NA')

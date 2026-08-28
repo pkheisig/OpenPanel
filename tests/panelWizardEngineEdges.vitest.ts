@@ -95,6 +95,12 @@ describe('wizard engine edge paths', () => {
     const spectra = new Map<string, number[]>([['FITC', [1, 0]]])
     expect(spectrumVector({ D1: 'not-a-number', D2: 2 } as never, ['D1', 'D2'])).toEqual([0, 2])
     expect(panelMetrics([], spectra).spectralRisk).toBe(1000)
+    const rankDeficient = new Map<string, number[]>([
+      ['FITC', [1, 0]],
+      ['PE', [1, 0]],
+    ])
+    expect(panelMetrics(['FITC', 'PE'], rankDeficient).complexity).toBe(Number.POSITIVE_INFINITY)
+    expect(panelMetrics(['FITC', 'PE'], rankDeficient).spectralRisk).toBeGreaterThanOrEqual(1000)
     expect(closestPair('missing', ['missing'], spectra)).toEqual({ name: '', similarity: 0 })
     expect(markerPriority(marker('m0', 'CD3'), [marker('m0', 'CD3')], {})).toBe(90 * 0.45)
     expect(optimizeBestFit(

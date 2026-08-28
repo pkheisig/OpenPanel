@@ -1,6 +1,17 @@
 import { openDB } from 'idb'
-import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
+import {
+  readLocalStorage,
+  readLocalStorageResult,
+  removeLocalStorage,
+  removeLocalStorageChecked,
+  writeLocalStorageChecked,
+} from './browserStorage'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import {
+  resolveConfiguration,
+  resolvePersistedConfiguration,
+  resolvePersistedCytometer,
+} from './spectralEngine'
 import type { TabId } from './panelBuilderShared'
 import type {
   AntigenDensity,
@@ -51,6 +62,13 @@ export type StoredPanelProject = {
   state: ProjectState
 }
 
+export class ProjectPersistenceError extends Error {
+  constructor(operation: string) {
+    super(`Could not ${operation} because browser storage rejected the change. Your current-session edits remain available; try again after freeing browser storage or enabling IndexedDB/localStorage.`)
+    this.name = 'ProjectPersistenceError'
+  }
+}
+
 const DATABASE_NAME = 'openpanel'
 const DATABASE_VERSION = 1
 const PROJECT_STORE = 'projects'
@@ -59,6 +77,11 @@ const LEGACY_STORAGE_KEY = 'openpanel.panel-builder.state.v1'
 const PANEL_KEY_PREFIX = 'panel:'
 const PANEL_LIBRARY_STORAGE_KEY = 'openpanel.panel-library.v1'
 const ACTIVE_PANEL_ID_STORAGE_KEY = 'openpanel.active-panel-id'
+const PANEL_TOMBSTONE_PREFIX = 'deleted:'
+const PANEL_TOMBSTONES_STORAGE_KEY = 'openpanel.panel-library.tombstones.v1'
+const ACTIVE_RECORD_KIND = 'OpenPanel active project'
+const ACTIVE_RECORD_VERSION = 1
+let latestIssuedTimestamp = 0
 
 function database() {
   return openDB(DATABASE_NAME, DATABASE_VERSION, {
@@ -76,6 +99,10 @@ function scalar(value: unknown): unknown {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key)
 }
 
 function isAntigenDensity(value: unknown): value is AntigenDensity {
@@ -194,25 +221,32 @@ function normalizeMarkers(value: unknown): Record<number, string> {
 
 function normalizeCytometerPanel(
   value: unknown,
-  fallbackConfiguration: string,
-): CytometerPanelState | null {
-  if (!isRecord(value)) return null
-  const configuration = scalar(value.configuration)
+  cytometer: string,
+  fallbackConfiguration?: string,
+): CytometerPanelState {
+  if (!isRecord(value)) {
+    throw new Error(`Persisted panel for cytometer '${cytometer}' is not a valid object.`)
+  }
+  const savedConfiguration = hasOwn(value, 'configuration') ? scalar(value.configuration) : undefined
+  const configuration = savedConfiguration === undefined
+    ? fallbackConfiguration
+    : resolvePersistedConfiguration(cytometer, savedConfiguration)
+  if (!configuration) {
+    throw new Error(`Persisted panel for cytometer '${cytometer}' is missing a configuration.`)
+  }
   return {
-    configuration: typeof configuration === 'string' && configuration
-      ? configuration
-      : fallbackConfiguration,
+    configuration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
     wizard: normalizeWizardState(value.wizard),
   }
 }
 
-export function serializeProject(state: ProjectState): string {
+export function serializeProject(state: ProjectState, savedAt = new Date().toISOString()): string {
   const project: OpenPanelProject = {
     kind: PROJECT_FILE_KIND,
     version: PROJECT_FILE_VERSION,
-    savedAt: new Date().toISOString(),
+    savedAt,
     ...state,
     markers: Object.fromEntries(Object.entries(state.markers).map(([key, value]) => [Number(key), String(value)])),
   }
@@ -223,25 +257,42 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
   const theme = scalar(value.theme) === 'dark' ? 'dark' : 'light'
-  const savedCytometer = scalar(value.cytometer)
-  const savedConfiguration = scalar(value.configuration)
-  const cytometer = typeof savedCytometer === 'string' ? savedCytometer : 'aurora'
-  const configuration = typeof savedConfiguration === 'string' ? savedConfiguration : '5l_uv_v_b_yg_r'
+  const savedCytometer = hasOwn(value, 'cytometer') ? scalar(value.cytometer) : undefined
+  const cytometer = savedCytometer === undefined
+    ? 'aurora'
+    : resolvePersistedCytometer(savedCytometer)
+  const savedConfiguration = hasOwn(value, 'configuration') ? scalar(value.configuration) : undefined
+  const configuration = savedConfiguration === undefined
+    ? resolveConfiguration(cytometer)
+    : resolvePersistedConfiguration(cytometer, savedConfiguration)
   const legacyPanel: CytometerPanelState = {
     configuration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
     wizard: normalizeWizardState(value.wizard),
   }
-  const rawCytometerPanels = isRecord(value.cytometerPanels) ? value.cytometerPanels : {}
-  const cytometerPanels = Object.fromEntries(
-    Object.entries(rawCytometerPanels)
-      .map(([key, panel]) => [
-        key,
-        normalizeCytometerPanel(panel, key === cytometer ? configuration : ''),
-      ] as const)
-      .filter((entry): entry is [string, CytometerPanelState] => entry[1] !== null),
-  )
+  const rawCytometerPanels = hasOwn(value, 'cytometerPanels')
+    ? value.cytometerPanels
+    : {}
+  if (!isRecord(rawCytometerPanels)) {
+    throw new Error('Persisted cytometerPanels must be an object when present.')
+  }
+  const cytometerPanels: Record<string, CytometerPanelState> = {}
+  Object.entries(rawCytometerPanels).forEach(([key, panel]) => {
+    const panelCytometer = resolvePersistedCytometer(key)
+    if (cytometerPanels[panelCytometer]) {
+      throw new Error(`Persisted cytometerPanels contains duplicate entries for '${panelCytometer}'.`)
+    }
+    const normalizedPanel = normalizeCytometerPanel(
+      panel,
+      panelCytometer,
+      panelCytometer === cytometer ? configuration : undefined,
+    )
+    if (panelCytometer === cytometer && normalizedPanel.configuration !== configuration) {
+      throw new Error(`Persisted active panel configuration '${normalizedPanel.configuration}' does not match '${configuration}'.`)
+    }
+    cytometerPanels[panelCytometer] = normalizedPanel
+  })
   cytometerPanels[cytometer] = legacyPanel
   const activePanel = cytometerPanels[cytometer]
   const savedSidebarWidth = Number(scalar(value.sidebarWidth))
@@ -296,26 +347,18 @@ export function parseProject(text: string): ProjectState {
 }
 
 export async function loadActiveProject(): Promise<ProjectState | null> {
-  try {
-    const stored = await (await database()).get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
-    if (stored) return normalizeState(stored as unknown as Record<string, unknown>)
-  } catch {
-    // IndexedDB can be unavailable in hardened/private contexts; migrate from localStorage below.
-  }
-  try {
-    const legacy = readLocalStorage(LEGACY_STORAGE_KEY)
-    return legacy ? parseProject(legacy) : null
-  } catch {
-    return null
-  }
+  const [indexedDb, fallback] = await Promise.all([indexedDbSnapshot(), Promise.resolve(fallbackSnapshot())])
+  return latestActive(indexedDb, fallback)?.state ?? null
 }
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
-  try {
-    await (await database()).put(PROJECT_STORE, state, ACTIVE_PROJECT_KEY)
-  } catch {
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(state))
-  }
+  const normalized = normalizeState(state as unknown as Record<string, unknown>)
+  const updatedAt = nextPersistenceTimestamp()
+  const results = await Promise.all([
+    writeIndexedDbActive(normalized, updatedAt),
+    Promise.resolve(writeFallbackActive(normalized, updatedAt)),
+  ])
+  if (!results.some(Boolean)) throw new ProjectPersistenceError('save the active panel')
 }
 
 function normalizePanelName(name: string): string {
@@ -329,29 +372,19 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   if (!record.state || typeof record.state !== 'object' || Array.isArray(record.state)) return null
   const createdAt = typeof record.createdAt === 'string' ? record.createdAt : new Date(0).toISOString()
   const updatedAt = typeof record.updatedAt === 'string' ? record.updatedAt : createdAt
-  return {
-    id: record.id,
-    name: normalizePanelName(record.name),
-    createdAt,
-    updatedAt,
-    archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
-    state: normalizeState(record.state as Record<string, unknown>),
-  }
-}
-
-function fallbackLibrary(): StoredPanelProject[] {
+  rememberPersistenceTimestamp(updatedAt)
   try {
-    const parsed = JSON.parse(readLocalStorage(PANEL_LIBRARY_STORAGE_KEY) || '[]')
-    return Array.isArray(parsed)
-      ? parsed.map(normalizeStoredPanel).filter((panel): panel is StoredPanelProject => panel !== null)
-      : []
+    return {
+      id: record.id,
+      name: normalizePanelName(record.name),
+      createdAt,
+      updatedAt,
+      archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
+      state: normalizeState(record.state as Record<string, unknown>),
+    }
   } catch {
-    return []
+    return null
   }
-}
-
-function writeFallbackLibrary(panels: StoredPanelProject[]): void {
-  writeLocalStorage(PANEL_LIBRARY_STORAGE_KEY, JSON.stringify(panels))
 }
 
 function createPanelId(): string {
@@ -359,40 +392,335 @@ function createPanelId(): string {
   return `panel-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export async function listPanelProjects(): Promise<StoredPanelProject[]> {
+type ActiveProjectRecord = {
+  kind: typeof ACTIVE_RECORD_KIND
+  version: typeof ACTIVE_RECORD_VERSION
+  updatedAt: string
+  state: ProjectState
+}
+
+type PanelTombstone = {
+  kind: 'OpenPanel panel tombstone'
+  version: 1
+  id: string
+  deletedAt: string
+}
+
+type ActiveProjectValue = {
+  state: ProjectState
+  updatedAt: string
+}
+
+type ProjectSnapshot = {
+  available: boolean
+  panels: StoredPanelProject[]
+  tombstones: Map<string, string>
+  active: ActiveProjectValue | null
+}
+
+type FallbackSnapshot = ProjectSnapshot & {
+  libraryAvailable: boolean
+  tombstonesAvailable: boolean
+  activeAvailable: boolean
+}
+
+function timestamp(value: string): number {
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function rememberPersistenceTimestamp(value: string): void {
+  latestIssuedTimestamp = Math.max(latestIssuedTimestamp, timestamp(value))
+}
+
+function nextPersistenceTimestamp(...knownValues: Array<string | undefined>): string {
+  const known = knownValues.reduce((latest, value) => Math.max(latest, timestamp(value ?? '')), latestIssuedTimestamp)
+  const next = Math.max(Date.now(), known + 1)
+  latestIssuedTimestamp = next
+  return new Date(next).toISOString()
+}
+
+function compareTimestamp(left: string, right: string): number {
+  return timestamp(left) - timestamp(right) || left.localeCompare(right)
+}
+
+function parseTombstones(value: string | null): Map<string, string> {
+  if (!value) return new Map()
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (!isRecord(parsed)) return new Map()
+    const result = new Map<string, string>()
+    Object.entries(parsed).forEach(([id, deletedAt]) => {
+      if (typeof deletedAt !== 'string' || timestamp(deletedAt) <= 0) return
+      result.set(id, deletedAt)
+      rememberPersistenceTimestamp(deletedAt)
+    })
+    return result
+  } catch {
+    return new Map()
+  }
+}
+
+function serializeTombstones(tombstones: Map<string, string>): string {
+  return JSON.stringify(Object.fromEntries(tombstones))
+}
+
+function parseFallbackActive(value: string | null): ActiveProjectValue | null {
+  if (!value) return null
+  try {
+    const parsed: unknown = JSON.parse(value)
+    const savedAt = isRecord(parsed) && typeof parsed.savedAt === 'string'
+      ? parsed.savedAt
+      : new Date(0).toISOString()
+    const updatedAt = timestamp(savedAt) > 0 ? savedAt : new Date(0).toISOString()
+    rememberPersistenceTimestamp(updatedAt)
+    return { state: parseProject(value), updatedAt }
+  } catch {
+    return null
+  }
+}
+
+function parseIndexedDbActive(value: unknown): ActiveProjectValue | null {
+  if (!isRecord(value)) return null
+  const isEnvelope = value.kind === ACTIVE_RECORD_KIND && value.version === ACTIVE_RECORD_VERSION
+  const rawState = isEnvelope ? value.state : value
+  if (!isRecord(rawState)) return null
+  try {
+    const updatedAt = isEnvelope && typeof value.updatedAt === 'string' && timestamp(value.updatedAt) > 0
+      ? value.updatedAt
+      : new Date(0).toISOString()
+    rememberPersistenceTimestamp(updatedAt)
+    return {
+      state: normalizeState(rawState),
+      updatedAt,
+    }
+  } catch {
+    return null
+  }
+}
+
+function fallbackSnapshot(): FallbackSnapshot {
+  const library = readLocalStorageResult(PANEL_LIBRARY_STORAGE_KEY)
+  const tombstones = readLocalStorageResult(PANEL_TOMBSTONES_STORAGE_KEY)
+  const active = readLocalStorageResult(LEGACY_STORAGE_KEY)
+  let panels: StoredPanelProject[] = []
+  if (library.available) {
+    try {
+      const parsed: unknown = JSON.parse(library.value || '[]')
+      panels = Array.isArray(parsed)
+        ? parsed.map(normalizeStoredPanel).filter((panel): panel is StoredPanelProject => panel !== null)
+        : []
+    } catch {
+      panels = []
+    }
+  }
+  return {
+    available: library.available || tombstones.available || active.available,
+    libraryAvailable: library.available,
+    tombstonesAvailable: tombstones.available,
+    activeAvailable: active.available,
+    panels,
+    tombstones: tombstones.available ? parseTombstones(tombstones.value) : new Map(),
+    active: active.available ? parseFallbackActive(active.value) : null,
+  }
+}
+
+async function indexedDbSnapshot(): Promise<ProjectSnapshot> {
   try {
     const db = await database()
     const keys = await db.getAllKeys(PROJECT_STORE)
     const values = await db.getAll(PROJECT_STORE)
-    return values
-      .map((value, index) => String(keys[index]).startsWith(PANEL_KEY_PREFIX)
-        ? normalizeStoredPanel(value)
-        : null)
-      .filter((panel): panel is StoredPanelProject => panel !== null)
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    const panels: StoredPanelProject[] = []
+    const tombstones = new Map<string, string>()
+    let active: ActiveProjectValue | null = null
+    keys.forEach((key, index) => {
+      const keyText = String(key)
+      const value = values[index]
+      if (keyText.startsWith(PANEL_KEY_PREFIX)) {
+        const panel = normalizeStoredPanel(value)
+        if (panel) panels.push(panel)
+      } else if (keyText.startsWith(PANEL_TOMBSTONE_PREFIX)) {
+        if (isRecord(value) && typeof value.id === 'string' && typeof value.deletedAt === 'string' && timestamp(value.deletedAt) > 0) {
+          tombstones.set(value.id, value.deletedAt)
+        }
+      } else if (keyText === ACTIVE_PROJECT_KEY) {
+        active = parseIndexedDbActive(value)
+      }
+    })
+    return { available: true, panels, tombstones, active }
   } catch {
-    return fallbackLibrary().sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    return { available: false, panels: [], tombstones: new Map(), active: null }
   }
+}
+
+function mergeTombstones(...snapshots: ProjectSnapshot[]): Map<string, string> {
+  const merged = new Map<string, string>()
+  snapshots.forEach((snapshot) => {
+    snapshot.tombstones.forEach((deletedAt, id) => {
+      const current = merged.get(id)
+      if (!current || compareTimestamp(deletedAt, current) > 0) merged.set(id, deletedAt)
+    })
+  })
+  return merged
+}
+
+function mergePanels(...snapshots: ProjectSnapshot[]): StoredPanelProject[] {
+  const latest = new Map<string, StoredPanelProject>()
+  snapshots.forEach((snapshot) => {
+    snapshot.panels.forEach((panel) => {
+      const current = latest.get(panel.id)
+      if (!current || compareTimestamp(panel.updatedAt, current.updatedAt) > 0) latest.set(panel.id, panel)
+    })
+  })
+  const tombstones = mergeTombstones(...snapshots)
+  return [...latest.values()]
+    .filter((panel) => {
+      const deletedAt = tombstones.get(panel.id)
+      return !deletedAt || compareTimestamp(panel.updatedAt, deletedAt) > 0
+    })
+    .sort((left, right) => compareTimestamp(right.updatedAt, left.updatedAt) || left.id.localeCompare(right.id))
+}
+
+function latestActive(...snapshots: ProjectSnapshot[]): ActiveProjectValue | null {
+  const latest = snapshots
+    .map((snapshot) => snapshot.active)
+    .filter((active): active is ActiveProjectValue => active !== null)
+    .sort((left, right) => compareTimestamp(right.updatedAt, left.updatedAt))[0] ?? null
+  if (latest) rememberPersistenceTimestamp(latest.updatedAt)
+  return latest
+}
+
+async function writeIndexedDbPanel(panel: StoredPanelProject): Promise<boolean> {
+  try {
+    const db = await database()
+    await db.put(PROJECT_STORE, panel, `${PANEL_KEY_PREFIX}${panel.id}`)
+    await db.delete(PROJECT_STORE, `${PANEL_TOMBSTONE_PREFIX}${panel.id}`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function writeFallbackPanel(panel: StoredPanelProject): boolean {
+  const snapshot = fallbackSnapshot()
+  if (!snapshot.libraryAvailable) return false
+  const tombstone = snapshot.tombstones.get(panel.id)
+  const libraryWritten = writeLocalStorageChecked(
+    PANEL_LIBRARY_STORAGE_KEY,
+    JSON.stringify([panel, ...snapshot.panels.filter((candidate) => candidate.id !== panel.id)]),
+  )
+  if (!tombstone) return libraryWritten
+  const nextTombstones = new Map(snapshot.tombstones)
+  nextTombstones.delete(panel.id)
+  return writeLocalStorageChecked(PANEL_TOMBSTONES_STORAGE_KEY, serializeTombstones(nextTombstones)) && libraryWritten
+}
+
+async function writeIndexedDbActive(state: ProjectState, updatedAt: string): Promise<boolean> {
+  try {
+    const db = await database()
+    const record: ActiveProjectRecord = {
+      kind: ACTIVE_RECORD_KIND,
+      version: ACTIVE_RECORD_VERSION,
+      updatedAt,
+      state,
+    }
+    await db.put(PROJECT_STORE, record, ACTIVE_PROJECT_KEY)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function writeFallbackActive(state: ProjectState, updatedAt: string): boolean {
+  return writeLocalStorageChecked(LEGACY_STORAGE_KEY, serializeProject(state, updatedAt))
+}
+
+async function publishPanel(panel: StoredPanelProject, includeActiveState: boolean): Promise<void> {
+  const panelResults = await Promise.all([
+    writeIndexedDbPanel(panel),
+    Promise.resolve(writeFallbackPanel(panel)),
+  ])
+  const panelPublished = panelResults.some(Boolean)
+  let activePublished = true
+  if (includeActiveState) {
+    const state = panel.state
+    const updatedAt = panel.updatedAt
+    const activeResults = await Promise.all([
+      writeIndexedDbActive(state, updatedAt),
+      Promise.resolve(writeFallbackActive(state, updatedAt)),
+    ])
+    activePublished = activeResults.some(Boolean)
+  }
+  if (!panelPublished || !activePublished) {
+    throw new ProjectPersistenceError(includeActiveState ? 'save this panel' : 'update this panel')
+  }
+}
+
+async function deleteIndexedDbPanel(id: string, deletedAt: string): Promise<boolean> {
+  try {
+    const db = await database()
+    let changed = false
+    try {
+      await db.delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
+      changed = true
+    } catch {
+      // A tombstone still makes a failed physical delete safe to read.
+    }
+    try {
+      const tombstone: PanelTombstone = {
+        kind: 'OpenPanel panel tombstone',
+        version: 1,
+        id,
+        deletedAt,
+      }
+      await db.put(PROJECT_STORE, tombstone, `${PANEL_TOMBSTONE_PREFIX}${id}`)
+      changed = true
+    } catch {
+      // A successful physical delete is already sufficient for this backend.
+    }
+    return changed
+  } catch {
+    return false
+  }
+}
+
+function deleteFallbackPanel(id: string, deletedAt: string): boolean {
+  const snapshot = fallbackSnapshot()
+  if (!snapshot.libraryAvailable && !snapshot.tombstonesAvailable) return false
+  const libraryWritten = snapshot.libraryAvailable
+    ? writeLocalStorageChecked(
+      PANEL_LIBRARY_STORAGE_KEY,
+      JSON.stringify(snapshot.panels.filter((panel) => panel.id !== id)),
+    )
+    : false
+  const tombstones = new Map(snapshot.tombstones)
+  const current = tombstones.get(id)
+  if (!current || compareTimestamp(deletedAt, current) > 0) tombstones.set(id, deletedAt)
+  const tombstoneWritten = snapshot.tombstonesAvailable
+    ? writeLocalStorageChecked(PANEL_TOMBSTONES_STORAGE_KEY, serializeTombstones(tombstones))
+    : false
+  return libraryWritten || tombstoneWritten
+}
+
+export async function listPanelProjects(): Promise<StoredPanelProject[]> {
+  const [indexedDb, fallback] = await Promise.all([indexedDbSnapshot(), Promise.resolve(fallbackSnapshot())])
+  return mergePanels(indexedDb, fallback)
 }
 
 export async function loadPanelProject(id: string): Promise<StoredPanelProject | null> {
-  try {
-    const stored = await (await database()).get(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
-    return normalizeStoredPanel(stored)
-  } catch {
-    return fallbackLibrary().find((panel) => panel.id === id) ?? null
-  }
+  const panels = await listPanelProjects()
+  return panels.find((panel) => panel.id === id) ?? null
 }
 
-export function setActivePanelProject(id: string): void {
-  writeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY, id)
+export function setActivePanelProject(id: string): boolean {
+  return writeLocalStorageChecked(ACTIVE_PANEL_ID_STORAGE_KEY, id)
 }
 
 export async function createPanelProject(
   name: string,
   state: ProjectState,
 ): Promise<StoredPanelProject> {
-  const now = new Date().toISOString()
+  const now = nextPersistenceTimestamp()
   const panel: StoredPanelProject = {
     id: createPanelId(),
     name: normalizePanelName(name),
@@ -400,14 +728,7 @@ export async function createPanelProject(
     updatedAt: now,
     state: normalizeState(state as unknown as Record<string, unknown>),
   }
-  try {
-    const db = await database()
-    await db.put(PROJECT_STORE, panel, `${PANEL_KEY_PREFIX}${panel.id}`)
-    await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
-  } catch {
-    writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== panel.id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
-  }
+  await publishPanel(panel, true)
   setActivePanelProject(panel.id)
   return panel
 }
@@ -418,7 +739,7 @@ export async function savePanelProject(
   state: ProjectState,
 ): Promise<StoredPanelProject> {
   const existing = await loadPanelProject(id)
-  const now = new Date().toISOString()
+  const now = nextPersistenceTimestamp(existing?.updatedAt, existing?.createdAt)
   const panel: StoredPanelProject = {
     id,
     name: normalizePanelName(name),
@@ -427,14 +748,7 @@ export async function savePanelProject(
     archivedAt: existing?.archivedAt,
     state: normalizeState(state as unknown as Record<string, unknown>),
   }
-  try {
-    const db = await database()
-    await db.put(PROJECT_STORE, panel, `${PANEL_KEY_PREFIX}${id}`)
-    await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
-  } catch {
-    writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
-  }
+  await publishPanel(panel, true)
   setActivePanelProject(id)
   return panel
 }
@@ -464,11 +778,11 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
 }
 
 async function writeStoredPanel(panel: StoredPanelProject): Promise<StoredPanelProject> {
-  try {
-    await (await database()).put(PROJECT_STORE, panel, `${PANEL_KEY_PREFIX}${panel.id}`)
-  } catch {
-    writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== panel.id)])
-  }
+  const results = await Promise.all([
+    writeIndexedDbPanel(panel),
+    Promise.resolve(writeFallbackPanel(panel)),
+  ])
+  if (!results.some(Boolean)) throw new ProjectPersistenceError('update this panel')
   return panel
 }
 
@@ -481,7 +795,7 @@ export async function renamePanelProject(
   return writeStoredPanel({
     ...panel,
     name: normalizePanelName(name),
-    updatedAt: new Date().toISOString(),
+    updatedAt: nextPersistenceTimestamp(panel.updatedAt),
   })
 }
 
@@ -490,7 +804,7 @@ export async function duplicatePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
-  const now = new Date().toISOString()
+  const now = nextPersistenceTimestamp(panel.updatedAt, panel.createdAt)
   const duplicate: StoredPanelProject = {
     ...panel,
     id: createPanelId(),
@@ -508,12 +822,14 @@ export async function archivePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  const archivedAt = nextPersistenceTimestamp(panel.updatedAt, panel.archivedAt)
   const archived = await writeStoredPanel({
     ...panel,
-    archivedAt: new Date().toISOString(),
+    updatedAt: archivedAt,
+    archivedAt,
   })
   if (readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
-    removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
+    removeLocalStorageChecked(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
   return archived
 }
@@ -527,17 +843,19 @@ export async function restorePanelProject(
   delete restored.archivedAt
   return writeStoredPanel({
     ...restored,
-    updatedAt: new Date().toISOString(),
+    updatedAt: nextPersistenceTimestamp(panel.updatedAt, panel.archivedAt),
   })
 }
 
 export async function deletePanelProject(id: string): Promise<void> {
-  try {
-    await (await database()).delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
-  } catch {
-    writeFallbackLibrary(fallbackLibrary().filter((panel) => panel.id !== id))
-  }
+  const existing = await loadPanelProject(id)
+  const deletedAt = nextPersistenceTimestamp(existing?.updatedAt, existing?.archivedAt)
+  const results = await Promise.all([
+    deleteIndexedDbPanel(id, deletedAt),
+    Promise.resolve(deleteFallbackPanel(id, deletedAt)),
+  ])
+  if (!results.some(Boolean)) throw new ProjectPersistenceError('delete this panel')
   if (readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
-    removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
+    removeLocalStorageChecked(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
 }

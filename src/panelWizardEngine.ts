@@ -97,6 +97,21 @@ type PanelMetrics = {
   spectralRisk: number
 }
 
+function spectralFitScore(
+  complexity: number,
+  similarity: number,
+  complexityDelta: number,
+  spreadingDelta: number,
+): number {
+  if (!Number.isFinite(complexity)) return 0
+  return Math.round(clamp(
+    100
+    - similarity * 58
+    - Math.max(0, complexityDelta) * 7
+    - Math.log2(1 + spreadingDelta) * 18,
+  ))
+}
+
 type Availability = {
   score: number
   tier: AvailabilityTier
@@ -648,12 +663,12 @@ function recommendationRows(
       0,
       fullMetrics.maxSpreadingInflation - withoutMetrics.maxSpreadingInflation,
     )
-    const spectralFit = Math.round(clamp(
-      100
-      - pair.similarity * 58
-      - Math.max(0, complexityDelta) * 7
-      - Math.log2(1 + spreadingDelta) * 18,
-    ))
+    const spectralFit = spectralFitScore(
+      fullMetrics.complexity,
+      pair.similarity,
+      complexityDelta,
+      spreadingDelta,
+    )
     return {
       fluorophore,
       pair,
@@ -804,12 +819,12 @@ function alternatives(
         0,
         metrics.maxSpreadingInflation - previousMetrics.maxSpreadingInflation,
       )
-      const spectralFit = Math.round(clamp(
-        100
-        - pair.similarity * 58
-        - Math.max(0, complexityDelta) * 7
-        - Math.log2(1 + spreadingDelta) * 18,
-      ))
+      const spectralFit = spectralFitScore(
+        metrics.complexity,
+        pair.similarity,
+        complexityDelta,
+        spreadingDelta,
+      )
       return {
         fluorophore,
         brightnessLevel: fluorophoreBrightnessLevel(fluorophore, references),

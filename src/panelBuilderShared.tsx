@@ -95,6 +95,7 @@ const emptySlots = 18;
 
 const formatMetric = (value: number | string | null | undefined) => {
     const numeric = typeof value === 'number' ? value : Number(value);
+    if (numeric === Number.POSITIVE_INFINITY) return 'Non-identifiable';
     if (!Number.isFinite(numeric)) return 'NA';
     return numeric.toFixed(2);
 };

@@ -12,6 +12,8 @@ import {
   resetSpectralEngineForTests,
   resolveConfiguration,
   resolveCytometer,
+  resolvePersistedConfiguration,
+  resolvePersistedCytometer,
 } from '../src/spectralEngine'
 import { mockBundledData } from './helpers'
 
@@ -202,6 +204,11 @@ describe('browser spectral engine parity', () => {
     expect(resolveCytometer()).toBe('aurora')
     expect(resolveCytometer(null)).toBe('aurora')
     expect(() => resolveCytometer('not an instrument')).toThrow('Panel builder supports')
+    expect(resolvePersistedCytometer('BD FACSDiscover')).toBe('discover')
+    expect(resolvePersistedConfiguration('fortessa', '4L')).toBe('fortessa_4l')
+    expect(() => resolvePersistedCytometer('not an instrument')).toThrow(/Unsupported persisted cytometer/)
+    expect(() => resolvePersistedConfiguration('aurora', 'unknown')).toThrow(/Unsupported persisted configuration/)
+    expect(() => resolvePersistedConfiguration('aurora', 'fortessa_4l')).toThrow(/Unsupported persisted configuration/)
     const aliases: Array<[string, string, string]> = [
       ['fortessa', '3L', 'fortessa_3l'], ['attune_nxt', '4laser', 'attune_nxt_4l'],
       ['celesta', 'BVR', 'celesta_bvr'],
@@ -501,6 +508,13 @@ describe('browser spectral engine parity', () => {
     expect(calculatePanelComplexity([[0, 0], [0, 0]])).toBeNull()
     expect(calculatePanelComplexity([[0.2, 1], [1, 0.1]])).toBe(1.35)
     expect(calculatePanelComplexity([[Number.MAX_VALUE, 0], [0, Number.MIN_VALUE]])).toBeNull()
+    expect(calculatePanelComplexity([[1, 0], [1, 0]])).toBeNull()
+    expect(calculatePanelComplexity([[1, 2], [2, 4]])).toBeNull()
+    expect(calculatePanelComplexity([[1, 0, 0], [0, 1, 0]])).toBe(1)
+    expect(calculatePanelComplexity([[1, 0], [0, 1], [1, 1]])).toBeNull()
+    expect(calculatePanelComplexity([[1, 0], [1, Number.EPSILON]])).toBeNull()
+    expect(calculatePanelComplexity([[1, 0], [1, 1e-12]])).toBeGreaterThan(1)
+    expect(calculatePanelComplexity([[1, Number.NaN]])).toBeNull()
   })
 
   test('parses quoted bundled CSV syntax without changing values', () => {

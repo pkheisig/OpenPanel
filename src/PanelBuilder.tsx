@@ -452,14 +452,20 @@ const PanelBuilder = ({
     }, [panelName, projectId, projectState]);
 
     const exitToPanelLibrary = useCallback(async () => {
-        await persistProjectState();
-        await onRequestExit?.();
+        try {
+            await persistProjectState();
+            await onRequestExit?.();
+        } catch (exitError) {
+            setError(panelErrorMessage(exitError, 'Could not save the panel before leaving.'));
+        }
     }, [onRequestExit, persistProjectState]);
 
     useEffect(() => {
         if (!guiStateLoaded) return;
         const timer = window.setTimeout(() => {
-            void persistProjectState().catch(() => null);
+            void persistProjectState().catch((persistError) => {
+                setError(panelErrorMessage(persistError, 'Could not save panel changes.'));
+            });
         }, 500);
         return () => window.clearTimeout(timer);
     }, [guiStateLoaded, persistProjectState]);
@@ -778,7 +784,9 @@ const PanelBuilder = ({
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
             setError(panelErrorMessage(err, 'Could not update panel.'));
         });
-        await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
+        await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers }).catch((persistError) => {
+            setError(panelErrorMessage(persistError, 'Could not save panel changes.'));
+        });
     };
 
     const addSlot = () => {
@@ -845,6 +853,8 @@ const PanelBuilder = ({
         try {
             await clearPanelContent();
             setShowClearConfirmation(false);
+        } catch (clearError) {
+            setError(panelErrorMessage(clearError, 'Could not clear the panel.'));
         } finally {
             setClearingPanel(false);
         }

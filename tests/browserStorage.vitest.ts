@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   readLocalStorage,
+  readLocalStorageResult,
   removeLocalStorage,
+  removeLocalStorageChecked,
+  writeLocalStorageChecked,
   writeLocalStorage,
 } from '../src/browserStorage'
 
@@ -24,6 +27,9 @@ describe('browser storage guards', () => {
     vi.stubGlobal('window', { localStorage: storage })
 
     expect(readLocalStorage('missing')).toBeNull()
+    expect(readLocalStorageResult('missing')).toEqual({ available: true, value: null })
+    expect(writeLocalStorageChecked('checked', 'value')).toBe(true)
+    expect(removeLocalStorageChecked('checked')).toBe(true)
     writeLocalStorage('theme', 'dark')
     expect(readLocalStorage('theme')).toBe('dark')
     removeLocalStorage('theme')
@@ -40,6 +46,9 @@ describe('browser storage guards', () => {
     expect(readLocalStorage('theme')).toBeNull()
     expect(() => writeLocalStorage('theme', 'dark')).not.toThrow()
     expect(() => removeLocalStorage('theme')).not.toThrow()
+    expect(readLocalStorageResult('theme').available).toBe(false)
+    expect(writeLocalStorageChecked('theme', 'dark')).toBe(false)
+    expect(removeLocalStorageChecked('theme')).toBe(false)
   })
 
   test('handles missing window and per-operation storage failures', () => {

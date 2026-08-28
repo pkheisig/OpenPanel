@@ -376,6 +376,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.panel-preview-incompatible {
+  color: var(--launch-danger);
+}
+
 .panel-preview-accessible-summary {
   position: absolute;
   width: 1px;

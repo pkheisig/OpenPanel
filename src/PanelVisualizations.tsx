@@ -422,7 +422,11 @@ export const PanelVisualizations = memo(function PanelVisualizations({
         <button className={`tab-button ${tab === 'similarity' ? 'active' : ''}`} onClick={() => setTab('similarity')}>SIMILARITY</button>
         <button className={`tab-button ${tab === 'signatures' ? 'active' : ''}`} onClick={() => setTab('signatures')}>{signatureTabLabel}</button>
         <div style={{ flex: 1 }} />
-        <div className="complexity-badge">Complexity Index: {formatMetric(payload.complexity_index)}</div>
+        <div className="complexity-badge">Complexity Index: {formatMetric(
+            payload.complexity_index === null && selected.length > 1
+                ? Number.POSITIVE_INFINITY
+                : payload.complexity_index,
+        )}</div>
     </div>
 
     {error && <div className="error-state">{error}</div>}

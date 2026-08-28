@@ -239,6 +239,15 @@ describe('LandingPage defensive and boundary workflows', () => {
     fireEvent.change(input, { target: { files: [] } })
   })
 
+  test('surfaces saved-project action failures in the landing page', async () => {
+    const props = callbacks()
+    props.onArchive.mockRejectedValueOnce(new Error('archive failed'))
+    render(<LandingPage panels={[panel()]} {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions for Edge panel' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('archive failed'))
+  })
+
   test('renders successful and failed saved-project spectrum previews', async () => {
     const props = callbacks()
     let resolveCancelled: ((value: typeof payload) => void) | undefined
@@ -268,9 +277,16 @@ describe('LandingPage defensive and boundary workflows', () => {
       spectra: [...payload.spectra, { fluorophore: 'Unknown', 'V1-A': 0.4, 'B1-A': 0.2 }],
       complexity_index: 1.23,
     })
-    render(<LandingPage panels={[panel({ id: 'preview-error', state: { ...panel().state, configuration: 'unknown', slots: ['FITC'] } })]} {...props} />)
+    render(<LandingPage panels={[panel({ id: 'preview-success' })]} {...props} />)
     await waitFor(() => expect(screen.getAllByLabelText('Complexity index 1.23').length).toBeGreaterThan(0))
     expect(screen.getByRole('img', { name: 'Saved panel spectrum preview' }).querySelector('path')?.getAttribute('stroke')).toBe('#157e7c')
+
+    mocks.buildPanelPayload.mockResolvedValueOnce({ ...payload, selected: ['FITC', 'PE'], complexity_index: null })
+    render(<LandingPage panels={[panel({ id: 'preview-non-identifiable', state: { ...panel().state, slots: ['FITC', 'PE'] } })]} {...props} />)
+    await waitFor(() => expect(screen.getByLabelText('Complexity index Non-identifiable')).not.toBeNull())
+
+    render(<LandingPage panels={[panel({ id: 'preview-unsupported', state: { ...panel().state, configuration: 'unknown', slots: ['FITC'] } })]} {...props} />)
+    await waitFor(() => expect(screen.getByLabelText('Complexity index Unsupported setup')).not.toBeNull())
 
     mocks.buildPanelPayload.mockRejectedValueOnce(new Error('preview unavailable'))
     render(<LandingPage panels={[panel({ id: 'preview-error-2' })]} {...props} />)

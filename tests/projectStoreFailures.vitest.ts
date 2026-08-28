@@ -17,6 +17,7 @@ import {
   normalizeWizardPanelResult,
   normalizeWizardResults,
   parseProject,
+  ProjectPersistenceError,
   renamePanelProject,
   restorePanelProject,
   saveActiveProject,
@@ -41,6 +42,16 @@ afterEach(() => {
 })
 
 describe('IndexedDB fallback error paths', () => {
+  test('reports a typed actionable error when both persistence backends reject a save', async () => {
+    vi.stubGlobal('window', {
+      get localStorage() {
+        throw new Error('localStorage unavailable')
+      },
+    })
+    await expect(saveActiveProject(state)).rejects.toBeInstanceOf(ProjectPersistenceError)
+    await expect(saveActiveProject(state)).rejects.toThrow(/current-session edits remain available/)
+  })
+
   test('normalizes complete wizard results and empty panel names', async () => {
     const parsed = parseProject(JSON.stringify({
       ...state,
@@ -115,6 +126,8 @@ describe('IndexedDB fallback error paths', () => {
     expect(await savePanelProject(first.id, 'Saved again', state)).toMatchObject({ id: first.id, name: 'Saved again' })
     await deletePanelProject(first.id)
     expect(await loadPanelProject(first.id)).toBeNull()
+    expect(JSON.parse(localStorage.getItem('openpanel.panel-library.tombstones.v1') || '{}'))
+      .toHaveProperty(first.id)
     expect(await renamePanelProject('missing', 'Nope')).toBeNull()
     expect(await duplicatePanelProject('missing')).toBeNull()
     expect(await archivePanelProject('missing')).toBeNull()

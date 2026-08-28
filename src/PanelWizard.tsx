@@ -229,6 +229,7 @@ export function resizeWizardMarkers(
 }
 
 export function formatMetric(value: number, digits = 2): string {
+  if (value === Number.POSITIVE_INFINITY) return 'Non-identifiable'
   return Number.isFinite(value) ? value.toFixed(digits) : 'NA'
 }
 
