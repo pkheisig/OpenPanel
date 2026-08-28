@@ -902,11 +902,8 @@ export function resolveCytometer(value: unknown = 'aurora'): CytometerId {
   return match
 }
 
-export function resolveConfiguration(cytometer: unknown, value?: unknown): string {
-  const id = resolveCytometer(cytometer)
+function resolveKnownConfiguration(id: CytometerId, key: string): string | undefined {
   const configs = CONFIGURATIONS[id]
-  const key = normalizeToken(value)
-  if (!key) return configs[0].id
   const direct = configs.find((config) => normalizeToken(config.id) === key)
   if (direct) return direct.id
   if (id === 'fortessa' && key === '3l') return 'fortessa_3l'
@@ -948,7 +945,43 @@ export function resolveConfiguration(cytometer: unknown, value?: unknown): strin
   if (id === 'dxflex' && (key === 'b5r3v5' || key === '13color' || key === '13colour')) return 'dxflex_b5_r3_v5'
   if (id === 'facsaria_fusion' && (key === 'buv' || key === 'buvoptimized' || key === 'buvoptimizedfacilityconfiguration')) return 'facsaria_fusion_buv'
   const alias = CONFIGURATION_ALIASES[key]
-  return configs.some((config) => config.id === alias) ? alias : configs[0].id
+  return configs.some((config) => config.id === alias) ? alias : undefined
+}
+
+export function resolveConfiguration(cytometer: unknown, value?: unknown): string {
+  const id = resolveCytometer(cytometer)
+  const configs = CONFIGURATIONS[id]
+  const key = normalizeToken(value)
+  if (!key) return configs[0].id
+  return resolveKnownConfiguration(id, key) ?? configs[0].id
+}
+
+function persistedValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : String(value)
+}
+
+export function resolvePersistedCytometer(value: unknown): CytometerId {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Unsupported persisted cytometer '${persistedValue(value)}'. Choose a supported cytometer before continuing.`)
+  }
+  const key = normalizeToken(value)
+  const match = CYTOMETER_ALIASES[key]
+  if (!match) {
+    throw new Error(`Unsupported persisted cytometer '${value.trim()}'. Choose a supported cytometer before continuing.`)
+  }
+  return match
+}
+
+export function resolvePersistedConfiguration(cytometer: unknown, value: unknown): string {
+  const id = resolvePersistedCytometer(cytometer)
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Unsupported persisted configuration '${persistedValue(value)}' for cytometer '${id}'. Choose a supported configuration before continuing.`)
+  }
+  const resolved = resolveKnownConfiguration(id, normalizeToken(value))
+  if (!resolved) {
+    throw new Error(`Unsupported persisted configuration '${value.trim()}' for cytometer '${id}'. Choose a supported configuration before continuing.`)
+  }
+  return resolved
 }
 
 function dictionaryCandidates(cytometer: CytometerId): CsvRow[] {
@@ -1295,11 +1328,31 @@ export function calculateSimilarityMatrix(values: number[][]): number[][] {
 
 export function calculatePanelComplexity(values: number[][]): number | null {
   if (values.length === 0 || values[0]?.length === 0) return null
-  if (values.length < 2) return 1
-  const decomposition = new SingularValueDecomposition(new Matrix(values), { autoTranspose: true })
-  const singularValues = decomposition.diagonal.filter((value) => Number.isFinite(value) && value > 0)
-  if (singularValues.length === 0) return null
-  const condition = Math.max(...singularValues) / Math.min(...singularValues)
+
+  const detectorCount = values[0].length
+  if (values.some((row) => row.length !== detectorCount || row.some((value) => !Number.isFinite(value)))) return null
+
+  // A panel identifies each row spectrum, so a panel with more rows than
+  // detectors cannot have full row rank. The SVD tolerance below also marks
+  // numerically indistinguishable rows as non-identifiable. It is relative to
+  // the largest singular value, matrix dimensions, and machine precision so
+  // rescaling a panel does not change its rank decision.
+  const requiredRank = values.length
+  if (requiredRank > detectorCount) return null
+  let singularValues: number[]
+  try {
+    const decomposition = new SingularValueDecomposition(new Matrix(values), { autoTranspose: true })
+    singularValues = decomposition.diagonal
+  } catch {
+    return null
+  }
+  if (singularValues.length < requiredRank || singularValues.some((value) => !Number.isFinite(value))) return null
+  const maximum = Math.max(...singularValues)
+  if (!(maximum > 0)) return null
+  const tolerance = Math.max(values.length, detectorCount) * maximum * Number.EPSILON
+  const rank = singularValues.filter((value) => value > tolerance).length
+  if (rank < requiredRank) return null
+  const condition = maximum / Math.min(...singularValues.slice(0, requiredRank))
   return Number.isFinite(condition) ? Math.round(condition * 100) / 100 : null
 }
 

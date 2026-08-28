@@ -141,6 +141,10 @@ export default function App() {
           await refreshPanels()
         }}
         onOpen={(panel) => {
+          // Library records may outlive the bundled setup definitions. Keep
+          // those records manageable on the landing page, but never hand an
+          // unsupported state to the builder.
+          parseProject(JSON.stringify(panel.state))
           setActivePanelProject(panel.id)
           setActivePanel(panel)
           rememberSurface('editor')

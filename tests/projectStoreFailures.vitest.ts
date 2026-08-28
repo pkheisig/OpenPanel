@@ -17,10 +17,12 @@ import {
   normalizeWizardPanelResult,
   normalizeWizardResults,
   parseProject,
+  ProjectPersistenceError,
   renamePanelProject,
   restorePanelProject,
   saveActiveProject,
   savePanelProject,
+  serializeProject,
   setActivePanelProject,
 } from '../src/projectStore'
 import type { ProjectState } from '../src/projectStore'
@@ -41,6 +43,52 @@ afterEach(() => {
 })
 
 describe('IndexedDB fallback error paths', () => {
+  test('reports a typed actionable error when both persistence backends reject a save', async () => {
+    vi.stubGlobal('window', {
+      get localStorage() {
+        throw new Error('localStorage unavailable')
+      },
+    })
+    await expect(saveActiveProject(state)).rejects.toBeInstanceOf(ProjectPersistenceError)
+    await expect(saveActiveProject(state)).rejects.toThrow(/current-session edits remain available/)
+  })
+
+  test('keeps legacy startup recovery available when storage is readable but unwritable', async () => {
+    const storage = localStorage
+    storage.setItem('openpanel.panel-builder.state.v1', serializeProject(state, '2026-08-28T09:00:00.000Z'))
+    const readOnlyStorage = {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: () => { throw new Error('localStorage is read-only') },
+      removeItem: () => { throw new Error('localStorage is read-only') },
+    }
+    vi.stubGlobal('window', { localStorage: readOnlyStorage })
+
+    await expect(loadLastPanelProject()).resolves.toMatchObject({
+      name: 'Recovered panel',
+      state: { cytometer: 'aurora', slots: ['FITC'] },
+    })
+  })
+
+  test('rejects deletion when IndexedDB is unavailable and the fallback tombstone fails', async () => {
+    const panel = await createPanelProject('Unknown backend copy', state)
+    const storage = localStorage
+    const partialStorage = {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: (key: string, value: string) => {
+        if (key === 'openpanel.panel-library.v1') {
+          storage.setItem(key, value)
+          return
+        }
+        throw new Error('tombstone write failed')
+      },
+      removeItem: (key: string) => storage.removeItem(key),
+    }
+    vi.stubGlobal('window', { localStorage: partialStorage })
+
+    await expect(deletePanelProject(panel.id)).rejects.toBeInstanceOf(ProjectPersistenceError)
+    expect(storage.getItem('openpanel.panel-library.tombstones.v1')).toBeNull()
+  })
+
   test('normalizes complete wizard results and empty panel names', async () => {
     const parsed = parseProject(JSON.stringify({
       ...state,
@@ -115,6 +163,8 @@ describe('IndexedDB fallback error paths', () => {
     expect(await savePanelProject(first.id, 'Saved again', state)).toMatchObject({ id: first.id, name: 'Saved again' })
     await deletePanelProject(first.id)
     expect(await loadPanelProject(first.id)).toBeNull()
+    expect(JSON.parse(localStorage.getItem('openpanel.panel-library.tombstones.v1') || '{}'))
+      .toHaveProperty(first.id)
     expect(await renamePanelProject('missing', 'Nope')).toBeNull()
     expect(await duplicatePanelProject('missing')).toBeNull()
     expect(await archivePanelProject('missing')).toBeNull()

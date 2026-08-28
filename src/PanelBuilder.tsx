@@ -335,6 +335,8 @@ const PanelBuilder = ({
     const [tab, setTab] = useState<TabId>(initialProject?.tab ?? 'panel');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const persistenceErrorRef = useRef<string | null>(null);
+    const persistenceAttemptRef = useRef(0);
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
@@ -451,18 +453,48 @@ const PanelBuilder = ({
         await saveActiveProject(state);
     }, [panelName, projectId, projectState]);
 
+    const clearPersistenceError = useCallback(() => {
+        const persistenceError = persistenceErrorRef.current;
+        if (!persistenceError) return;
+        persistenceErrorRef.current = null;
+        setError(current => current === persistenceError ? '' : current);
+    }, []);
+
+    const persistProjectStateWithFeedback = useCallback(async (
+        state: ProjectState = projectState,
+        fallback = 'Could not save panel changes.',
+    ) => {
+        const attempt = persistenceAttemptRef.current + 1;
+        persistenceAttemptRef.current = attempt;
+        try {
+            await persistProjectState(state);
+            if (persistenceAttemptRef.current === attempt) clearPersistenceError();
+        } catch (persistError) {
+            if (persistenceAttemptRef.current === attempt) {
+                const message = panelErrorMessage(persistError, fallback);
+                persistenceErrorRef.current = message;
+                setError(message);
+            }
+            throw persistError;
+        }
+    }, [clearPersistenceError, persistProjectState, projectState]);
+
     const exitToPanelLibrary = useCallback(async () => {
-        await persistProjectState();
-        await onRequestExit?.();
-    }, [onRequestExit, persistProjectState]);
+        try {
+            await persistProjectStateWithFeedback(undefined, 'Could not save the panel before leaving.');
+            await onRequestExit?.();
+        } catch (exitError) {
+            setError(panelErrorMessage(exitError, 'Could not save the panel before leaving.'));
+        }
+    }, [onRequestExit, persistProjectStateWithFeedback]);
 
     useEffect(() => {
         if (!guiStateLoaded) return;
         const timer = window.setTimeout(() => {
-            void persistProjectState().catch(() => null);
+            void persistProjectStateWithFeedback().catch(() => undefined);
         }, 500);
         return () => window.clearTimeout(timer);
-    }, [guiStateLoaded, persistProjectState]);
+    }, [guiStateLoaded, persistProjectStateWithFeedback]);
 
     const selected = useMemo(() => slots.filter(Boolean), [slots]);
     const selectedColorCount = useMemo(() => new Set(selected).size, [selected]);
@@ -778,7 +810,8 @@ const PanelBuilder = ({
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
             setError(panelErrorMessage(err, 'Could not update panel.'));
         });
-        await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
+        await persistProjectStateWithFeedback({ ...projectState, slots: nextSlots, markers: nextMarkers })
+            .catch(() => undefined);
     };
 
     const addSlot = () => {
@@ -823,7 +856,7 @@ const PanelBuilder = ({
             setError(panelErrorMessage(clearError, 'Could not clear the panel.'));
         });
         const activeCytometer = getCytometerName(cytometer);
-        await persistProjectState({
+        await persistProjectStateWithFeedback({
             ...projectState,
             slots: nextSlots,
             markers: {},
@@ -845,6 +878,8 @@ const PanelBuilder = ({
         try {
             await clearPanelContent();
             setShowClearConfirmation(false);
+        } catch (clearError) {
+            setError(panelErrorMessage(clearError, 'Could not clear the panel.'));
         } finally {
             setClearingPanel(false);
         }
@@ -883,7 +918,7 @@ const PanelBuilder = ({
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((wizardError) => {
             throw new Error(panelErrorMessage(wizardError, 'Could not apply the panel recommendations.'));
         });
-        await persistProjectState({ ...projectState, slots: nextSlots, markers: nextMarkers });
+        await persistProjectStateWithFeedback({ ...projectState, slots: nextSlots, markers: nextMarkers });
     };
 
     const filteredOptions = (slotIndex: number) => {
@@ -1108,7 +1143,7 @@ const PanelBuilder = ({
                 },
             };
             setCytometerPanels(nextCytometerPanels);
-            await persistProjectState({
+            await persistProjectStateWithFeedback({
                 ...state,
                 configuration: getCytometerName(nextPayload.configuration),
                 slots: nextSlots,

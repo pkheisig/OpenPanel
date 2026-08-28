@@ -53,7 +53,10 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   const configuration = payload.configurations.find((item) => item.id === payload.configuration)?.label ?? payload.configuration
   document.text(`${cytometer} | ${configuration} | ${rows.length} fluorophore(s)`, 12, 21)
   document.setFont('helvetica', 'bold')
-  document.text(`Complexity Index: ${payload.complexity_index?.toFixed(2) ?? 'NA'}`, width - 12, 14, { align: 'right' })
+  const complexity = payload.complexity_index === null
+    ? rows.length > 1 ? 'Non-identifiable' : 'NA'
+    : payload.complexity_index.toFixed(2)
+  document.text(`Complexity Index: ${complexity}`, width - 12, 14, { align: 'right' })
 
   if (rows.length < 2) {
     document.setFont('helvetica', 'normal')

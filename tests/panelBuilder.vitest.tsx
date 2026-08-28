@@ -628,6 +628,24 @@ describe('PanelBuilder', () => {
     await waitFor(() => expect(mocks.parseProject).toHaveBeenCalled())
   })
 
+  test('clears a recovered autosave error after a later save succeeds', async () => {
+    mocks.savePanelProject.mockRejectedValueOnce(new Error('storage offline'))
+    render(<PanelBuilder initialProject={project} projectId="persistence-recovery" />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    await waitFor(() => expect(screen.getByText('storage offline')).not.toBeNull(), { timeout: 2000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+
+    await waitFor(() => expect(screen.queryByText('storage offline')).toBeNull(), { timeout: 2000 })
+
+    mocks.savePanelProject.mockRejectedValueOnce(new Error('direct storage offline'))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove fluorophore row' })[0])
+    await waitFor(() => expect(screen.getByText('direct storage offline')).not.toBeNull(), { timeout: 2000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    await waitFor(() => expect(screen.queryByText('direct storage offline')).toBeNull(), { timeout: 2000 })
+  })
+
   test('covers delayed persistence rejection, stale refreshes, and null project payloads', async () => {
     mocks.saveActiveProject.mockRejectedValueOnce(new Error('delayed persistence failed'))
     render(<PanelBuilder initialProject={{ ...project, slots: ['A', ''] }} />)
@@ -668,6 +686,30 @@ describe('PanelBuilder', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
     fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
     await waitFor(() => expect(mocks.parseProject).toHaveBeenCalled())
+  })
+
+  test('ignores a stale persistence rejection after a newer save succeeds', async () => {
+    let rejectFirst: ((reason?: unknown) => void) | undefined
+    let resolveSecond: (() => void) | undefined
+    const first = new Promise<void>((_resolve, reject) => { rejectFirst = reject })
+    const second = new Promise<void>((resolve) => { resolveSecond = resolve })
+    mocks.savePanelProject
+      .mockImplementationOnce(async () => first)
+      .mockImplementationOnce(async () => second)
+
+    render(<PanelBuilder initialProject={project} projectId="persistence-race" />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledTimes(1), { timeout: 2000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledTimes(2), { timeout: 2000 })
+
+    resolveSecond?.()
+    await Promise.resolve()
+    rejectFirst?.(new Error('stale persistence failure'))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(screen.queryByText('stale persistence failure')).toBeNull()
   })
 
   test('covers panel builder pure guards and normalization helpers', async () => {

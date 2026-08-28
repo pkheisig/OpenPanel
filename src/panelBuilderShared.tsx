@@ -94,7 +94,9 @@ const laserOrder = ['DeepUV', 'UV', 'Violet', 'Blue', 'YellowGreen', 'Red', 'IR'
 const emptySlots = 18;
 
 const formatMetric = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined || value === '') return 'NA';
     const numeric = typeof value === 'number' ? value : Number(value);
+    if (numeric === Number.POSITIVE_INFINITY) return 'Non-identifiable';
     if (!Number.isFinite(numeric)) return 'NA';
     return numeric.toFixed(2);
 };

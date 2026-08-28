@@ -20,6 +20,8 @@ import {
   buildPanelPayload,
   getSpectralPanelConfigurations,
   getSpectralPanelLibraries,
+  resolvePersistedConfiguration,
+  resolvePersistedCytometer,
 } from './spectralEngine'
 import type { PanelPayload } from './panelBuilderShared'
 import { writeLocalStorage } from './browserStorage'
@@ -416,15 +418,31 @@ export function LandingPage({
     }
   }
 
+  const openPanel = (panel: StoredPanelProject) => {
+    try {
+      onOpen(panel)
+    } catch (openError) {
+      setError(errorMessage(openError, 'Could not open this saved panel.'))
+    }
+  }
+
   const cytometerLabel = (id: string) => (
     resolveLibraryLabel(id, libraries)
   )
 
   const configurationLabel = (panel: StoredPanelProject) => (
-    resolveConfigurationLabel(
-      panel.state.configuration,
-      getSpectralPanelConfigurations(panel.state.cytometer),
-    )
+    (() => {
+      try {
+        const panelCytometer = resolvePersistedCytometer(panel.state.cytometer)
+        const panelConfiguration = resolvePersistedConfiguration(panelCytometer, panel.state.configuration)
+        return resolveConfigurationLabel(
+          panelConfiguration,
+          getSpectralPanelConfigurations(panelCytometer),
+        )
+      } catch {
+        return 'Unsupported setup'
+      }
+    })()
   )
 
   const openMenu = (panel: StoredPanelProject, x: number, y: number) => {
@@ -634,7 +652,7 @@ export function LandingPage({
                   panel={panel}
                   cytometer={cytometerLabel(panel.state.cytometer)}
                   configuration={configurationLabel(panel)}
-                  onOpen={() => onOpen(panel)}
+                  onOpen={() => openPanel(panel)}
                   onMenu={(x, y) => openMenu(panel, x, y)}
                 />
               ))}
@@ -667,7 +685,7 @@ export function LandingPage({
                       cytometer={cytometerLabel(panel.state.cytometer)}
                       configuration={configurationLabel(panel)}
                       archived
-                      onOpen={() => onOpen(panel)}
+                      onOpen={() => openPanel(panel)}
                       onMenu={(x, y) => openMenu(panel, x, y)}
                     />
                   ))}
@@ -694,6 +712,7 @@ export function LandingPage({
           onArchive={() => onArchive(menu.panel)}
           onRestore={() => onRestore(menu.panel)}
           onDelete={() => remove(menu.panel)}
+          onError={(actionError) => setError(errorMessage(actionError, 'Could not update this saved panel.'))}
         />
       )}
       {showOmipLibrary && (
@@ -736,7 +755,7 @@ function ProjectCard({
   onOpen: () => void
   onMenu: (x: number, y: number) => void
 }) {
-  const colors = panel.state.slots.filter(Boolean).length
+  const colors = Array.isArray(panel.state.slots) ? panel.state.slots.filter(Boolean).length : 0
   return (
     <article
       className={`panel-library-card ${archived ? 'archived' : ''}`}
@@ -785,23 +804,54 @@ function ProjectCard({
 }
 
 function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
-  const [payload, setPayload] = useState<PanelPayload | null>(null)
+  const savedSlots = useMemo(
+    () => Array.isArray(panel.state.slots)
+      ? panel.state.slots.filter((slot): slot is string => typeof slot === 'string')
+      : [],
+    [panel.state.slots],
+  )
+  const persistedSetup = useMemo(() => {
+    try {
+      const panelCytometer = resolvePersistedCytometer(panel.state.cytometer)
+      return {
+        cytometer: panelCytometer,
+        configuration: resolvePersistedConfiguration(panelCytometer, panel.state.configuration),
+        error: '',
+      }
+    } catch (previewError) {
+      return {
+        cytometer: '',
+        configuration: '',
+        error: errorMessage(previewError, 'Unsupported saved panel setup.'),
+      }
+    }
+  }, [panel.state.configuration, panel.state.cytometer])
+  const previewKey = `${persistedSetup.cytometer}:${persistedSetup.configuration}:${savedSlots.join('\u0000')}`
+  const [loadedPreview, setLoadedPreview] = useState<{
+    key: string
+    payload: PanelPayload | null
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    void buildPanelPayload(
-      panel.state.cytometer,
-      panel.state.configuration,
-      panel.state.slots.filter(Boolean),
-    ).then((nextPayload) => {
-      if (!cancelled) setPayload(nextPayload)
-    }).catch(() => {
-      if (!cancelled) setPayload(null)
-    })
+    if (!persistedSetup.error) {
+      void buildPanelPayload(
+        persistedSetup.cytometer,
+        persistedSetup.configuration,
+        savedSlots,
+      ).then((nextPayload) => {
+        if (!cancelled) setLoadedPreview({ key: previewKey, payload: nextPayload })
+      }).catch(() => {
+        if (!cancelled) setLoadedPreview({ key: previewKey, payload: null })
+      })
+    }
     return () => {
       cancelled = true
     }
-  }, [panel.state.configuration, panel.state.cytometer, panel.state.slots])
+  }, [persistedSetup.configuration, persistedSetup.cytometer, persistedSetup.error, previewKey, savedSlots])
+
+  const setupError = persistedSetup.error
+  const payload = loadedPreview?.key === previewKey ? loadedPreview.payload : null
 
   const width = 258
   const height = 146
@@ -817,9 +867,13 @@ function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
       fluorophore.peak_color || '#157e7c',
     ]) ?? [],
   )
-  const complexity = payload
-    ? payload.complexity_index === null ? '—' : payload.complexity_index.toFixed(2)
-    : '…'
+    const complexity = setupError
+    ? 'Unsupported setup'
+    : payload
+      ? payload.complexity_index === null
+        ? payload.selected.length > 1 ? 'Non-identifiable' : '—'
+        : payload.complexity_index.toFixed(2)
+      : '…'
 
   return (
     <>
@@ -853,9 +907,9 @@ function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
         })}
       </svg>
       <span
-        className="panel-preview-complexity"
+        className={`panel-preview-complexity${setupError ? ' panel-preview-incompatible' : ''}`}
         aria-label={`Complexity index ${complexity}`}
-        title={`Complexity index: ${complexity}`}
+        title={setupError || `Complexity index: ${complexity}`}
       >
         {complexity}
       </span>
@@ -872,6 +926,7 @@ function ProjectActionMenu({
   onArchive,
   onRestore,
   onDelete,
+  onError,
 }: {
   state: ProjectMenuState
   onClose: () => void
@@ -881,10 +936,15 @@ function ProjectActionMenu({
   onArchive: () => void | Promise<void>
   onRestore: () => void | Promise<void>
   onDelete: () => void | Promise<void>
+  onError?: (error: unknown) => void
 }) {
   const action = (callback: () => void | Promise<void>) => () => {
     onClose()
-    void callback()
+    try {
+      void Promise.resolve(callback()).catch((error: unknown) => onError?.(error))
+    } catch (error) {
+      onError?.(error)
+    }
   }
   return (
     <div
