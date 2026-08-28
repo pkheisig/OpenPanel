@@ -418,6 +418,14 @@ export function LandingPage({
     }
   }
 
+  const openPanel = (panel: StoredPanelProject) => {
+    try {
+      onOpen(panel)
+    } catch (openError) {
+      setError(errorMessage(openError, 'Could not open this saved panel.'))
+    }
+  }
+
   const cytometerLabel = (id: string) => (
     resolveLibraryLabel(id, libraries)
   )
@@ -644,7 +652,7 @@ export function LandingPage({
                   panel={panel}
                   cytometer={cytometerLabel(panel.state.cytometer)}
                   configuration={configurationLabel(panel)}
-                  onOpen={() => onOpen(panel)}
+                  onOpen={() => openPanel(panel)}
                   onMenu={(x, y) => openMenu(panel, x, y)}
                 />
               ))}
@@ -677,7 +685,7 @@ export function LandingPage({
                       cytometer={cytometerLabel(panel.state.cytometer)}
                       configuration={configurationLabel(panel)}
                       archived
-                      onOpen={() => onOpen(panel)}
+                      onOpen={() => openPanel(panel)}
                       onMenu={(x, y) => openMenu(panel, x, y)}
                     />
                   ))}
@@ -747,7 +755,7 @@ function ProjectCard({
   onOpen: () => void
   onMenu: (x: number, y: number) => void
 }) {
-  const colors = panel.state.slots.filter(Boolean).length
+  const colors = Array.isArray(panel.state.slots) ? panel.state.slots.filter(Boolean).length : 0
   return (
     <article
       className={`panel-library-card ${archived ? 'archived' : ''}`}
@@ -796,6 +804,12 @@ function ProjectCard({
 }
 
 function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
+  const savedSlots = useMemo(
+    () => Array.isArray(panel.state.slots)
+      ? panel.state.slots.filter((slot): slot is string => typeof slot === 'string')
+      : [],
+    [panel.state.slots],
+  )
   const persistedSetup = useMemo(() => {
     try {
       const panelCytometer = resolvePersistedCytometer(panel.state.cytometer)
@@ -812,7 +826,7 @@ function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
       }
     }
   }, [panel.state.configuration, panel.state.cytometer])
-  const previewKey = `${persistedSetup.cytometer}:${persistedSetup.configuration}:${panel.state.slots.join('\u0000')}`
+  const previewKey = `${persistedSetup.cytometer}:${persistedSetup.configuration}:${savedSlots.join('\u0000')}`
   const [loadedPreview, setLoadedPreview] = useState<{
     key: string
     payload: PanelPayload | null
@@ -824,7 +838,7 @@ function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
       void buildPanelPayload(
         persistedSetup.cytometer,
         persistedSetup.configuration,
-        panel.state.slots.filter(Boolean),
+        savedSlots,
       ).then((nextPayload) => {
         if (!cancelled) setLoadedPreview({ key: previewKey, payload: nextPayload })
       }).catch(() => {
@@ -834,7 +848,7 @@ function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
     return () => {
       cancelled = true
     }
-  }, [panel.state.slots, persistedSetup.configuration, persistedSetup.cytometer, persistedSetup.error, previewKey])
+  }, [persistedSetup.configuration, persistedSetup.cytometer, persistedSetup.error, previewKey, savedSlots])
 
   const setupError = persistedSetup.error
   const payload = loadedPreview?.key === previewKey ? loadedPreview.payload : null

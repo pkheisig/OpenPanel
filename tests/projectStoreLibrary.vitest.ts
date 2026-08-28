@@ -106,4 +106,20 @@ describe('panel library fallback persistence', () => {
       slots: ['LIVE DEAD NIR'],
     })
   })
+
+  test('keeps incompatible saved panels visible for library management', async () => {
+    const incompatible = { ...state, cytometer: 'future-cytometer', configuration: 'future-config' }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([{
+      id: 'future-panel', name: 'Future panel', createdAt: '2026-01-01', updatedAt: '2026-01-02', state: incompatible,
+    }]))
+
+    await expect(listPanelProjects()).resolves.toMatchObject([
+      expect.objectContaining({ id: 'future-panel', state: incompatible }),
+    ])
+    await expect(loadLastPanelProject()).resolves.toBeNull()
+
+    await expect(renamePanelProject('future-panel', 'Future renamed')).resolves.toMatchObject({ name: 'Future renamed' })
+    await expect(deletePanelProject('future-panel')).resolves.toBeUndefined()
+    await expect(listPanelProjects()).resolves.toEqual([])
+  })
 })

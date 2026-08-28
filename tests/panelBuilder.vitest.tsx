@@ -628,6 +628,17 @@ describe('PanelBuilder', () => {
     await waitFor(() => expect(mocks.parseProject).toHaveBeenCalled())
   })
 
+  test('clears a recovered autosave error after a later save succeeds', async () => {
+    mocks.savePanelProject.mockRejectedValueOnce(new Error('storage offline'))
+    render(<PanelBuilder initialProject={project} projectId="persistence-recovery" />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    await waitFor(() => expect(screen.getByText('storage offline')).not.toBeNull(), { timeout: 2000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+
+    await waitFor(() => expect(screen.queryByText('storage offline')).toBeNull(), { timeout: 2000 })
+  })
+
   test('covers delayed persistence rejection, stale refreshes, and null project payloads', async () => {
     mocks.saveActiveProject.mockRejectedValueOnce(new Error('delayed persistence failed'))
     render(<PanelBuilder initialProject={{ ...project, slots: ['A', ''] }} />)

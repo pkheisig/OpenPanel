@@ -126,6 +126,36 @@ describe('IndexedDB project persistence', () => {
     await expect(loadActiveProject()).resolves.toMatchObject({ slots: ['FITC'] })
   })
 
+  test('lets a newer timestamped fallback save supersede a legacy IndexedDB active record', async () => {
+    fakeDb.records.set('active', state)
+    fakeDb.put.mockRejectedValueOnce(new Error('IndexedDB active write failed'))
+
+    await saveActiveProject({ ...state, slots: ['PE'] })
+
+    await expect(loadActiveProject()).resolves.toMatchObject({ slots: ['PE'] })
+    expect(JSON.parse(localStorage.getItem('openpanel.panel-builder.state.v1') || '{}')).toMatchObject({
+      kind: 'OpenPanel active project',
+      state: { slots: ['PE'] },
+    })
+  })
+
+  test('accepts a durable library write when both active-state copies fail', async () => {
+    const storage = localStorage
+    const readOnlyStorage = {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: () => { throw new Error('localStorage is read-only') },
+      removeItem: () => { throw new Error('localStorage is read-only') },
+    }
+    vi.stubGlobal('window', { localStorage: readOnlyStorage })
+    fakeDb.put
+      .mockImplementationOnce(async (_store, value, key) => { fakeDb.records.set(key, value); return key })
+      .mockRejectedValueOnce(new Error('IndexedDB active write failed'))
+
+    const panel = await createPanelProject('Durable library copy', state)
+
+    await expect(loadPanelProject(panel.id)).resolves.toMatchObject({ id: panel.id, name: 'Durable library copy' })
+  })
+
   test('keeps active project selection and ignores non-panel records', async () => {
     const panel = await createPanelProject('Active', state)
     fakeDb.records.set('other', { id: 'other', state })

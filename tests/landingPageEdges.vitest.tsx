@@ -248,6 +248,17 @@ describe('LandingPage defensive and boundary workflows', () => {
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('archive failed'))
   })
 
+  test('keeps an incompatible saved card visible when opening is rejected', async () => {
+    const props = callbacks()
+    props.onOpen.mockImplementationOnce(() => { throw new Error('unsupported saved setup') })
+    render(<LandingPage panels={[panel({ state: { ...panel().state, configuration: 'unknown' } })]} {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Edge panel' }))
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('unsupported saved setup'))
+    expect(screen.getByRole('button', { name: 'Open Edge panel' })).not.toBeNull()
+  })
+
   test('renders successful and failed saved-project spectrum previews', async () => {
     const props = callbacks()
     let resolveCancelled: ((value: typeof payload) => void) | undefined

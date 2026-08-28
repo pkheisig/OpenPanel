@@ -323,6 +323,16 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
   }
 }
 
+export function isProjectStateUsable(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  try {
+    normalizeState(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function parseProject(text: string): ProjectState {
   let value: unknown
   try {
@@ -373,17 +383,21 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   const createdAt = typeof record.createdAt === 'string' ? record.createdAt : new Date(0).toISOString()
   const updatedAt = typeof record.updatedAt === 'string' ? record.updatedAt : createdAt
   rememberPersistenceTimestamp(updatedAt)
+  let state: ProjectState
   try {
-    return {
-      id: record.id,
-      name: normalizePanelName(record.name),
-      createdAt,
-      updatedAt,
-      archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
-      state: normalizeState(record.state as Record<string, unknown>),
-    }
+    state = normalizeState(record.state as Record<string, unknown>)
   } catch {
-    return null
+    // Keep incompatible records available for export, rename, archive, and
+    // deletion. Strict validation happens at the builder handoff instead.
+    state = record.state as ProjectState
+  }
+  return {
+    id: record.id,
+    name: normalizePanelName(record.name),
+    createdAt,
+    updatedAt,
+    archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
+    state,
   }
 }
 
@@ -399,6 +413,13 @@ type ActiveProjectRecord = {
   state: ProjectState
 }
 
+type FallbackActiveRecord = {
+  kind: typeof ACTIVE_RECORD_KIND
+  version: typeof ACTIVE_RECORD_VERSION
+  updatedAt: string
+  state: OpenPanelProject
+}
+
 type PanelTombstone = {
   kind: 'OpenPanel panel tombstone'
   version: 1
@@ -409,6 +430,7 @@ type PanelTombstone = {
 type ActiveProjectValue = {
   state: ProjectState
   updatedAt: string
+  source: 'indexeddb' | 'fallback'
   legacy?: boolean
 }
 
@@ -476,12 +498,24 @@ function parseFallbackActive(value: string | null): ActiveProjectValue | null {
   if (!value) return null
   try {
     const parsed: unknown = JSON.parse(value)
-    const savedAt = isRecord(parsed) && typeof parsed.savedAt === 'string'
-      ? parsed.savedAt
-      : new Date(0).toISOString()
+    const isEnvelope = isRecord(parsed)
+      && parsed.kind === ACTIVE_RECORD_KIND
+      && parsed.version === ACTIVE_RECORD_VERSION
+      && isRecord(parsed.state)
+    const rawState = isEnvelope ? parsed.state : parsed
+    const savedAt = isEnvelope && typeof parsed.updatedAt === 'string'
+      ? parsed.updatedAt
+      : isRecord(parsed) && typeof parsed.savedAt === 'string'
+        ? parsed.savedAt
+        : new Date(0).toISOString()
     const updatedAt = timestamp(savedAt) > 0 ? savedAt : new Date(0).toISOString()
     rememberPersistenceTimestamp(updatedAt)
-    return { state: parseProject(value), updatedAt }
+    return {
+      state: isEnvelope ? normalizeState(rawState as Record<string, unknown>) : parseProject(value),
+      updatedAt,
+      source: 'fallback',
+      ...(isEnvelope ? {} : { legacy: true }),
+    }
   } catch {
     return null
   }
@@ -500,6 +534,7 @@ function parseIndexedDbActive(value: unknown): ActiveProjectValue | null {
     return {
       state: normalizeState(rawState),
       updatedAt,
+      source: 'indexeddb',
       ...(isEnvelope ? {} : { legacy: true }),
     }
   } catch {
@@ -596,9 +631,11 @@ function latestActive(...snapshots: ProjectSnapshot[]): ActiveProjectValue | nul
   // Before timestamped envelopes existed, IndexedDB was the authoritative
   // active-project store. Preserve that migration precedence rather than
   // treating the legacy record as older than every valid localStorage copy.
-  const legacyIndexedDb = activeValues.find((active) => active.legacy)
-  const latest = legacyIndexedDb
-    ?? activeValues.sort((left, right) => compareTimestamp(right.updatedAt, left.updatedAt))[0]
+  const legacyIndexedDb = activeValues.find((active) => active.source === 'indexeddb' && active.legacy)
+  const currentValues = activeValues.filter((active) => !active.legacy)
+  const latest = (currentValues.length > 0
+    ? [...currentValues].sort((left, right) => compareTimestamp(right.updatedAt, left.updatedAt))[0]
+    : legacyIndexedDb ?? [...activeValues].sort((left, right) => compareTimestamp(right.updatedAt, left.updatedAt))[0])
     ?? null
   if (latest) rememberPersistenceTimestamp(latest.updatedAt)
   return latest
@@ -646,7 +683,13 @@ async function writeIndexedDbActive(state: ProjectState, updatedAt: string): Pro
 }
 
 function writeFallbackActive(state: ProjectState, updatedAt: string): boolean {
-  return writeLocalStorageChecked(LEGACY_STORAGE_KEY, serializeProject(state, updatedAt))
+  const record: FallbackActiveRecord = {
+    kind: ACTIVE_RECORD_KIND,
+    version: ACTIVE_RECORD_VERSION,
+    updatedAt,
+    state: JSON.parse(serializeProject(state, updatedAt)) as OpenPanelProject,
+  }
+  return writeLocalStorageChecked(LEGACY_STORAGE_KEY, JSON.stringify(record))
 }
 
 async function publishPanel(panel: StoredPanelProject, includeActiveState: boolean): Promise<void> {
@@ -655,17 +698,15 @@ async function publishPanel(panel: StoredPanelProject, includeActiveState: boole
     Promise.resolve(writeFallbackPanel(panel)),
   ])
   const panelPublished = panelResults.some(Boolean)
-  let activePublished = true
   if (includeActiveState) {
     const state = panel.state
     const updatedAt = panel.updatedAt
-    const activeResults = await Promise.all([
+    await Promise.all([
       writeIndexedDbActive(state, updatedAt),
       Promise.resolve(writeFallbackActive(state, updatedAt)),
     ])
-    activePublished = activeResults.some(Boolean)
   }
-  if (!panelPublished || !activePublished) {
+  if (!panelPublished) {
     throw new ProjectPersistenceError(includeActiveState ? 'save this panel' : 'update this panel')
   }
 }
@@ -774,12 +815,12 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
   const activeId = readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
   if (activeId) {
     const active = await loadPanelProject(activeId)
-    if (active && !active.archivedAt) return active
+    if (active && !active.archivedAt && isProjectStateUsable(active.state)) return active
     removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
   }
 
   const panels = await listPanelProjects()
-  const latestActivePanel = panels.find((panel) => !panel.archivedAt)
+  const latestActivePanel = panels.find((panel) => !panel.archivedAt && isProjectStateUsable(panel.state))
   if (latestActivePanel) {
     setActivePanelProject(latestActivePanel.id)
     return latestActivePanel
@@ -843,7 +884,7 @@ export async function duplicatePanelProject(
     createdAt: now,
     updatedAt: now,
     archivedAt: undefined,
-    state: normalizeState(panel.state as unknown as Record<string, unknown>),
+    state: panel.state,
   }
   return writeStoredPanel(duplicate)
 }

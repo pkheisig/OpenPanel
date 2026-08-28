@@ -335,6 +335,7 @@ const PanelBuilder = ({
     const [tab, setTab] = useState<TabId>(initialProject?.tab ?? 'panel');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const persistenceErrorRef = useRef<string | null>(null);
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
@@ -463,9 +464,18 @@ const PanelBuilder = ({
     useEffect(() => {
         if (!guiStateLoaded) return;
         const timer = window.setTimeout(() => {
-            void persistProjectState().catch((persistError) => {
-                setError(panelErrorMessage(persistError, 'Could not save panel changes.'));
-            });
+            void persistProjectState()
+                .then(() => {
+                    const persistenceError = persistenceErrorRef.current;
+                    if (!persistenceError) return;
+                    persistenceErrorRef.current = null;
+                    setError(current => current === persistenceError ? '' : current);
+                })
+                .catch((persistError) => {
+                    const message = panelErrorMessage(persistError, 'Could not save panel changes.');
+                    persistenceErrorRef.current = message;
+                    setError(message);
+                });
         }, 500);
         return () => window.clearTimeout(timer);
     }, [guiStateLoaded, persistProjectState]);
