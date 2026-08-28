@@ -644,8 +644,14 @@ function latestActive(...snapshots: ProjectSnapshot[]): ActiveProjectValue | nul
 async function writeIndexedDbPanel(panel: StoredPanelProject): Promise<boolean> {
   try {
     const db = await database()
-    await db.put(PROJECT_STORE, panel, `${PANEL_KEY_PREFIX}${panel.id}`)
-    await db.delete(PROJECT_STORE, `${PANEL_TOMBSTONE_PREFIX}${panel.id}`)
+    const transaction = db.transaction(PROJECT_STORE, 'readwrite')
+    const tombstoneKey = `${PANEL_TOMBSTONE_PREFIX}${panel.id}`
+    const tombstone = await transaction.store.get(tombstoneKey) as PanelTombstone | undefined
+    await transaction.store.put(panel, `${PANEL_KEY_PREFIX}${panel.id}`)
+    if (!tombstone || compareTimestamp(panel.updatedAt, tombstone.deletedAt) > 0) {
+      await transaction.store.delete(tombstoneKey)
+    }
+    await transaction.done
     return true
   } catch {
     return false
@@ -655,15 +661,18 @@ async function writeIndexedDbPanel(panel: StoredPanelProject): Promise<boolean> 
 function writeFallbackPanel(panel: StoredPanelProject): boolean {
   const snapshot = fallbackSnapshot()
   if (!snapshot.libraryAvailable) return false
-  const tombstone = snapshot.tombstones.get(panel.id)
   const libraryWritten = writeLocalStorageChecked(
     PANEL_LIBRARY_STORAGE_KEY,
     JSON.stringify([panel, ...snapshot.panels.filter((candidate) => candidate.id !== panel.id)]),
   )
-  if (!tombstone) return libraryWritten
-  const nextTombstones = new Map(snapshot.tombstones)
+  if (!libraryWritten) return false
+  const currentSnapshot = fallbackSnapshot()
+  const tombstone = currentSnapshot.tombstones.get(panel.id)
+  if (!tombstone || compareTimestamp(panel.updatedAt, tombstone) <= 0) return true
+  const nextTombstones = new Map(currentSnapshot.tombstones)
   nextTombstones.delete(panel.id)
-  return writeLocalStorageChecked(PANEL_TOMBSTONES_STORAGE_KEY, serializeTombstones(nextTombstones)) && libraryWritten
+  return currentSnapshot.tombstonesAvailable
+    && writeLocalStorageChecked(PANEL_TOMBSTONES_STORAGE_KEY, serializeTombstones(nextTombstones))
 }
 
 async function writeIndexedDbActive(state: ProjectState, updatedAt: string): Promise<boolean> {

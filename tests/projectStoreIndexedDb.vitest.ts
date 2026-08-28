@@ -11,6 +11,14 @@ const fakeDb = vi.hoisted(() => {
     getAll: vi.fn(async () => [...records.values()]),
     delete: vi.fn(async (_store: string, key: string) => { records.delete(key) }),
     contains: vi.fn(() => false),
+    transaction: vi.fn(() => ({
+      store: {
+        get: async (key: string) => records.get(key),
+        put: async (value: unknown, key: string) => { records.set(key, value); return key },
+        delete: async (key: string) => { records.delete(key) },
+      },
+      done: Promise.resolve(),
+    })),
   }
 })
 
@@ -137,6 +145,19 @@ describe('IndexedDB project persistence', () => {
       kind: 'OpenPanel active project',
       state: { slots: ['PE'] },
     })
+  })
+
+  test('preserves a newer IndexedDB deletion tombstone during a stale panel save', async () => {
+    const id = 'stale-panel'
+    const deletedAt = '2099-01-01T00:00:00.000Z'
+    fakeDb.records.set(`deleted:${id}`, {
+      kind: 'OpenPanel panel tombstone', version: 1, id, deletedAt,
+    })
+
+    await savePanelProject(id, 'Stale copy', state)
+
+    expect(fakeDb.records.get(`deleted:${id}`)).toMatchObject({ id, deletedAt })
+    expect(await loadPanelProject(id)).toBeNull()
   })
 
   test('accepts a durable library write when both active-state copies fail', async () => {
