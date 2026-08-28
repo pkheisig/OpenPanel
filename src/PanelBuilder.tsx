@@ -336,6 +336,7 @@ const PanelBuilder = ({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const persistenceErrorRef = useRef<string | null>(null);
+    const persistenceAttemptRef = useRef(0);
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
@@ -463,13 +464,17 @@ const PanelBuilder = ({
         state: ProjectState = projectState,
         fallback = 'Could not save panel changes.',
     ) => {
+        const attempt = persistenceAttemptRef.current + 1;
+        persistenceAttemptRef.current = attempt;
         try {
             await persistProjectState(state);
-            clearPersistenceError();
+            if (persistenceAttemptRef.current === attempt) clearPersistenceError();
         } catch (persistError) {
-            const message = panelErrorMessage(persistError, fallback);
-            persistenceErrorRef.current = message;
-            setError(message);
+            if (persistenceAttemptRef.current === attempt) {
+                const message = panelErrorMessage(persistError, fallback);
+                persistenceErrorRef.current = message;
+                setError(message);
+            }
             throw persistError;
         }
     }, [clearPersistenceError, persistProjectState, projectState]);

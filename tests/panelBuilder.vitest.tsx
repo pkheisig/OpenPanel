@@ -688,6 +688,30 @@ describe('PanelBuilder', () => {
     await waitFor(() => expect(mocks.parseProject).toHaveBeenCalled())
   })
 
+  test('ignores a stale persistence rejection after a newer save succeeds', async () => {
+    let rejectFirst: ((reason?: unknown) => void) | undefined
+    let resolveSecond: (() => void) | undefined
+    const first = new Promise<void>((_resolve, reject) => { rejectFirst = reject })
+    const second = new Promise<void>((resolve) => { resolveSecond = resolve })
+    mocks.savePanelProject
+      .mockImplementationOnce(async () => first)
+      .mockImplementationOnce(async () => second)
+
+    render(<PanelBuilder initialProject={project} projectId="persistence-race" />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledTimes(1), { timeout: 2000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledTimes(2), { timeout: 2000 })
+
+    resolveSecond?.()
+    await Promise.resolve()
+    rejectFirst?.(new Error('stale persistence failure'))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(screen.queryByText('stale persistence failure')).toBeNull()
+  })
+
   test('covers panel builder pure guards and normalization helpers', async () => {
     expect(resolvePanelBuilderTheme(true, 'dark', 'light')).toBe('dark')
     expect(resolvePanelBuilderTheme(false, 'dark', 'light')).toBe('light')
