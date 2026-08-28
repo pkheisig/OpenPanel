@@ -65,6 +65,7 @@ describe('wizard engine edge paths', () => {
       references,
     )
     expect(result.recommended.rows).toHaveLength(2)
+    expect(result.recommended.previousComplexity).toBeNull()
     expect(result.recommended.rows.find((row) => row.markerName === 'Live/Dead')?.fluorophore)
       .toMatch(/Zombie|Live|DAPI|7-AAD|SYTOX/i)
   })

@@ -54,7 +54,7 @@ export type WizardPanelResult = {
   rows: WizardRecommendation[]
   alternatives: WizardAlternative[]
   complexity: number
-  previousComplexity: number
+  previousComplexity: number | null
   maxSimilarity: number
   spectralRisk: number
   averageAvailability: number
@@ -865,7 +865,7 @@ function buildResult(
     rows: recommendationRows(selected, locked, markers, coexpression, spectra, payload, references),
     alternatives: alternatives(selected, candidates, locked, spectra, payload, references),
     complexity: metrics.complexity,
-    previousComplexity: lockedMetrics.complexity,
+    previousComplexity: locked.length === 0 ? null : lockedMetrics.complexity,
     maxSimilarity: metrics.maxSimilarity,
     spectralRisk: metrics.spectralRisk,
     averageAvailability,

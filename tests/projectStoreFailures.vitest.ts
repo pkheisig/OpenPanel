@@ -69,6 +69,26 @@ describe('IndexedDB fallback error paths', () => {
     })
   })
 
+  test('rejects deletion when IndexedDB is unavailable and the fallback tombstone fails', async () => {
+    const panel = await createPanelProject('Unknown backend copy', state)
+    const storage = localStorage
+    const partialStorage = {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: (key: string, value: string) => {
+        if (key === 'openpanel.panel-library.v1') {
+          storage.setItem(key, value)
+          return
+        }
+        throw new Error('tombstone write failed')
+      },
+      removeItem: (key: string) => storage.removeItem(key),
+    }
+    vi.stubGlobal('window', { localStorage: partialStorage })
+
+    await expect(deletePanelProject(panel.id)).rejects.toBeInstanceOf(ProjectPersistenceError)
+    expect(storage.getItem('openpanel.panel-library.tombstones.v1')).toBeNull()
+  })
+
   test('normalizes complete wizard results and empty panel names', async () => {
     const parsed = parseProject(JSON.stringify({
       ...state,

@@ -938,10 +938,13 @@ export async function deletePanelProject(id: string): Promise<void> {
   const hasDurableChange = backends.some(({ result }) => (
     result.available && (result.removed || result.tombstoned)
   ))
-  const everyExistingCopyIsSafe = backends.every(({ result, hadPanel }) => (
-    !hadPanel || result.removed || result.tombstoned
+  const hasDurableTombstone = backends.some(({ result }) => result.available && result.tombstoned)
+  const everyBackendIsSafe = backends.every(({ result, hadPanel }) => (
+    result.available
+      ? !hadPanel || result.removed || result.tombstoned
+      : hasDurableTombstone
   ))
-  if (!hasDurableChange || !everyExistingCopyIsSafe) {
+  if (!hasDurableChange || !everyBackendIsSafe) {
     throw new ProjectPersistenceError('delete this panel')
   }
   if (readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
