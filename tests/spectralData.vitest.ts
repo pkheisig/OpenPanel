@@ -9,6 +9,9 @@ import {
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
 const discoverPath = fileURLToPath(new URL('../public/data/discover_spectra.csv', import.meta.url))
+const cytometerDictionaryPath = fileURLToPath(
+  new URL('../public/data/cytometer_dictionary.csv', import.meta.url),
+)
 const conventionalDetectorPath = fileURLToPath(
   new URL('../public/data/conventional_detector_dictionary.csv', import.meta.url),
 )
@@ -136,6 +139,25 @@ describe('bundled spectral data', () => {
       substitutedBrightnessScore,
       { requireComplete: true },
     )).toThrow("has score 1, expected pinned score 4")
+
+    const substitutedSpectrum = parseCsv(readFileSync(auroraPath, 'utf8')).map((row) => [...row])
+    const responseIndex = substitutedSpectrum[1]!.findIndex((value, index) => index > 0 && Number(value) > 0.01)
+    const originalResponse = Number(substitutedSpectrum[1]![responseIndex])
+    substitutedSpectrum[1]![responseIndex] = String(originalResponse / 2)
+    expect(() => validateBundledDataRows('aurora_spectra.csv', substitutedSpectrum, { requireComplete: true }))
+      .toThrow('spectral response vectors do not match the pinned SHA-256 snapshot')
+
+    const substitutedLaser = parseCsv(readFileSync(cytometerDictionaryPath, 'utf8')).map((row) => [...row])
+    const laserIndex = substitutedLaser.findIndex((row) => row[0] === 'aurora' && row[1] === 'UV1-A')
+    substitutedLaser[laserIndex]![2] = 'Violet'
+    expect(() => validateBundledDataRows('cytometer_dictionary.csv', substitutedLaser, { requireComplete: true }))
+      .toThrow('cytometer detector laser assignments do not match the pinned SHA-256 snapshot')
+
+    const substitutedAssignments = conventionalRows.map((row) => [...row])
+    const assignmentIndex = substitutedAssignments.findIndex((row) => row[0] === 'fortessa' && row[2] === '450/50-V-A')
+    substitutedAssignments[assignmentIndex]![6] = substitutedAssignments[assignmentIndex]![6]!.split(';').slice(1).join(';')
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', substitutedAssignments, { requireComplete: true }))
+      .toThrow('conventional fluorophore-to-detector assignments do not match the pinned SHA-256 snapshot')
 
     const substitutedDetectorMetadata = conventionalRows.slice(1).map((row) => [...row])
     const detectorMetadataIndex = substitutedDetectorMetadata.findIndex((row) => row[0] === 'attune_nxt' && row[5] === 'FALSE')

@@ -56,7 +56,10 @@ partial payload.
 The complete conventional detector dictionary is pinned to 506 rows, the
 marker dictionary to 878 marker identities, and the conventional planning
 estimate table to five named fluorophores; production loads reject truncation
-or substitution of those references.
+or substitution of those references. Complete spectral matrices, conventional
+detector assignments, and spectral detector laser assignments are additionally
+checked against pinned SHA-256 snapshots, so valid-shaped substitutions cannot
+silently change the bundled scientific inputs.
 
 On 2026-07-31, missing reference records were merged from the AutoSpectral
 development branch at commit

@@ -2567,6 +2567,19 @@ export const PINNED_PANEL_WIZARD_BRIGHTNESS_SCORES: Readonly<Record<string, numb
   "*:*:apccy7": 1,
 } as const;
 
+// SHA-256 of JSON.stringify(parseCsv(file)) for the complete bundled snapshots.
+// Semantic validation remains the first line of defense; these digests also
+// reject valid-shaped substituted response vectors and detector assignments.
+export const PINNED_BUNDLED_DATA_SHA256: Readonly<Record<string, string>> = {
+  "aurora_spectra.csv": "3c7d25f746cb4ea4db2d50554eb7b54a5b620462d3e62fa61370a7f15060378c",
+  "discover_spectra.csv": "53c4beb14bd07a5c79e38cb184766a0c39fc33cf2945abcc8f7013edb8097433",
+  "id7000_spectra.csv": "a7f8166841926ff01e5c1aa2250acc6ab2e29523f459082964d088d9afb53338",
+  "xenith_spectra.csv": "c309d81b31ce8cb58aacceded9c06b40e5d7d2fdae48bd9c7b87181d37cf712d",
+  "symphony_spectra.csv": "ab8e36d26a0c15dfbdc01bc71e8f561eba5973c9ffee0658c645be495996f121",
+  "cytometer_dictionary.csv": "0164a2cddc122f3d3df6a724a8174576cef9a61e18027136080b6ecd9cc2bd5f",
+  "conventional_detector_dictionary.csv": "042c4adf774688b9268626b605fca05d7cb76a14c473e18b0dac89c77a4ceb26",
+} as const;
+
 export const PINNED_CONVENTIONAL_DETECTOR_METADATA: Readonly<Record<string, string>> = {
   "fortessa:450/50-V-A": "Violet|450/50|false",
   "fortessa:525/50-V-A": "Violet|525/50|false",
