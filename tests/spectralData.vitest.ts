@@ -21,13 +21,16 @@ const conventionalEstimatePath = fileURLToPath(
 const markerDictionaryPath = fileURLToPath(
   new URL('../public/data/marker_dictionary.csv', import.meta.url),
 )
+const panelWizardBrightnessPath = fileURLToPath(
+  new URL('../public/data/panel_wizard_brightness.csv', import.meta.url),
+)
 
 describe('bundled spectral data', () => {
   test('validates every bundled CSV before use', () => {
     BUNDLED_DATA_FILES.forEach((filename) => {
       const path = fileURLToPath(new URL(`../public/data/${filename}`, import.meta.url))
       const rows = parseCsv(readFileSync(path, 'utf8'))
-      expect(() => validateBundledDataRows(filename, rows), filename).not.toThrow()
+      expect(() => validateBundledDataRows(filename, rows, { requireComplete: true }), filename).not.toThrow()
     })
   })
 
@@ -101,6 +104,31 @@ describe('bundled spectral data', () => {
       substitutedEstimates,
       { requireComplete: true },
     )).toThrow("fluorophore 'not-a-pinned-fluorophore' is not in pinned conventional estimate coverage")
+
+    const fluorophoreRows = parseCsv(readFileSync(fluorophoreDictionaryPath, 'utf8'))
+    const withoutAf532 = fluorophoreRows.map((row) => [...row])
+    const aliasesColumn = fluorophoreRows[0]!.indexOf('aliases')
+    const alexaFluor532 = withoutAf532.find((row) => row[0] === 'Alexa Fluor 532')!
+    alexaFluor532[aliasesColumn] = alexaFluor532[aliasesColumn]!
+      .split(';')
+      .filter((alias) => alias !== 'AF532')
+      .join(';')
+    expect(() => validateBundledDataRows('fluorophore_dictionary.csv', withoutAf532, { requireComplete: true }))
+      .toThrow('pinned fluorophore alias coverage is missing or mismatched [af532]')
+
+    const brightnessRows = parseCsv(readFileSync(panelWizardBrightnessPath, 'utf8'))
+    expect(() => validateBundledDataRows(
+      'panel_wizard_brightness.csv',
+      [brightnessRows[0]!],
+      { requireComplete: true },
+    )).toThrow('expected 34 rows')
+    const substitutedBrightness = brightnessRows.map((row) => [...row])
+    substitutedBrightness[1]![2] = 'Alexa Fluor 532'
+    expect(() => validateBundledDataRows(
+      'panel_wizard_brightness.csv',
+      substitutedBrightness,
+      { requireComplete: true },
+    )).toThrow('is not in pinned panel wizard brightness coverage')
   })
 
   test('bundles expanded fluorophore and marker dictionaries without duplicate canonical names', () => {

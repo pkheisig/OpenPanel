@@ -4,6 +4,7 @@ import {
   PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
   PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS,
   PINNED_MARKER_KEYS,
+  PINNED_PANEL_WIZARD_BRIGHTNESS_KEYS,
   PINNED_SPECTRAL_FLUOROPHORE_KEYS,
 } from './spectralLibraryManifest'
 import type {
@@ -1233,7 +1234,11 @@ function validateSpectralDetectorMetadata(filename: string, rows: string[][]): v
   })
 }
 
-function validateFluorophoreDictionary(filename: string, rows: string[][]): void {
+function validateFluorophoreDictionary(
+  filename: string,
+  rows: string[][],
+  options: BundledDataValidationOptions = {},
+): void {
   const records = recordsForTable(
     filename,
     rows,
@@ -1260,6 +1265,33 @@ function validateFluorophoreDictionary(filename: string, rows: string[][]): void
       aliasSeen.set(key, { canonical, row: rowNumber(index) })
     })
   })
+  if (options.requireComplete) {
+    const pinnedAliases = PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL
+    const unexpected = Array.from(aliasSeen.entries()).find(([alias, entry]) => {
+      const expectedCanonical = pinnedAliases[alias]
+      return expectedCanonical === undefined || expectedCanonical !== normalizeToken(entry.canonical)
+    })
+    if (unexpected) {
+      const [alias, entry] = unexpected
+      const expectedCanonical = pinnedAliases[alias]
+      if (expectedCanonical === undefined) {
+        validationError(filename, `row ${entry.row} alias '${alias}' is not in pinned fluorophore alias coverage.`)
+      }
+      validationError(
+        filename,
+        `row ${entry.row} alias '${alias}' does not resolve to pinned canonical fluorophore '${expectedCanonical}'.`,
+      )
+    }
+    const missing = Object.entries(pinnedAliases)
+      .filter(([alias, canonical]) => {
+        const actualCanonical = aliasSeen.get(alias)?.canonical
+        return actualCanonical === undefined || normalizeToken(actualCanonical) !== canonical
+      })
+      .map(([alias]) => alias)
+    if (missing.length > 0) {
+      validationError(filename, `pinned fluorophore alias coverage is missing or mismatched [${missing.join(', ')}].`)
+    }
+  }
 }
 
 function validateConventionalDetectorDictionary(
@@ -1553,7 +1585,11 @@ function validateMarkerDictionary(
   }
 }
 
-function validatePanelWizardBrightness(filename: string, rows: string[][]): void {
+function validatePanelWizardBrightness(
+  filename: string,
+  rows: string[][],
+  options: BundledDataValidationOptions = {},
+): void {
   const records = recordsForTable(
     filename,
     rows,
@@ -1615,6 +1651,26 @@ function validatePanelWizardBrightness(filename: string, rows: string[][]): void
       `brightness reference for '${rowValue(row, 'fluorophore')}'`,
     )
   })
+  if (options.requireComplete) {
+    const pinnedKeys = new Set(PINNED_PANEL_WIZARD_BRIGHTNESS_KEYS)
+    if (records.length !== pinnedKeys.size) {
+      validationError(
+        filename,
+        `expected ${pinnedKeys.size} rows for the pinned panel wizard brightness bundle, received ${records.length}.`,
+      )
+    }
+    const unexpected = Array.from(seen.entries()).find(([key]) => !pinnedKeys.has(key))
+    if (unexpected) {
+      validationError(
+        filename,
+        `row ${unexpected[1]} brightness reference '${unexpected[0]}' is not in pinned panel wizard brightness coverage.`,
+      )
+    }
+    const missing = PINNED_PANEL_WIZARD_BRIGHTNESS_KEYS.filter((key) => !seen.has(key))
+    if (missing.length > 0) {
+      validationError(filename, `pinned panel wizard brightness coverage is missing [${missing.join(', ')}].`)
+    }
+  }
 }
 
 function validatePanelWizardAntigenDensity(filename: string, rows: string[][]): void {
@@ -1656,7 +1712,7 @@ export function validateBundledDataRows(
       validateCytometerDictionary(filename, rows)
       return
     case 'fluorophore_dictionary.csv':
-      validateFluorophoreDictionary(filename, rows)
+      validateFluorophoreDictionary(filename, rows, options)
       return
     case 'conventional_detector_dictionary.csv':
       validateConventionalDetectorDictionary(filename, rows, options)
@@ -1668,7 +1724,7 @@ export function validateBundledDataRows(
       validateMarkerDictionary(filename, rows, options)
       return
     case 'panel_wizard_brightness.csv':
-      validatePanelWizardBrightness(filename, rows)
+      validatePanelWizardBrightness(filename, rows, options)
       return
     case 'panel_wizard_antigen_density.csv':
       validatePanelWizardAntigenDensity(filename, rows)
