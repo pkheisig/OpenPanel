@@ -2577,6 +2577,7 @@ export const PINNED_BUNDLED_DATA_SHA256: Readonly<Record<string, string>> = {
   "xenith_spectra.csv": "c309d81b31ce8cb58aacceded9c06b40e5d7d2fdae48bd9c7b87181d37cf712d",
   "symphony_spectra.csv": "ab8e36d26a0c15dfbdc01bc71e8f561eba5973c9ffee0658c645be495996f121",
   "cytometer_dictionary.csv": "0164a2cddc122f3d3df6a724a8174576cef9a61e18027136080b6ecd9cc2bd5f",
+  "fluorophore_dictionary.csv": "d2284f6231064f3b5f0808dfd1c9fdfcb6408ca6966a34f5b60e0f419c56276e",
   "conventional_detector_dictionary.csv": "042c4adf774688b9268626b605fca05d7cb76a14c473e18b0dac89c77a4ceb26",
 } as const;
 

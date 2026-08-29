@@ -1376,6 +1376,7 @@ function validateFluorophoreDictionary(
       validationError(filename, `pinned fluorophore alias coverage is missing or mismatched [${missing.join(', ')}].`)
     }
   }
+  validatePinnedSnapshot(filename, rows, options, 'fluorophore excitation and emission references')
 }
 
 function validateConventionalDetectorDictionary(

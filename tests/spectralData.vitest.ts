@@ -118,6 +118,15 @@ describe('bundled spectral data', () => {
       .join(';')
     expect(() => validateBundledDataRows('fluorophore_dictionary.csv', withoutAf532, { requireComplete: true }))
       .toThrow('pinned fluorophore alias coverage is missing or mismatched [af532]')
+    const substitutedFluorophoreReferences = fluorophoreRows.map((row) => [...row])
+    const fluorophoreReference = substitutedFluorophoreReferences.find((row) => row[0] === 'Alexa Fluor 488')!
+    fluorophoreReference[2] = 'Violet'
+    fluorophoreReference[3] = '519'
+    expect(() => validateBundledDataRows(
+      'fluorophore_dictionary.csv',
+      substitutedFluorophoreReferences,
+      { requireComplete: true },
+    )).toThrow('fluorophore excitation and emission references do not match the pinned SHA-256 snapshot')
 
     const brightnessRows = parseCsv(readFileSync(panelWizardBrightnessPath, 'utf8'))
     expect(() => validateBundledDataRows(
