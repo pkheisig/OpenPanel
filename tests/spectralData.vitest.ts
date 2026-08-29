@@ -68,6 +68,41 @@ describe('bundled spectral data', () => {
       .toThrow('pinned complete conventional detector bundle')
   })
 
+  test('rejects partial or substituted complete-reference assets', () => {
+    const conventionalRows = parseCsv(readFileSync(conventionalDetectorPath, 'utf8'))
+    expect(() => validateBundledDataRows(
+      'conventional_detector_dictionary.csv',
+      [conventionalRows[0]!, ...conventionalRows.slice(1, 79)],
+      { requireComplete: true },
+    )).toThrow('expected 506 rows')
+
+    const markerRows = parseCsv(readFileSync(markerDictionaryPath, 'utf8'))
+    expect(() => validateBundledDataRows(
+      'marker_dictionary.csv',
+      [markerRows[0]!, ...markerRows.slice(1, 11)],
+      { requireComplete: true },
+    )).toThrow('expected 878 rows')
+    const substitutedMarkers = [
+      markerRows[0]!,
+      ['not-a-pinned-marker', markerRows[1]![1] ?? ''],
+      ...markerRows.slice(2),
+    ]
+    expect(() => validateBundledDataRows('marker_dictionary.csv', substitutedMarkers, { requireComplete: true }))
+      .toThrow("marker 'not-a-pinned-marker' is not in pinned marker coverage")
+
+    const estimateRows = parseCsv(readFileSync(conventionalEstimatePath, 'utf8'))
+    const substitutedEstimates = [
+      estimateRows[0]!,
+      ['not-a-pinned-fluorophore', ...estimateRows[1]!.slice(1)],
+      ...estimateRows.slice(2),
+    ]
+    expect(() => validateBundledDataRows(
+      'conventional_fluorophore_estimates.csv',
+      substitutedEstimates,
+      { requireComplete: true },
+    )).toThrow("fluorophore 'not-a-pinned-fluorophore' is not in pinned conventional estimate coverage")
+  })
+
   test('bundles expanded fluorophore and marker dictionaries without duplicate canonical names', () => {
     const fluorophoreRows = parseCsv(readFileSync(fluorophoreDictionaryPath, 'utf8'))
     const markerRows = parseCsv(readFileSync(markerDictionaryPath, 'utf8'))

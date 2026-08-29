@@ -2,6 +2,8 @@ import { Matrix, SingularValueDecomposition } from 'ml-matrix'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import {
   PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
+  PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS,
+  PINNED_MARKER_KEYS,
   PINNED_SPECTRAL_FLUOROPHORE_KEYS,
 } from './spectralLibraryManifest'
 import type {
@@ -38,6 +40,10 @@ type CytometerId =
   | 'facsaria_fusion'
 
 type CsvRow = Record<string, string>
+
+export type BundledDataValidationOptions = {
+  requireComplete?: boolean
+}
 
 type FluorophoreMapping = {
   confidence: 'curated' | 'estimated'
@@ -945,7 +951,7 @@ async function loadCsv(filename: string): Promise<string[][]> {
     if (error instanceof BundledDataValidationError) throw error
     validationError(filename, error instanceof Error ? error.message : String(error))
   }
-  validateBundledDataRows(filename, rows)
+  validateBundledDataRows(filename, rows, { requireComplete: import.meta.env.MODE !== 'test' })
   return rows
 }
 
@@ -1256,7 +1262,11 @@ function validateFluorophoreDictionary(filename: string, rows: string[][]): void
   })
 }
 
-function validateConventionalDetectorDictionary(filename: string, rows: string[][]): void {
+function validateConventionalDetectorDictionary(
+  filename: string,
+  rows: string[][],
+  options: BundledDataValidationOptions = {},
+): void {
   const records = recordsForTable(
     filename,
     rows,
@@ -1297,7 +1307,7 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
       if (!previous) metadata.set(detectorKey, current)
     })
   })
-  validateConventionalConfigurationCoverage(filename, records)
+  validateConventionalConfigurationCoverage(filename, records, options)
 }
 
 const SUPPORTED_NON_FILTER_DETECTOR_DESCRIPTIONS = new Set(['unfiltered reference'])
@@ -1386,8 +1396,12 @@ function detectorNamesMatch(left: string, right: string): boolean {
   return detectorKeys(left).some((key) => rightKeys.has(key))
 }
 
-function validateConventionalConfigurationCoverage(filename: string, records: CsvRow[]): void {
-  const looksLikeFullBundle = records.length >= FULL_CONVENTIONAL_BUNDLE_ROW_THRESHOLD
+function validateConventionalConfigurationCoverage(
+  filename: string,
+  records: CsvRow[],
+  options: BundledDataValidationOptions = {},
+): void {
+  const looksLikeFullBundle = options.requireComplete || records.length >= FULL_CONVENTIONAL_BUNDLE_ROW_THRESHOLD
   if (looksLikeFullBundle && records.length !== PINNED_CONVENTIONAL_DETECTOR_ROW_COUNT) {
     validationError(
       filename,
@@ -1460,7 +1474,11 @@ function validateConventionalConfigurationCoverage(filename: string, records: Cs
   })
 }
 
-function validateConventionalEstimateDictionary(filename: string, rows: string[][]): void {
+function validateConventionalEstimateDictionary(
+  filename: string,
+  rows: string[][],
+  options: BundledDataValidationOptions = {},
+): void {
   const records = recordsForTable(
     filename,
     rows,
@@ -1477,12 +1495,62 @@ function validateConventionalEstimateDictionary(filename: string, rows: string[]
       validationError(filename, `row ${rowNumber(index)} column 'mapping_confidence' must be curated or estimated.`)
     }
   })
+  if (options.requireComplete) {
+    const pinnedKeys = new Set(PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS)
+    if (records.length !== pinnedKeys.size) {
+      validationError(
+        filename,
+        `expected ${pinnedKeys.size} rows for the pinned conventional estimate bundle, received ${records.length}.`,
+      )
+    }
+    records.forEach((row, index) => {
+      const fluorophore = rowValue(row, 'fluorophore')
+      const key = normalizeToken(canonicalizeFluorophoreName(fluorophore))
+      if (!pinnedKeys.has(key)) {
+        validationError(
+          filename,
+          `row ${rowNumber(index)} fluorophore '${fluorophore}' is not in pinned conventional estimate coverage.`,
+        )
+      }
+    })
+    const missing = PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS.filter((key) => !seen.has(key))
+    if (missing.length > 0) {
+      validationError(filename, `pinned conventional estimate coverage is missing [${missing.join(', ')}].`)
+    }
+  }
 }
 
-function validateMarkerDictionary(filename: string, rows: string[][]): void {
+function validateMarkerDictionary(
+  filename: string,
+  rows: string[][],
+  options: BundledDataValidationOptions = {},
+): void {
   const records = recordsForTable(filename, rows, ['marker', 'aliases'], ['marker'])
   const seen = new Map<string, number>()
   records.forEach((row, index) => uniqueKey(filename, seen, normalizeToken(rowValue(row, 'marker')), index, `marker '${rowValue(row, 'marker')}'`))
+  if (options.requireComplete) {
+    const pinnedKeys = new Set(PINNED_MARKER_KEYS)
+    if (records.length !== pinnedKeys.size) {
+      validationError(
+        filename,
+        `expected ${pinnedKeys.size} rows for the pinned marker dictionary, received ${records.length}.`,
+      )
+    }
+    records.forEach((row, index) => {
+      const marker = rowValue(row, 'marker')
+      const key = normalizeToken(marker)
+      if (!pinnedKeys.has(key)) {
+        validationError(
+          filename,
+          `row ${rowNumber(index)} marker '${marker}' is not in pinned marker coverage.`,
+        )
+      }
+    })
+    const missing = PINNED_MARKER_KEYS.filter((key) => !seen.has(key))
+    if (missing.length > 0) {
+      validationError(filename, `pinned marker coverage is missing [${missing.join(', ')}].`)
+    }
+  }
 }
 
 function validatePanelWizardBrightness(filename: string, rows: string[][]): void {
@@ -1574,7 +1642,11 @@ function validatePanelWizardAntigenDensity(filename: string, rows: string[][]): 
   })
 }
 
-export function validateBundledDataRows(filename: string, rows: string[][]): void {
+export function validateBundledDataRows(
+  filename: string,
+  rows: string[][],
+  options: BundledDataValidationOptions = {},
+): void {
   if (SPECTRAL_RESPONSE_DOMAINS[filename]) {
     validateSpectralLibrary(filename, rows, SPECTRAL_RESPONSE_DOMAINS[filename])
     return
@@ -1587,13 +1659,13 @@ export function validateBundledDataRows(filename: string, rows: string[][]): voi
       validateFluorophoreDictionary(filename, rows)
       return
     case 'conventional_detector_dictionary.csv':
-      validateConventionalDetectorDictionary(filename, rows)
+      validateConventionalDetectorDictionary(filename, rows, options)
       return
     case 'conventional_fluorophore_estimates.csv':
-      validateConventionalEstimateDictionary(filename, rows)
+      validateConventionalEstimateDictionary(filename, rows, options)
       return
     case 'marker_dictionary.csv':
-      validateMarkerDictionary(filename, rows)
+      validateMarkerDictionary(filename, rows, options)
       return
     case 'panel_wizard_brightness.csv':
       validatePanelWizardBrightness(filename, rows)

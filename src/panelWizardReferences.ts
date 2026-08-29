@@ -49,7 +49,7 @@ async function loadCsv(filename: string): Promise<string[][]> {
     if (error instanceof BundledDataValidationError) throw error
     throw new BundledDataValidationError(`${filename}: ${error instanceof Error ? error.message : String(error)}`)
   }
-  validateBundledDataRows(filename, rows)
+  validateBundledDataRows(filename, rows, { requireComplete: import.meta.env.MODE !== 'test' })
   return rows
 }
 

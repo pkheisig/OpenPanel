@@ -53,6 +53,10 @@ Aurora, 78 x 78 for FACSDiscover, 182 x 65 for ID7000, 51 x 63 for Attune
 Xenith, and 48 x 24 for FACSymphony. The validator rejects unknown or missing
 detector columns and rejects any row-count change instead of constructing a
 partial payload.
+The complete conventional detector dictionary is pinned to 506 rows, the
+marker dictionary to 878 marker identities, and the conventional planning
+estimate table to five named fluorophores; production loads reject truncation
+or substitution of those references.
 
 On 2026-07-31, missing reference records were merged from the AutoSpectral
 development branch at commit
