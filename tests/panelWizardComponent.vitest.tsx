@@ -224,6 +224,14 @@ describe('PanelWizard component', () => {
     expect(screen.getByRole('alert').textContent).toContain('calculation failed')
   })
 
+  test('surfaces bundled reference failures instead of silently continuing', async () => {
+    mocks.loadReferences.mockRejectedValueOnce(new Error('panel_wizard_brightness.csv: malformed reference data'))
+    renderWizard()
+    await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull())
+    expect(screen.getByRole('alert').textContent).toContain('panel_wizard_brightness.csv')
+    expect(mocks.generateResults).not.toHaveBeenCalled()
+  })
+
   test('keeps the clear confirmation open while clearing is in progress', async () => {
     let resolveClear: (() => void) | undefined
     const onClearPanel = vi.fn(() => new Promise<void>((resolve) => { resolveClear = resolve }))

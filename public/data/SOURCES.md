@@ -33,7 +33,9 @@ identities and required metadata, finite numeric fields, unique canonical
 identities, and unambiguous detector definitions. Spectral response values
 must remain in the signed normalized domain `[-1, 1]`; small negative values
 are retained baseline residuals, not missing values, and no malformed value is
-coerced to zero. Each spectral row must contain a meaningful nonzero response.
+coerced to zero. Each spectral row must contain a meaningful positive detector
+response; negative values are retained only as baseline residuals alongside a
+positive signal.
 
 On 2026-08-29, the bundled inputs were repaired to satisfy that contract: the
 FACSymphony identity header was restored to `fluorophore`, the redundant
@@ -41,6 +43,10 @@ FACSymphony identity header was restored to `fluorophore`, the redundant
 to `LIVE DEAD NIR`, and ambiguous overlapping aliases were removed from the
 BYG750, EYFP/YFP, and NovaFluor Blue dictionary entries. These changes only
 resolve identity/schema ambiguity; they do not alter spectral response values.
+Conventional detector-map names that have no canonical row or alias in
+`fluorophore_dictionary.csv` were also removed rather than receiving a
+filter-center fallback; unsupported names remain unsupported until a verified
+dictionary mapping is available.
 
 The response-matrix coverage is pinned at 64 detectors x 395 fluorophores for
 Aurora, 78 x 78 for FACSDiscover, 182 x 65 for ID7000, 51 x 63 for Attune

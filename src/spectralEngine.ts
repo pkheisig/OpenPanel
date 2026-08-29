@@ -879,7 +879,7 @@ export function parseCsv(text: string): string[][] {
         row.push(cell)
         cell = ''
         quoteClosed = false
-        if (row.some((value) => value.length > 0)) rows.push(row)
+        if (row.length > 1 || row.some((value) => value.length > 0)) rows.push(row)
         row = []
         if (character === '\r' && next === '\n') index += 1
       } else {
@@ -896,7 +896,7 @@ export function parseCsv(text: string): string[][] {
     } else if (character === '\n' || character === '\r') {
       row.push(cell)
       cell = ''
-      if (row.some((value) => value.length > 0)) rows.push(row)
+      if (row.length > 1 || row.some((value) => value.length > 0)) rows.push(row)
       row = []
       if (character === '\r' && next === '\n') index += 1
     } else {
@@ -905,7 +905,7 @@ export function parseCsv(text: string): string[][] {
   }
   if (quoted) throw new Error('Malformed CSV: unterminated quoted field.')
   row.push(cell)
-  if (row.some((value) => value.length > 0)) rows.push(row)
+  if (row.length > 1 || row.some((value) => value.length > 0)) rows.push(row)
   if (rows[0]?.[0]) rows[0][0] = rows[0][0].replace(/^\uFEFF/, '')
   return rows
 }
@@ -929,7 +929,13 @@ export function dataUrl(filename: string): string {
 async function loadCsv(filename: string): Promise<string[][]> {
   const response = await fetch(dataUrl(filename))
   if (!response.ok) throw new Error(`Could not load bundled data file ${filename} (${response.status}).`)
-  const rows = parseCsv(await response.text())
+  let rows: string[][]
+  try {
+    rows = parseCsv(await response.text())
+  } catch (error) {
+    if (error instanceof BundledDataValidationError) throw error
+    validationError(filename, error instanceof Error ? error.message : String(error))
+  }
   validateBundledDataRows(filename, rows)
   return rows
 }
@@ -949,6 +955,9 @@ function rowValue(row: CsvRow, field: string): string {
 function validateHeaders(filename: string, headers: string[], expected: string[]): void {
   if (headers.length !== expected.length) {
     validationError(filename, `expected columns [${expected.join(', ')}], received ${headers.length}.`)
+  }
+  if (headers.some((header) => header !== header.trim())) {
+    validationError(filename, 'header contains surrounding whitespace.')
   }
   const normalizedHeaders = headers.map((header) => normalizeToken(header))
   if (normalizedHeaders.some((header) => !header)) {
@@ -1033,6 +1042,7 @@ function uniqueKey(
   rowIndex: number,
   description: string,
 ): void {
+  if (!key) validationError(filename, `row ${rowNumber(rowIndex)} has an empty canonical key for ${description}.`)
   const previous = seen.get(key)
   if (previous !== undefined) {
     validationError(filename, `row ${rowNumber(rowIndex)} duplicates ${description} from row ${previous}.`)
@@ -1047,12 +1057,18 @@ function validateSpectralLibrary(
 ): void {
   const headers = rows[0] ?? []
   if (headers.length < 2) validationError(filename, 'has no detector columns; expected fluorophore plus at least one detector.')
+  if (headers.some((header) => header !== header.trim())) {
+    validationError(filename, 'header contains surrounding whitespace.')
+  }
   if (headers[0]?.trim().toLocaleLowerCase() !== 'fluorophore') {
     validationError(filename, `column 1 must be the fluorophore identity column, received '${headers[0] ?? ''}'.`)
   }
   const detectors = headers.slice(1).map((detector) => detector.trim())
   const detectorKeysByHeader = detectors.map((detector) => detectorKeys(detector))
   if (detectors.some((detector) => !detector)) validationError(filename, 'has a blank detector header.')
+  if (detectors.some((detector) => !normalizeToken(detector))) {
+    validationError(filename, 'header contains a detector with an empty canonical identity.')
+  }
   const identityKey = normalizeToken(headers[0])
   const reservedDetector = detectors.find((detector) => normalizeToken(detector) === identityKey)
   if (reservedDetector) {
@@ -1092,6 +1108,7 @@ function validateSpectralLibrary(
     if (!rawFluorophore) validationError(filename, `row ${sourceRow} has a blank fluorophore identity.`)
     const fluorophore = canonicalizeFluorophoreName(rawFluorophore)
     const identityKey = normalizeToken(fluorophore)
+    if (!identityKey) validationError(filename, `row ${sourceRow} fluorophore '${fluorophore}' has an empty canonical identity.`)
     if (seen.has(identityKey)) {
       validationError(filename, `row ${sourceRow} duplicates canonical fluorophore '${fluorophore}'.`)
     }
@@ -1109,7 +1126,7 @@ function validateSpectralLibrary(
       if (numericValue < domain.minimum || numericValue > domain.maximum) {
         validationError(filename, `row ${sourceRow} column '${detectors[detectorIndex]}' for fluorophore '${fluorophore}' has value '${value}' outside ${domain.description}.`)
       }
-      if (Math.abs(numericValue) > domain.meaningfulThreshold) meaningful = true
+      if (numericValue > domain.meaningfulThreshold) meaningful = true
     })
     if (!meaningful) {
       validationError(filename, `row ${sourceRow} for fluorophore '${fluorophore}' has no meaningful nonzero detector response; ${domain.description}.`)
@@ -1140,7 +1157,10 @@ function validateCytometerDictionary(filename: string, rows: string[][]): void {
   const metadata = new Map<string, { laser: string; description: string; row: number }>()
   records.forEach((row, index) => {
     knownLaserField(filename, index, row, 'laser')
+    const cytometerKey = normalizeToken(rowValue(row, 'cytometer'))
     const detector = rowValue(row, 'detector')
+    if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
+    if (!normalizeToken(detector)) validationError(filename, `row ${rowNumber(index)} detector '${detector}' has an empty canonical identity.`)
     detectorKeys(detector).forEach((key) => uniqueKey(
       filename,
       seen,
@@ -1206,7 +1226,12 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
     knownLaserField(filename, index, row, 'laser')
     booleanField(filename, index, row, 'is_scatter')
     validateDetectorDescription(filename, index, row)
+    const cytometerKey = normalizeToken(rowValue(row, 'cytometer'))
+    const configurationKey = normalizeToken(rowValue(row, 'configuration'))
     const detector = rowValue(row, 'detector')
+    if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
+    if (!configurationKey) validationError(filename, `row ${rowNumber(index)} configuration has an empty canonical identity.`)
+    if (!normalizeToken(detector)) validationError(filename, `row ${rowNumber(index)} detector '${detector}' has an empty canonical identity.`)
     detectorKeys(detector).forEach((key) => uniqueKey(
       filename,
       seen,
@@ -1229,6 +1254,7 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
       if (!previous) metadata.set(detectorKey, current)
     })
   })
+  validateConventionalConfigurationCoverage(filename, records)
 }
 
 const SUPPORTED_NON_FILTER_DETECTOR_DESCRIPTIONS = new Set(['unfiltered reference'])
@@ -1266,6 +1292,80 @@ function validateDetectorDescription(filename: string, rowIndex: number, row: Cs
   )
 }
 
+const SHARED_CONVENTIONAL_CONFIGURATION_BY_CYTOMETER: Record<string, string> = {
+  // These tables intentionally hold the union used by several offered
+  // configurations; the pinned code mapping selects each configuration's
+  // exact subset at payload construction time.
+  facsverse: 'facsverse_reference',
+  lsrii: 'lsrii_reference',
+}
+
+function detectorSetContains(actual: Set<string>, expected: string): boolean {
+  return detectorKeys(expected).some((key) => actual.has(key))
+}
+
+function validateConventionalConfigurationCoverage(filename: string, records: CsvRow[]): void {
+  Object.entries(CONFIGURATIONS).forEach(([cytometer, configurations]) => {
+    if (!CONVENTIONAL_CYTOMETERS.has(cytometer as CytometerId)) return
+    const cytometerKey = normalizeToken(cytometer)
+    const scopedRows = records.flatMap((row, index) => (
+      normalizeToken(rowValue(row, 'cytometer')) === cytometerKey ? [{ row, index }] : []
+    ))
+    if (scopedRows.length === 0) return
+
+    const configurationByKey = new Map(configurations.map((configuration) => [
+      normalizeToken(configuration.id),
+      configuration,
+    ]))
+    const sharedConfigurationKey = normalizeToken(SHARED_CONVENTIONAL_CONFIGURATION_BY_CYTOMETER[cytometerKey])
+    const allowedConfigurationKeys = new Set([
+      ...configurationByKey.keys(),
+      ...(sharedConfigurationKey ? [sharedConfigurationKey] : []),
+    ])
+    const sharedExpectedDetectors = sharedConfigurationKey
+      ? Array.from(new Set(configurations.flatMap((configuration) => CONFIGURATION_DETECTORS[configuration.id] ?? [])))
+      : []
+
+    scopedRows.forEach(({ row, index }) => {
+      const configurationKey = normalizeToken(rowValue(row, 'configuration'))
+      if (!allowedConfigurationKeys.has(configurationKey)) {
+        validationError(filename, `row ${rowNumber(index)} uses unknown configuration '${rowValue(row, 'configuration')}' for cytometer '${cytometer}'.`)
+      }
+      if (rowValue(row, 'is_scatter').toUpperCase() === 'TRUE') return
+      const configuration = configurationByKey.get(configurationKey)
+      const expectedDetectors = configuration
+        ? CONFIGURATION_DETECTORS[configuration.id]
+        : configurationKey === sharedConfigurationKey
+          ? sharedExpectedDetectors
+          : undefined
+      if (!expectedDetectors || !detectorSetContains(new Set(expectedDetectors.flatMap((detector) => detectorKeys(detector))), rowValue(row, 'detector'))) {
+        validationError(filename, `row ${rowNumber(index)} detector '${rowValue(row, 'detector')}' is not part of the pinned detector set for configuration '${rowValue(row, 'configuration')}'.`)
+      }
+    })
+
+    configurations.forEach((configuration) => {
+      const expectedDetectors = CONFIGURATION_DETECTORS[configuration.id]
+      if (!expectedDetectors) {
+        validationError(filename, `configuration '${configuration.id}' has no pinned detector set.`)
+      }
+      const configurationKey = normalizeToken(configuration.id)
+      const available = new Set(
+        scopedRows
+          .filter(({ row }) => (
+            rowValue(row, 'is_scatter').toUpperCase() !== 'TRUE'
+            && (normalizeToken(rowValue(row, 'configuration')) === configurationKey
+              || normalizeToken(rowValue(row, 'configuration')) === sharedConfigurationKey)
+          ))
+          .flatMap(({ row }) => detectorKeys(rowValue(row, 'detector'))),
+      )
+      const missing = expectedDetectors.filter((detector) => !detectorSetContains(available, detector))
+      if (missing.length > 0) {
+        validationError(filename, `configuration '${configuration.id}' is missing pinned detector coverage [${missing.join(', ')}].`)
+      }
+    })
+  })
+}
+
 function validateConventionalEstimateDictionary(filename: string, rows: string[][]): void {
   const records = recordsForTable(
     filename,
@@ -1301,11 +1401,22 @@ function validatePanelWizardBrightness(filename: string, rows: string[][]): void
   )
   const seen = new Map<string, number>()
   records.forEach((row, index) => {
-    finiteField(filename, index, row, 'brightness_score', { minimum: 1, maximum: 5 })
+    const score = finiteField(filename, index, row, 'brightness_score', { minimum: 1, maximum: 5 })
+    if (![1, 3, 4, 5].includes(score)) {
+      validationError(filename, `row ${rowNumber(index)} column 'brightness_score' must be one of 1, 3, 4, or 5.`)
+    }
+    const cytometerValue = rowValue(row, 'cytometer')
+    const configurationValue = rowValue(row, 'configuration')
+    const cytometerKey = cytometerValue === '*' ? '*' : normalizeToken(cytometerValue)
+    const configurationKey = configurationValue === '*' ? '*' : normalizeToken(configurationValue)
+    const fluorophoreKey = normalizeToken(rowValue(row, 'fluorophore'))
+    if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
+    if (!configurationKey) validationError(filename, `row ${rowNumber(index)} configuration has an empty canonical identity.`)
+    if (!fluorophoreKey) validationError(filename, `row ${rowNumber(index)} fluorophore has an empty canonical identity.`)
     uniqueKey(
       filename,
       seen,
-      `${normalizeToken(row.cytometer)}:${normalizeToken(row.configuration)}:${normalizeToken(row.fluorophore)}`,
+      `${cytometerKey}:${configurationKey}:${fluorophoreKey}`,
       index,
       `brightness reference for '${rowValue(row, 'fluorophore')}'`,
     )
@@ -1323,10 +1434,14 @@ function validatePanelWizardAntigenDensity(filename: string, rows: string[][]): 
   const seen = new Map<string, number>()
   records.forEach((row, index) => {
     finiteField(filename, index, row, 'molecules_per_cell', { minimum: Number.MIN_VALUE })
+    const cellTypeKey = normalizeToken(rowValue(row, 'cell_type'))
+    const antigenKey = normalizeToken(rowValue(row, 'antigen'))
+    if (!cellTypeKey) validationError(filename, `row ${rowNumber(index)} cell_type has an empty canonical identity.`)
+    if (!antigenKey) validationError(filename, `row ${rowNumber(index)} antigen has an empty canonical identity.`)
     uniqueKey(
       filename,
       seen,
-      `${normalizeToken(row.cell_type)}:${normalizeToken(row.antigen)}`,
+      `${cellTypeKey}:${antigenKey}`,
       index,
       `antigen-density reference for '${rowValue(row, 'cell_type')}/${rowValue(row, 'antigen')}'`,
     )
@@ -1381,6 +1496,7 @@ function initializeDictionaries(): Promise<void> {
     fluorophoreDictionary = rowsToObjects(fluorophores)
     conventionalDetectorDictionary = rowsToObjects(conventionalDetectors)
     conventionalFluorophoreEstimateDictionary = rowsToObjects(conventionalEstimates)
+    validateConventionalCommonFluorophores()
   })
   dictionaryInitialization = pending
   return pending.catch((error) => {
@@ -1648,6 +1764,25 @@ function fluorophoreCanonicalLookup(): Map<string, string> {
   return lookup
 }
 
+function validateConventionalCommonFluorophores(): void {
+  const canonicalLookup = fluorophoreCanonicalLookup()
+  conventionalDetectorDictionary.forEach((row, index) => {
+    dictionaryText(row.common_fluorophores)
+      .split(';')
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .forEach((name) => {
+        if (normalizeToken(name) === 'ssc') return
+        if (!canonicalLookup.has(normalizeToken(name))) {
+          validationError(
+            'conventional_detector_dictionary.csv',
+            `row ${rowNumber(index)} common_fluorophores value '${name}' does not match a canonical fluorophore or alias.`,
+          )
+        }
+      })
+  })
+}
+
 export function addFluorophoreDictionaryRow(
   lookup: Map<string, string>,
   row: CsvRow,
@@ -1724,12 +1859,18 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
     preferredDetector: string
     mapping: FluorophoreMapping
   }>()
-  rows.forEach((row) => {
+  rows.forEach((row, rowIndex) => {
     if (row.is_scatter?.toUpperCase() === 'TRUE') return
     const names = dictionaryText(row.common_fluorophores).split(';').map((name) => name.trim()).filter(Boolean)
     names.forEach((name) => {
-      const canonical = canonicalLookup.get(normalizeToken(name)) ?? canonicalizeFluorophoreName(name)
-      if (!canonical || normalizeToken(canonical) === 'ssc') return
+      if (normalizeToken(name) === 'ssc') return
+      const canonical = canonicalLookup.get(normalizeToken(name))
+      if (!canonical) {
+        validationError(
+          'conventional_detector_dictionary.csv',
+          `row ${rowNumber(rowIndex)} common_fluorophores value '${name}' does not match a canonical fluorophore or alias.`,
+        )
+      }
       const specification = specifications.get(canonical) ?? {
         lasers: new Set<string>(),
         preferredDetector: row.detector,

@@ -33,4 +33,32 @@ describe('panel wizard reference loading in a browser origin', () => {
     expect(references.antigenDensityByContext).toEqual({ 'tcells::cd3': 123 })
     expect(requests.every((url) => url.startsWith('http://localhost'))).toBe(true)
   })
+
+  test('trims reference cells before matching wildcard scopes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response('cytometer,configuration,fluorophore,brightness_score,source\n"* "," *",PE,5,test', { status: 200 })
+      }
+      if (source.includes('antigen_density')) {
+        return new Response('cell_type,antigen,molecules_per_cell,source\n T cells , CD3 ,123,test', { status: 200 })
+      }
+      return new Response('marker,aliases\n CD3 , T cell ', { status: 200 })
+    }))
+    const references = await loadPanelWizardReferences('aurora', 'config')
+    expect(references.brightnessByFluorophore).toEqual({ pe: 5 })
+    expect(references.antigenDensityByContext).toEqual({ 'tcells::cd3': 123 })
+  })
+
+  test('adds the source filename to malformed CSV parser errors', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response('cytometer,configuration,fluorophore,brightness_score,source\n*,*,PE,"5"oops,test', { status: 200 })
+      }
+      if (source.includes('antigen_density')) return new Response('cell_type,antigen,molecules_per_cell,source\n', { status: 200 })
+      return new Response('marker,aliases\nCD3,T cell', { status: 200 })
+    }))
+    await expect(loadPanelWizardReferences('aurora', 'config')).rejects.toThrow('panel_wizard_brightness.csv: Malformed CSV')
+  })
 })

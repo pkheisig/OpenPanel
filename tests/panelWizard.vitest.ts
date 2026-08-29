@@ -57,7 +57,7 @@ describe('panel wizard recommendation engine', () => {
         return new Response(
           'cytometer,configuration,fluorophore,brightness_score,source\n'
           + 'other,*,FITC,1,test\n'
-          + 'aurora,other,PE,2,test\n'
+          + 'aurora,other,PE,3,test\n'
           + '*,5l_uv_v_b_yg_r,APC,3,test\n'
           + '*,*,BV421,4,test\n',
           { status: 200 },

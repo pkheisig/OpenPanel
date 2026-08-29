@@ -523,6 +523,10 @@ describe('browser spectral engine parity', () => {
     expect(() => parseCsv('fluorophore,B1-A\r\nFITC,"1')).toThrow('unterminated quoted field')
     expect(() => parseCsv('fluorophore,B1-A\r\nFITC,0"1')).toThrow('misplaced quote')
     expect(() => parseCsv('fluorophore,B1-A\r\nFITC,"1"oops')).toThrow('after a closing quote')
+    expect(parseCsv('fluorophore,B1-A\n,\n')).toEqual([
+      ['fluorophore', 'B1-A'],
+      ['', ''],
+    ])
     expect(parseCsv('\n')).toEqual([])
     expect(normalizeDetectorToken(undefined)).toBe('')
     expect(detectorKeys('')).toEqual([])

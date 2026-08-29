@@ -21,16 +21,22 @@ function dataUrl(filename: string): string {
 }
 
 async function loadCsv(filename: string): Promise<string[][]> {
+  let response: Response
   try {
-    const response = await fetch(dataUrl(filename))
-    if (!response.ok) return []
-    const rows = parseCsv(await response.text())
-    validateBundledDataRows(filename, rows)
-    return rows
-  } catch (error) {
-    if (error instanceof BundledDataValidationError) throw error
+    response = await fetch(dataUrl(filename))
+  } catch {
     return []
   }
+  if (!response.ok) return []
+  let rows: string[][]
+  try {
+    rows = parseCsv(await response.text())
+  } catch (error) {
+    if (error instanceof BundledDataValidationError) throw error
+    throw new BundledDataValidationError(`${filename}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  validateBundledDataRows(filename, rows)
+  return rows
 }
 
 function normalize(value: string): string {
@@ -48,7 +54,7 @@ export function fluorophoreBrightnessKey(fluorophore: string): string {
 function rowsToRecords(rows: string[][]): Array<Record<string, string>> {
   const headers = rows[0] ?? []
   return rows.slice(1).map((values) => (
-    Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']))
+    Object.fromEntries(headers.map((header, index) => [header, (values[index] ?? '').trim()]))
   ))
 }
 

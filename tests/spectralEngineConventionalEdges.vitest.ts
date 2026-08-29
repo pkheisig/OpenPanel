@@ -11,6 +11,13 @@ const detectorNames = [
   '670/30-R-A', '730/45-R-A', '780/60-R-A',
 ]
 
+const fortessa4DetectorNames = [
+  '450/50-V-A', '525/50-V-A', '610/20-V-A', '670/30-V-A', '710/50-V-A', '780/60-V-A',
+  '529/24-B-A', '695/40-B-A',
+  '582/15-YG-A', '610/20-YG-A', '670/14-YG-A', '710/50-YG-A', '780/60-YG-A',
+  '670/30-R-A', '730/45-R-A', '780/60-R-A',
+]
+
 function csv(rows: string[][]): string {
   return rows.map((row) => row.join(',')).join('\n')
 }
@@ -18,10 +25,18 @@ function csv(rows: string[][]): string {
 function customFetch() {
   const conventionalRows = [
     ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
-    ['fortessa', 'fortessa_3l', '450/50-V-A', 'Other', 'unfiltered reference', 'false', 'PE'],
-    ['fortessa', 'fortessa_3l', '525/50-V-A', 'Blue', '530/30', 'false', 'FITC;SSC'],
-    ...detectorNames.slice(2).map((detector) => ['fortessa', 'fortessa_3l', detector, 'Blue', '530/30', 'false', 'FITC']),
+    ...detectorNames.map((detector) => {
+      const laser = detector.endsWith('-V-A') ? 'Violet' : detector.endsWith('-R-A') ? 'Red' : 'Blue'
+      const description = detector.replace(/-[A-Z]+-A$/, '')
+      const commonFluorophores = detector === '450/50-V-A' ? 'PE' : detector === '525/50-V-A' ? 'FITC;SSC' : 'FITC'
+      return ['fortessa', 'fortessa_3l', detector, laser, description, 'false', commonFluorophores]
+    }),
     ['fortessa', 'fortessa_3l', 'SSC-A', 'Blue', '500/50', ' TRUE ', 'FITC'],
+    ...fortessa4DetectorNames.map((detector) => {
+      const laser = detector.endsWith('-V-A') ? 'Violet' : detector.endsWith('-YG-A') ? 'YellowGreen' : detector.endsWith('-R-A') ? 'Red' : 'Blue'
+      const description = detector.replace(/-[A-Z]+-A$/, '')
+      return ['fortessa', 'fortessa_4l', detector, laser, description, 'false', 'FITC']
+    }),
   ]
   const fluorophoreRows = [
     ['fluorophore', 'aliases', 'excitation_laser', 'nominal_wavelength', 'is_viability'],
@@ -107,6 +122,28 @@ describe('conventional spectral engine defensive paths', () => {
     ])).toThrow('must be a positive bandpass')
   })
 
+  test('fails closed for malformed conventional identities and brightness levels', () => {
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
+      ['fortessa', 'fortessa_3l', '---', 'Blue', '530/30', 'FALSE', 'FITC'],
+    ])).toThrow('empty canonical identity')
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      ['cytometer ', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
+      ['fortessa', 'fortessa_3l', '530/30-B-A', 'Blue', '530/30', 'FALSE', 'FITC'],
+    ])).toThrow('surrounding whitespace')
+    expect(() => validateBundledDataRows('panel_wizard_brightness.csv', [
+      ['cytometer', 'configuration', 'fluorophore', 'brightness_score', 'source'],
+      ['*', '*', 'FITC', '2', 'test'],
+    ])).toThrow('one of 1, 3, 4, or 5')
+  })
+
+  test('pins detector membership in shared conventional reference tables', () => {
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
+      ['facsverse', 'facsverse_reference', 'NotPinned', 'Blue', '530/30', 'FALSE', 'FITC'],
+    ])).toThrow('pinned detector set')
+  })
+
   test('rejects conflicting detector metadata in a shared runtime scope', () => {
     expect(() => validateBundledDataRows('cytometer_dictionary.csv', [
       ['cytometer', 'detector', 'laser', 'description'],
@@ -130,7 +167,7 @@ describe('conventional spectral engine defensive paths', () => {
     expect(result.fluorophores.find((item) => item.fluorophore === 'PE')).toMatchObject({
       mapping_confidence: 'curated',
     })
-    expect(result.spectra[1]['450/50-V-A']).toBe(1)
+    expect(result.spectra[1]['450/50-V-A']).toBeGreaterThan(0)
   })
 
   test('reports missing conventional detector data and unmatched configurations', async () => {
@@ -146,19 +183,28 @@ describe('conventional spectral engine defensive paths', () => {
       }
       return fetch(input)
     }))
-    await expect(buildPanelPayload('fortessa', 'fortessa_3l')).rejects.toThrow('No conventional detector reference data')
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l')).rejects.toThrow('pinned detector coverage')
 
     resetSpectralEngineForTests()
     vi.stubGlobal('fetch', customFetch())
     await expect(buildPanelPayload('fortessa', 'fortessa_3l')).resolves.toBeDefined()
   })
 
-  test('handles missing reference fields, estimates, and detectors outside a configuration', async () => {
+  test('fails closed when a conventional configuration has incomplete coverage', async () => {
     vi.stubGlobal('fetch', gappedFetch())
-    const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['Estimate', 'OutOfConfig', 'Blank'])
-    expect(result.measurement_mode).toBe('conventional')
-    expect(result.detectors.map((detector) => detector.detector)).toEqual(['450/50-V-A', '525/50-B-A'])
-    expect(result.fluorophores.map((item) => item.fluorophore)).toEqual(expect.arrayContaining(['Estimate', 'Preferred']))
-    expect(result.fluorophores.find((item) => item.fluorophore === 'Estimate')).toMatchObject({ mapping_confidence: 'estimated' })
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l', ['Estimate', 'OutOfConfig', 'Blank']))
+      .rejects.toThrow('pinned detector set')
+  })
+
+  test('rejects common fluorophores that are absent from the canonical dictionary', async () => {
+    const fetch = customFetch()
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      const response = await fetch(input)
+      if (!source.endsWith('/conventional_detector_dictionary.csv')) return response
+      const body = (await response.text()).replace('FITC;SSC', 'Unknown dye;SSC')
+      return new Response(body, { status: 200 })
+    }))
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l')).rejects.toThrow('does not match a canonical fluorophore or alias')
   })
 })
