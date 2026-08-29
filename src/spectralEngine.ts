@@ -1301,6 +1301,12 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
 }
 
 const SUPPORTED_NON_FILTER_DETECTOR_DESCRIPTIONS = new Set(['unfiltered reference'])
+const MIN_DETECTOR_WAVELENGTH = 300
+const MAX_DETECTOR_WAVELENGTH = 900
+
+function detectorWavelengthInRange(value: number): boolean {
+  return value >= MIN_DETECTOR_WAVELENGTH && value <= MAX_DETECTOR_WAVELENGTH
+}
 
 function validateDetectorDescription(filename: string, rowIndex: number, row: CsvRow): void {
   const description = rowValue(row, 'description')
@@ -1309,32 +1315,47 @@ function validateDetectorDescription(filename: string, rowIndex: number, row: Cs
     const excitation = Number(spectral[1])
     const emission = Number(spectral[2])
     const width = spectral[3] ? Number(spectral[3]) : undefined
-    if (excitation < 300 || excitation > 900 || emission < 300 || emission > 900 || (width !== undefined && width <= 0)) {
+    const emissionEdgesArePlausible = width === undefined
+      ? detectorWavelengthInRange(emission)
+      : detectorWavelengthInRange(emission - width / 2)
+        && detectorWavelengthInRange(emission + width / 2)
+    if (!detectorWavelengthInRange(excitation) || !emissionEdgesArePlausible || (width !== undefined && width <= 0)) {
       validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has an implausible spectral detector wavelength or width '${description}'.`)
     }
     return
   }
   const bandpass = description.match(/^(\d{3})\s*\/\s*(\d{1,3})$/)
   if (bandpass) {
-    if (Number(bandpass[1]) <= 0) {
-      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has a non-positive bandpass center '${description}'.`)
-    }
-    if (Number(bandpass[2]) <= 0) {
+    const center = Number(bandpass[1])
+    const width = Number(bandpass[2])
+    if (width <= 0) {
       validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has non-positive bandpass width '${description}'.`)
+    }
+    if (!detectorWavelengthInRange(center - width / 2) || !detectorWavelengthInRange(center + width / 2)) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has an implausible conventional filter wavelength or width '${description}'.`)
     }
     return
   }
   const range = description.match(/^(\d{3})\s*[-–]\s*(\d{3})$/)
   if (range) {
-    if (Number(range[1]) <= 0 || Number(range[2]) <= Number(range[1])) {
+    const start = Number(range[1])
+    const end = Number(range[2])
+    if (start <= 0 || end <= start) {
       validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has a non-increasing filter range '${description}'.`)
+    }
+    if (!detectorWavelengthInRange(start) || !detectorWavelengthInRange(end)) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has an implausible conventional filter wavelength range '${description}'.`)
     }
     return
   }
   const longpass = description.match(/^(\d{3})\s*LP$/i)
   if (longpass) {
-    if (Number(longpass[1]) <= 0) {
+    const center = Number(longpass[1])
+    if (center <= 0) {
       validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has a non-positive longpass center '${description}'.`)
+    }
+    if (!detectorWavelengthInRange(center)) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has an implausible conventional filter wavelength '${description}'.`)
     }
     return
   }

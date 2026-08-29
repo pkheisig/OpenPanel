@@ -118,6 +118,18 @@ describe('conventional spectral engine defensive paths', () => {
       headers,
       ['fortessa', 'fortessa_3l', '530/30-B-A', 'Blue', 'not a filter', 'FALSE', 'FITC'],
     ])).toThrow('must be a positive bandpass')
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      headers,
+      ['fortessa', 'fortessa_3l', '999/10-B-A', 'Blue', '999/10', 'FALSE', 'FITC'],
+    ])).toThrow('implausible conventional filter wavelength')
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      headers,
+      ['fortessa', 'fortessa_3l', '500-999-B-A', 'Blue', '500-999', 'FALSE', 'FITC'],
+    ])).toThrow('implausible conventional filter wavelength range')
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      headers,
+      ['fortessa', 'fortessa_3l', '999 LP-B-A', 'Blue', '999 LP', 'FALSE', 'FITC'],
+    ])).toThrow('implausible conventional filter wavelength')
   })
 
   test('fails closed for malformed conventional identities and brightness levels', () => {
