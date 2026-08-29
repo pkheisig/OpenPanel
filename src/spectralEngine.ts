@@ -3,6 +3,8 @@ import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import {
   PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
   PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS,
+  PINNED_CONVENTIONAL_DETECTOR_METADATA,
+  PINNED_MARKER_ALIASES,
   PINNED_MARKER_KEYS,
   PINNED_PANEL_WIZARD_BRIGHTNESS_KEYS,
   PINNED_SPECTRAL_FLUOROPHORE_KEYS,
@@ -1317,6 +1319,21 @@ function validateConventionalDetectorDictionary(
     if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
     if (!configurationKey) validationError(filename, `row ${rowNumber(index)} configuration has an empty canonical identity.`)
     if (!normalizeToken(detector)) validationError(filename, `row ${rowNumber(index)} detector '${detector}' has an empty canonical identity.`)
+    if (options.requireComplete) {
+      const metadataKey = `${normalizeToken(rowValue(row, 'cytometer'))}:${normalizeDetectorToken(detector)}`
+      const pinnedMetadata = PINNED_CONVENTIONAL_DETECTOR_METADATA[metadataKey]
+      if (!pinnedMetadata) {
+        validationError(filename, `row ${rowNumber(index)} detector '${detector}' is not in pinned conventional detector metadata coverage.`)
+      }
+      const actualMetadata = [
+        normalizeLaserName(rowValue(row, 'laser')),
+        rowValue(row, 'description'),
+        rowValue(row, 'is_scatter').toUpperCase() === 'TRUE',
+      ].join('|')
+      if (pinnedMetadata !== actualMetadata) {
+        validationError(filename, `row ${rowNumber(index)} detector '${detector}' does not match pinned detector metadata.`)
+      }
+    }
     detectorKeys(detector).forEach((key) => uniqueKey(
       filename,
       seen,
@@ -1559,7 +1576,23 @@ function validateMarkerDictionary(
 ): void {
   const records = recordsForTable(filename, rows, ['marker', 'aliases'], ['marker'])
   const seen = new Map<string, number>()
-  records.forEach((row, index) => uniqueKey(filename, seen, normalizeToken(rowValue(row, 'marker')), index, `marker '${rowValue(row, 'marker')}'`))
+  records.forEach((row, index) => {
+    const marker = rowValue(row, 'marker')
+    const markerKey = normalizeToken(marker)
+    uniqueKey(filename, seen, markerKey, index, `marker '${marker}'`)
+    if (options.requireComplete) {
+      const actualAliases = dictionaryText(row.aliases).split(';').map(normalizeToken).filter(Boolean)
+      const expectedAliases = PINNED_MARKER_ALIASES[markerKey] ?? []
+      const missingAliases = expectedAliases.filter((alias) => !actualAliases.includes(alias))
+      const unexpectedAliases = actualAliases.filter((alias) => !expectedAliases.includes(alias))
+      if (missingAliases.length > 0 || unexpectedAliases.length > 0 || actualAliases.length !== expectedAliases.length) {
+        validationError(
+          filename,
+          `row ${rowNumber(index)} marker '${marker}' aliases do not match pinned marker alias coverage; missing [${missingAliases.join(', ')}]; unexpected [${unexpectedAliases.join(', ')}].`,
+        )
+      }
+    }
+  })
   if (options.requireComplete) {
     const pinnedKeys = new Set(PINNED_MARKER_KEYS)
     if (records.length !== pinnedKeys.size) {

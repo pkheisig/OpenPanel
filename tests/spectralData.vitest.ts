@@ -129,6 +129,24 @@ describe('bundled spectral data', () => {
       substitutedBrightness,
       { requireComplete: true },
     )).toThrow('is not in pinned panel wizard brightness coverage')
+
+    const substitutedDetectorMetadata = conventionalRows.slice(1).map((row) => [...row])
+    const detectorMetadataIndex = substitutedDetectorMetadata.findIndex((row) => row[0] === 'attune_nxt' && row[5] === 'FALSE')
+    substitutedDetectorMetadata[detectorMetadataIndex]![4] = '600/20'
+    expect(() => validateBundledDataRows(
+      'conventional_detector_dictionary.csv',
+      [conventionalRows[0]!, ...substitutedDetectorMetadata],
+      { requireComplete: true },
+    )).toThrow('does not match pinned detector metadata')
+
+    const markerAliasRows = markerRows.slice(1).map((row) => [...row])
+    const markerAliasIndex = markerAliasRows.findIndex((row) => row[1])
+    markerAliasRows[markerAliasIndex]![1] = markerAliasRows[markerAliasIndex]![1]!
+      .split(';')
+      .slice(1)
+      .join(';')
+    expect(() => validateBundledDataRows('marker_dictionary.csv', [markerRows[0]!, ...markerAliasRows], { requireComplete: true }))
+      .toThrow('aliases do not match pinned marker alias coverage')
   })
 
   test('bundles expanded fluorophore and marker dictionaries without duplicate canonical names', () => {
