@@ -170,6 +170,31 @@ describe('conventional spectral engine defensive paths', () => {
     expect(result.spectra[1]['450/50-V-A']).toBeGreaterThan(0)
   })
 
+  test('matches pinned detectors when a bundled detector omits the acquisition suffix', async () => {
+    const bundledFetch = customFetch()
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/conventional_detector_dictionary.csv')) return response
+      return new Response((await response.text()).replaceAll('450/50-V-A', '450/50-V'), { status: 200 })
+    }))
+    const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC'])
+    expect(result.detectors).toHaveLength(detectorNames.length)
+    expect(result.detectors.find((detector) => detector.detector === '450/50-V')?.laser).toBe('Violet')
+  })
+
+  test('normalizes conventional cytometer scopes before constructing a library', async () => {
+    const bundledFetch = customFetch()
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/conventional_detector_dictionary.csv')) return response
+      return new Response((await response.text()).replaceAll('fortessa,', 'FORTESSA,'), { status: 200 })
+    }))
+    const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC'])
+    expect(result.detectors).toHaveLength(detectorNames.length)
+  })
+
   test('reports missing conventional detector data and unmatched configurations', async () => {
     const fetch = customFetch()
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {

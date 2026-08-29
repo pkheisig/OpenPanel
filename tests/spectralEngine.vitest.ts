@@ -123,6 +123,23 @@ describe('browser spectral engine parity', () => {
     await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('pinned coverage')
   })
 
+  test('normalizes accepted dictionary laser aliases before selecting spectral detectors', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      const response = await bundledFetch(input)
+      if (!source.endsWith('/cytometer_dictionary.csv')) return response
+      const body = (await response.text()).replace(
+        '"aurora","B1-A","Blue",""',
+        '"aurora","B1-A","B",""',
+      )
+      return new Response(body, { status: 200 })
+    })
+    const payload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['FITC'])
+    expect(payload.detectors).toHaveLength(64)
+    expect(payload.detectors.find((detector) => detector.detector === 'B1-A')?.laser).toBe('Blue')
+  })
+
   test('rejects a library detector that shadows the fluorophore identity field', async () => {
     const bundledFetch = globalThis.fetch
     vi.stubGlobal('fetch', async (input: string | URL | Request) => {

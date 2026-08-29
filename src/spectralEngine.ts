@@ -1157,7 +1157,7 @@ function validateCytometerDictionary(filename: string, rows: string[][]): void {
   const metadata = new Map<string, { laser: string; description: string; row: number }>()
   records.forEach((row, index) => {
     knownLaserField(filename, index, row, 'laser')
-    const cytometerKey = normalizeToken(rowValue(row, 'cytometer'))
+    const cytometerKey = runtimeCytometerScope(rowValue(row, 'cytometer'))
     const detector = rowValue(row, 'detector')
     if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
     if (!normalizeToken(detector)) validationError(filename, `row ${rowNumber(index)} detector '${detector}' has an empty canonical identity.`)
@@ -1235,7 +1235,7 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
     detectorKeys(detector).forEach((key) => uniqueKey(
       filename,
       seen,
-      `${normalizeToken(row.cytometer)}:${normalizeToken(row.configuration)}:${key}`,
+      `${runtimeCytometerScope(row.cytometer)}:${normalizeToken(row.configuration)}:${key}`,
       index,
       `detector '${detector}' in configuration '${rowValue(row, 'configuration')}'`,
     ))
@@ -1304,12 +1304,17 @@ function detectorSetContains(actual: Set<string>, expected: string): boolean {
   return detectorKeys(expected).some((key) => actual.has(key))
 }
 
+function detectorNamesMatch(left: string, right: string): boolean {
+  const rightKeys = new Set(detectorKeys(right))
+  return detectorKeys(left).some((key) => rightKeys.has(key))
+}
+
 function validateConventionalConfigurationCoverage(filename: string, records: CsvRow[]): void {
   Object.entries(CONFIGURATIONS).forEach(([cytometer, configurations]) => {
     if (!CONVENTIONAL_CYTOMETERS.has(cytometer as CytometerId)) return
-    const cytometerKey = normalizeToken(cytometer)
+    const cytometerKey = runtimeCytometerScope(cytometer)
     const scopedRows = records.flatMap((row, index) => (
-      normalizeToken(rowValue(row, 'cytometer')) === cytometerKey ? [{ row, index }] : []
+      runtimeCytometerScope(rowValue(row, 'cytometer')) === cytometerKey ? [{ row, index }] : []
     ))
     if (scopedRows.length === 0) return
 
@@ -1539,9 +1544,7 @@ function normalizeToken(value: unknown): string {
 
 function runtimeCytometerScope(value: unknown): string {
   const key = normalizeToken(value)
-  if (key === 'discover' || key === 'discovers8' || key === 'discovera8') return 'discover'
-  if (key === 'symphony' || key === 'a5se') return 'symphony'
-  return key
+  return CYTOMETER_ALIASES[key] ?? key
 }
 
 export function normalizeLaserName(value: unknown): string {
@@ -1634,7 +1637,8 @@ function dictionaryCandidates(cytometer: CytometerId): CsvRow[] {
       ? new Set(['symphony', 'a5se'])
       : new Set([cytometer])
   if (CONVENTIONAL_CYTOMETERS.has(cytometer)) {
-    return conventionalDetectorDictionary.filter((row) => row.cytometer === cytometer)
+    const scope = runtimeCytometerScope(cytometer)
+    return conventionalDetectorDictionary.filter((row) => runtimeCytometerScope(row.cytometer) === scope)
   }
   return cytometerDictionary.filter((row) => ids.has(row.cytometer))
 }
@@ -1646,7 +1650,7 @@ function matchingDictionaryRow(cytometer: CytometerId, detector: string): CsvRow
 
 export function detectorLaser(cytometer: CytometerId, detector: string): string {
   const dictionaryLaser = matchingDictionaryRow(cytometer, detector)?.laser
-  if (dictionaryLaser) return dictionaryLaser
+  if (dictionaryLaser) return normalizeLaserName(dictionaryLaser)
   if (/^320/i.test(detector)) return 'DeepUV'
   if (/^(UV|355)/i.test(detector)) return 'UV'
   if (/^(V|405)/i.test(detector)) return 'Violet'
@@ -1848,7 +1852,8 @@ export function ninePointBandpass(center: number, width: number): number[] {
 }
 
 function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
-  const rows = conventionalDetectorDictionary.filter((row) => row.cytometer === cytometer)
+  const scope = runtimeCytometerScope(cytometer)
+  const rows = conventionalDetectorDictionary.filter((row) => runtimeCytometerScope(row.cytometer) === scope)
   const detectors = uniqueValues(rows.filter((row) => row.is_scatter?.toUpperCase() !== 'TRUE').map((row) => row.detector))
   if (detectors.length === 0) throw new Error(`No conventional detector reference data is available for cytometer '${cytometer}'.`)
 
@@ -1963,10 +1968,26 @@ function configurationDetectorIndices(library: SpectralLibrary, cytometer: Cytom
   const requestedDetectors = CONFIGURATION_DETECTORS[configuration]
   const requestedLasers = CONFIGURATION_LASERS[configuration]
   const included = requestedDetectors
-    ? metadata.filter((detector) => requestedDetectors.includes(detector.detector))
+    ? metadata.filter((detector) => requestedDetectors.some((expected) => detectorNamesMatch(detector.detector, expected)))
     : requestedLasers
       ? metadata.filter((detector) => requestedLasers.includes(detector.laser))
       : metadata
+  if (requestedDetectors) {
+    const missing = requestedDetectors.filter((expected) => !metadata.some((detector) => detectorNamesMatch(detector.detector, expected)))
+    if (missing.length > 0) {
+      throw new BundledDataValidationError(
+        `conventional_detector_dictionary.csv: configuration '${configuration}' is missing pinned detector coverage [${missing.join(', ')}].`,
+      )
+    }
+  }
+  if (requestedLasers) {
+    const missing = requestedLasers.filter((expected) => !metadata.some((detector) => normalizeLaserName(detector.laser) === normalizeLaserName(expected)))
+    if (missing.length > 0) {
+      throw new BundledDataValidationError(
+        `cytometer_dictionary.csv: configuration '${configuration}' is missing pinned laser coverage [${missing.join(', ')}].`,
+      )
+    }
+  }
   const indexByDetector = new Map(library.detectors.map((detector, index) => [detector, index]))
   return included.map((detector) => indexByDetector.get(detector.detector)).filter((index): index is number => index !== undefined)
 }
