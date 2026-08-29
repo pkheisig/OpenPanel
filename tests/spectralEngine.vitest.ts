@@ -123,6 +123,18 @@ describe('browser spectral engine parity', () => {
     await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('no matching detectors')
   })
 
+  test('rejects a library detector that shadows the fluorophore identity field', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (source.endsWith('/aurora_spectra.csv')) {
+        return new Response('fluorophore,fluorophore\nFITC,1\n', { status: 200 })
+      }
+      return bundledFetch(input)
+    })
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('reserved for the fluorophore identity column')
+  })
+
   test('shares dictionary and library failures across concurrent initializers before retrying', async () => {
     const bundledFetch = globalThis.fetch
     let failedDictionaryRequest = false
@@ -508,6 +520,9 @@ describe('browser spectral engine parity', () => {
       ['fluorophore', 'B1-A'],
       ['A "quoted" dye', '1e-3'],
     ])
+    expect(() => parseCsv('fluorophore,B1-A\r\nFITC,"1')).toThrow('unterminated quoted field')
+    expect(() => parseCsv('fluorophore,B1-A\r\nFITC,0"1')).toThrow('misplaced quote')
+    expect(() => parseCsv('fluorophore,B1-A\r\nFITC,"1"oops')).toThrow('after a closing quote')
     expect(parseCsv('\n')).toEqual([])
     expect(normalizeDetectorToken(undefined)).toBe('')
     expect(detectorKeys('')).toEqual([])

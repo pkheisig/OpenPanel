@@ -785,21 +785,47 @@ export function parseCsv(text: string): string[][] {
   let row: string[] = []
   let cell = ''
   let quoted = false
+  let quoteClosed = false
 
   for (let index = 0; index < text.length; index += 1) {
     const character = text[index]
     const next = text[index + 1]
-    if (character === '"') {
-      if (quoted && next === '"') {
-        cell += '"'
-        index += 1
+    if (quoted) {
+      if (character === '"') {
+        if (next === '"') {
+          cell += '"'
+          index += 1
+        } else {
+          quoted = false
+          quoteClosed = true
+        }
       } else {
-        quoted = !quoted
+        cell += character
       }
-    } else if (character === ',' && !quoted) {
+    } else if (quoteClosed) {
+      if (character === ',') {
+        row.push(cell)
+        cell = ''
+        quoteClosed = false
+      } else if (character === '\n' || character === '\r') {
+        row.push(cell)
+        cell = ''
+        quoteClosed = false
+        if (row.some((value) => value.length > 0)) rows.push(row)
+        row = []
+        if (character === '\r' && next === '\n') index += 1
+      } else {
+        throw new Error(`Malformed CSV: unexpected '${character}' after a closing quote at character ${index + 1}.`)
+      }
+    } else if (character === '"') {
+      if (cell.length > 0) {
+        throw new Error(`Malformed CSV: misplaced quote at character ${index + 1}.`)
+      }
+      quoted = true
+    } else if (character === ',') {
       row.push(cell)
       cell = ''
-    } else if ((character === '\n' || character === '\r') && !quoted) {
+    } else if (character === '\n' || character === '\r') {
       row.push(cell)
       cell = ''
       if (row.some((value) => value.length > 0)) rows.push(row)
@@ -809,6 +835,7 @@ export function parseCsv(text: string): string[][] {
       cell += character
     }
   }
+  if (quoted) throw new Error('Malformed CSV: unterminated quoted field.')
   row.push(cell)
   if (row.some((value) => value.length > 0)) rows.push(row)
   if (rows[0]?.[0]) rows[0][0] = rows[0][0].replace(/^\uFEFF/, '')
@@ -956,6 +983,11 @@ function validateSpectralLibrary(
   const detectors = headers.slice(1).map((detector) => detector.trim())
   const detectorKeysByHeader = detectors.map((detector) => detectorKeys(detector))
   if (detectors.some((detector) => !detector)) validationError(filename, 'has a blank detector header.')
+  const identityKey = normalizeToken(headers[0])
+  const reservedDetector = detectors.find((detector) => normalizeToken(detector) === identityKey)
+  if (reservedDetector) {
+    validationError(filename, `detector header '${reservedDetector}' is reserved for the fluorophore identity column.`)
+  }
   for (let index = 0; index < detectorKeysByHeader.length; index += 1) {
     for (let previousIndex = 0; previousIndex < index; previousIndex += 1) {
       if (detectorKeysByHeader[index].some((key) => detectorKeysByHeader[previousIndex].includes(key))) {
@@ -1073,6 +1105,7 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
   records.forEach((row, index) => {
     knownLaserField(filename, index, row, 'laser')
     booleanField(filename, index, row, 'is_scatter')
+    validateDetectorDescription(filename, index, row)
     const detector = rowValue(row, 'detector')
     detectorKeys(detector).forEach((key) => uniqueKey(
       filename,
@@ -1094,6 +1127,41 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
     }
     metadata.set(detectorKey, current)
   })
+}
+
+const SUPPORTED_NON_FILTER_DETECTOR_DESCRIPTIONS = new Set(['unfiltered reference'])
+
+function validateDetectorDescription(filename: string, rowIndex: number, row: CsvRow): void {
+  const description = rowValue(row, 'description')
+  const bandpass = description.match(/^(\d{3})\s*\/\s*(\d{1,3})$/)
+  if (bandpass) {
+    if (Number(bandpass[1]) <= 0) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has a non-positive bandpass center '${description}'.`)
+    }
+    if (Number(bandpass[2]) <= 0) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has non-positive bandpass width '${description}'.`)
+    }
+    return
+  }
+  const range = description.match(/^(\d{3})\s*[-–]\s*(\d{3})$/)
+  if (range) {
+    if (Number(range[1]) <= 0 || Number(range[2]) <= Number(range[1])) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has a non-increasing filter range '${description}'.`)
+    }
+    return
+  }
+  const longpass = description.match(/^(\d{3})\s*LP$/i)
+  if (longpass) {
+    if (Number(longpass[1]) <= 0) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has a non-positive longpass center '${description}'.`)
+    }
+    return
+  }
+  if (SUPPORTED_NON_FILTER_DETECTOR_DESCRIPTIONS.has(description.toLocaleLowerCase())) return
+  validationError(
+    filename,
+    `row ${rowNumber(rowIndex)} column 'description' must be a positive bandpass, increasing range, longpass, or supported non-filter sentinel; received '${description}'.`,
+  )
 }
 
 function validateConventionalEstimateDictionary(filename: string, rows: string[][]): void {

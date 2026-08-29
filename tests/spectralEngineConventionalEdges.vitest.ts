@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildPanelPayload,
   resetSpectralEngineForTests,
+  validateBundledDataRows,
 } from '../src/spectralEngine'
 
 const detectorNames = [
@@ -49,10 +50,10 @@ function customFetch() {
 function gappedFetch() {
   const conventionalRows = [
     ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
-    ['fortessa', 'fortessa_3l', 'MissingDetector', 'Other', 'unknown detector', 'false', ''],
+    ['fortessa', 'fortessa_3l', 'MissingDetector', 'Other', '500/50', 'false', ''],
     ['fortessa', 'fortessa_3l', '450/50-V-A', 'Blue', '500/50', 'false', 'Preferred'],
     ['fortessa', 'fortessa_3l', '525/50-B-A', 'Blue', '500/50', 'false', 'Preferred'],
-    ['fortessa', 'fortessa_3l', 'NotInConfig', 'Other', 'unknown detector', 'false', 'OutOfConfig'],
+    ['fortessa', 'fortessa_3l', 'NotInConfig', 'Other', '500/50', 'false', 'OutOfConfig'],
     ['fortessa', 'fortessa_3l', 'SSC-A', 'Blue', '500/50', 'TRUE', 'Scatter'],
   ]
   const fluorophoreRows = [
@@ -90,6 +91,22 @@ afterEach(() => {
 })
 
 describe('conventional spectral engine defensive paths', () => {
+  test('fails closed for malformed conventional filter geometry', () => {
+    const headers = ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores']
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      headers,
+      ['fortessa', 'fortessa_3l', '530/0-B-A', 'Blue', '530/0', 'FALSE', 'FITC'],
+    ])).toThrow('non-positive bandpass width')
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      headers,
+      ['fortessa', 'fortessa_3l', '600-500-B-A', 'Blue', '600-500', 'FALSE', 'FITC'],
+    ])).toThrow('non-increasing filter range')
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      headers,
+      ['fortessa', 'fortessa_3l', '530/30-B-A', 'Blue', 'not a filter', 'FALSE', 'FITC'],
+    ])).toThrow('must be a positive bandpass')
+  })
+
   test('builds a minimal conventional library from public reference tables', async () => {
     vi.stubGlobal('fetch', customFetch())
     const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'PE'])

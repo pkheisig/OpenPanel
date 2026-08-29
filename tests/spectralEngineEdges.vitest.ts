@@ -48,6 +48,7 @@ describe('spectral engine defensive and reference helpers', () => {
     expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '0', '0']], 'no meaningful nonzero')
     expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '1.01', '0']], 'outside')
     expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '-1.01', '0']], 'outside')
+    expectFailure([['fluorophore', 'fluorophore'], ['FITC', '1']], 'reserved')
     expectFailure([['name', 'B1-A', 'V1-A'], ['FITC', '1', '1']], 'identity column')
     expect(rowsToObjects([])).toEqual([])
     expect(rowsToObjects([['name', 'value'], ['x']])).toEqual([{ name: 'x', value: '' }])
