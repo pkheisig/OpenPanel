@@ -167,6 +167,22 @@ describe('browser spectral engine parity', () => {
       .rejects.toThrow("xenith_spectra.csv: detector column 'FL09-A' has no matching cytometer dictionary metadata.")
   })
 
+  test('matches spectral dictionary metadata through runtime cytometer aliases', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/cytometer_dictionary.csv')) return response
+      const body = (await response.text())
+        .split('\n')
+        .map((line) => line.replace(/^"xenith",/, '"Attune Xenith",'))
+        .join('\n')
+      return new Response(body, { status: 200 })
+    })
+    const result = await buildPanelPayload('xenith', 'full')
+    expect(result.detectors.find((detector) => detector.detector === 'FL09-A')?.laser).toBe('UV')
+  })
+
   test('rejects a library detector that shadows the fluorophore identity field', async () => {
     const bundledFetch = globalThis.fetch
     vi.stubGlobal('fetch', async (input: string | URL | Request) => {

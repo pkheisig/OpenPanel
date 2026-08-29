@@ -1439,8 +1439,35 @@ function validatePanelWizardBrightness(filename: string, rows: string[][]): void
     }
     const cytometerValue = rowValue(row, 'cytometer')
     const configurationValue = rowValue(row, 'configuration')
-    const cytometerKey = cytometerValue === '*' ? '*' : normalizeToken(cytometerValue)
-    const configurationKey = configurationValue === '*' ? '*' : normalizeToken(configurationValue)
+    let cytometerKey: string
+    if (cytometerValue === '*') {
+      cytometerKey = '*'
+    } else {
+      const canonicalCytometer = CYTOMETER_ALIASES[normalizeToken(cytometerValue)]
+      if (!canonicalCytometer) {
+        validationError(filename, `row ${rowNumber(index)} column 'cytometer' has unsupported value '${cytometerValue}'.`)
+      }
+      cytometerKey = canonicalCytometer
+    }
+    let configurationKey: string
+    if (configurationValue === '*') {
+      configurationKey = '*'
+    } else if (cytometerKey === '*') {
+      const matches = knownConfigurationMatches(configurationValue)
+      if (matches.length === 0) {
+        validationError(filename, `row ${rowNumber(index)} column 'configuration' has unsupported value '${configurationValue}'.`)
+      }
+      if (matches.length > 1) {
+        validationError(filename, `row ${rowNumber(index)} column 'configuration' value '${configurationValue}' is ambiguous without a specific cytometer.`)
+      }
+      configurationKey = matches[0]!
+    } else {
+      const canonicalConfiguration = resolveKnownConfigurationId(cytometerKey as CytometerId, configurationValue)
+      if (!canonicalConfiguration) {
+        validationError(filename, `row ${rowNumber(index)} column 'configuration' has unsupported value '${configurationValue}' for cytometer '${cytometerValue}'.`)
+      }
+      configurationKey = canonicalConfiguration
+    }
     const fluorophoreKey = normalizeToken(canonicalizeFluorophoreName(rowValue(row, 'fluorophore')))
     if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
     if (!configurationKey) validationError(filename, `row ${rowNumber(index)} configuration has an empty canonical identity.`)
@@ -1525,6 +1552,7 @@ function initializeDictionaries(): Promise<void> {
     conventionalDetectorDictionary = rowsToObjects(conventionalDetectors)
     conventionalFluorophoreEstimateDictionary = rowsToObjects(conventionalEstimates)
     validateConventionalCommonFluorophores()
+    validateConventionalEstimateReferences()
   })
   dictionaryInitialization = pending
   return pending.catch((error) => {
@@ -1607,11 +1635,10 @@ export function resolveCytometer(value: unknown = 'aurora'): CytometerId {
   return match
 }
 
-export function resolveConfiguration(cytometer: unknown, value?: unknown): string {
-  const id = resolveCytometer(cytometer)
+function resolveKnownConfigurationId(id: CytometerId, value?: unknown): string | undefined {
   const configs = CONFIGURATIONS[id]
   const key = normalizeToken(value)
-  if (!key) return configs[0].id
+  if (!key) return undefined
   const direct = configs.find((config) => normalizeToken(config.id) === key)
   if (direct) return direct.id
   if (id === 'fortessa' && key === '3l') return 'fortessa_3l'
@@ -1653,7 +1680,29 @@ export function resolveConfiguration(cytometer: unknown, value?: unknown): strin
   if (id === 'dxflex' && (key === 'b5r3v5' || key === '13color' || key === '13colour')) return 'dxflex_b5_r3_v5'
   if (id === 'facsaria_fusion' && (key === 'buv' || key === 'buvoptimized' || key === 'buvoptimizedfacilityconfiguration')) return 'facsaria_fusion_buv'
   const alias = CONFIGURATION_ALIASES[key]
-  return configs.some((config) => config.id === alias) ? alias : configs[0].id
+  return configs.some((config) => config.id === alias) ? alias : undefined
+}
+
+export function resolveKnownConfiguration(cytometer: unknown, value?: unknown): string | undefined {
+  return resolveKnownConfigurationId(resolveCytometer(cytometer), value)
+}
+
+function knownConfigurationMatches(value: unknown): string[] {
+  return Array.from(new Set(
+    (Object.keys(CONFIGURATIONS) as CytometerId[])
+      .map((cytometer) => resolveKnownConfigurationId(cytometer, value))
+      .filter((configuration): configuration is string => Boolean(configuration)),
+  ))
+}
+
+export function resolveKnownConfigurationAcrossCytometers(value: unknown): string | undefined {
+  const matches = knownConfigurationMatches(value)
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+export function resolveConfiguration(cytometer: unknown, value?: unknown): string {
+  const id = resolveCytometer(cytometer)
+  return resolveKnownConfigurationId(id, value) ?? CONFIGURATIONS[id][0].id
 }
 
 function dictionaryCandidates(cytometer: CytometerId): CsvRow[] {
@@ -1666,7 +1715,8 @@ function dictionaryCandidates(cytometer: CytometerId): CsvRow[] {
     const scope = runtimeCytometerScope(cytometer)
     return conventionalDetectorDictionary.filter((row) => runtimeCytometerScope(row.cytometer) === scope)
   }
-  return cytometerDictionary.filter((row) => ids.has(row.cytometer))
+  const scopes = new Set(Array.from(ids, (id) => runtimeCytometerScope(id)))
+  return cytometerDictionary.filter((row) => scopes.has(runtimeCytometerScope(row.cytometer)))
 }
 
 function matchingDictionaryRow(cytometer: CytometerId, detector: string): CsvRow | undefined {
@@ -1810,6 +1860,19 @@ function validateConventionalCommonFluorophores(): void {
           )
         }
       })
+  })
+}
+
+function validateConventionalEstimateReferences(): void {
+  const canonicalLookup = fluorophoreCanonicalLookup()
+  conventionalFluorophoreEstimateDictionary.forEach((row, index) => {
+    const fluorophore = dictionaryText(row.fluorophore).trim()
+    if (!canonicalLookup.has(normalizeToken(fluorophore))) {
+      validationError(
+        'conventional_fluorophore_estimates.csv',
+        `row ${rowNumber(index)} column 'fluorophore' value '${fluorophore}' does not match a canonical fluorophore or alias.`,
+      )
+    }
   })
 }
 

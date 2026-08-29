@@ -1,4 +1,12 @@
-import { BundledDataValidationError, parseCsv, validateBundledDataRows } from './spectralEngine'
+import {
+  BundledDataValidationError,
+  parseCsv,
+  resolveCytometer,
+  resolveConfiguration,
+  resolveKnownConfiguration,
+  resolveKnownConfigurationAcrossCytometers,
+  validateBundledDataRows,
+} from './spectralEngine'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import { buildMarkerOptions } from './panelWizardKnowledge'
 import type { UiSelectOption } from './UiSelect'
@@ -83,10 +91,18 @@ export async function loadPanelWizardReferences(
     })
   }
   const rows = await referenceRowsPromise
+  const requestedCytometer = resolveCytometer(cytometer)
+  const requestedConfiguration = resolveConfiguration(requestedCytometer, configuration)
   const brightnessByFluorophore: Record<string, number> = {}
   rowsToRecords(rows.brightness).forEach((row) => {
-    if (row.cytometer !== '*' && normalize(row.cytometer) !== normalize(cytometer)) return
-    if (row.configuration !== '*' && normalize(row.configuration) !== normalize(configuration)) return
+    const rowCytometer = row.cytometer === '*' ? '*' : resolveCytometer(row.cytometer)
+    if (rowCytometer !== '*' && rowCytometer !== requestedCytometer) return
+    const rowConfiguration = row.configuration === '*'
+      ? '*'
+      : rowCytometer === '*'
+        ? resolveKnownConfigurationAcrossCytometers(row.configuration)
+        : resolveKnownConfiguration(rowCytometer, row.configuration)
+    if (rowConfiguration !== '*' && rowConfiguration !== requestedConfiguration) return
     const score = Number(row.brightness_score)
     if (Number.isFinite(score)) brightnessByFluorophore[fluorophoreBrightnessKey(row.fluorophore)] = score
   })

@@ -54,8 +54,8 @@ describe('panel wizard recommendation engine', () => {
       if (source.includes('brightness')) {
         return new Response(
           'cytometer,configuration,fluorophore,brightness_score,source\n'
-          + 'other,*,FITC,1,test\n'
-          + 'aurora,other,PE,3,test\n'
+          + 'discover,*,FITC,1,test\n'
+          + 'aurora,3l_v_b_r,PE,3,test\n'
           + '*,5l_uv_v_b_yg_r,APC,3,test\n'
           + '*,*,BV421,4,test\n',
           { status: 200 },
@@ -72,6 +72,28 @@ describe('panel wizard recommendation engine', () => {
     expect(references.antigenDensityByContext['tcells::cd3']).toBe(100)
     expect(references.antigenDensityByContext['bcells::cd19']).toBe(50)
     expect((await loadPanelWizardReferences('aurora', '5l_uv_v_b_yg_r')).markerOptions.length).toBeGreaterThan(0)
+    vi.unstubAllGlobals()
+  })
+
+  test('matches brightness rows through canonical cytometer and configuration aliases', async () => {
+    resetPanelWizardReferencesForTests()
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response(
+          'cytometer,configuration,fluorophore,brightness_score,source\n'
+          + 'Thermo Fisher Attune Xenith,Full,FITC,3,test\n',
+          { status: 200 },
+        )
+      }
+      if (source.includes('antigen_density')) return new Response(
+        'cell_type,antigen,molecules_per_cell,source\nT cells,CD3,100,test',
+        { status: 200 },
+      )
+      return new Response('marker,aliases\nCD3,T-cell', { status: 200 })
+    })
+    const references = await loadPanelWizardReferences('xenith', 'full')
+    expect(references.brightnessByFluorophore).toEqual({ fitc: 3 })
     vi.unstubAllGlobals()
   })
 

@@ -47,7 +47,6 @@ function customFetch() {
   const estimateRows = [
     ['fluorophore', 'source_url', 'source_note', 'mapping_confidence'],
     ['NoLaser', 'https://example.test/no-laser', 'reference mapping', 'estimated'],
-    ['Unknown', 'https://example.test/unknown', 'missing dictionary row', 'estimated'],
   ]
   return vi.fn(async (input: string | URL | Request) => {
     const source = input instanceof Request ? input.url : String(input)
@@ -82,7 +81,6 @@ function gappedFetch() {
   const estimateRows = [
     ['fluorophore', 'source_url', 'source_note', 'mapping_confidence'],
     ['Estimate', 'https://example.test/estimate', 'estimated response', 'estimated'],
-    ['UnknownEstimate', 'https://example.test/unknown', 'missing dictionary row', 'estimated'],
   ]
   return vi.fn(async (input: string | URL | Request) => {
     const source = input instanceof Request ? input.url : String(input)
@@ -135,6 +133,22 @@ describe('conventional spectral engine defensive paths', () => {
       ['cytometer', 'configuration', 'fluorophore', 'brightness_score', 'source'],
       ['*', '*', 'FITC', '2', 'test'],
     ])).toThrow('one of 1, 3, 4, or 5')
+  })
+
+  test('validates and canonicalizes panel wizard instrument scopes', () => {
+    const headers = ['cytometer', 'configuration', 'fluorophore', 'brightness_score', 'source']
+    expect(() => validateBundledDataRows('panel_wizard_brightness.csv', [
+      headers,
+      ['Thermo Fisher Attune Xenith', 'Full', 'FITC', '3', 'test'],
+    ])).not.toThrow()
+    expect(() => validateBundledDataRows('panel_wizard_brightness.csv', [
+      headers,
+      ['not-a-cytometer', '*', 'FITC', '3', 'test'],
+    ])).toThrow("column 'cytometer' has unsupported value 'not-a-cytometer'")
+    expect(() => validateBundledDataRows('panel_wizard_brightness.csv', [
+      headers,
+      ['fortessa', 'not-a-configuration', 'FITC', '3', 'test'],
+    ])).toThrow("column 'configuration' has unsupported value 'not-a-configuration'")
   })
 
   test('pins detector membership in shared conventional reference tables', () => {
@@ -248,5 +262,18 @@ describe('conventional spectral engine defensive paths', () => {
       return new Response(body, { status: 200 })
     }))
     await expect(buildPanelPayload('fortessa', 'fortessa_3l')).rejects.toThrow('does not match a canonical fluorophore or alias')
+  })
+
+  test('rejects conventional estimates that are absent from the canonical dictionary', async () => {
+    const fetch = customFetch()
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const response = await fetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/conventional_fluorophore_estimates.csv')) return response
+      return new Response((await response.text()).replace('NoLaser,', 'UnknownEstimate,'), { status: 200 })
+    }))
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l')).rejects.toThrow(
+      "conventional_fluorophore_estimates.csv: row 2 column 'fluorophore' value 'UnknownEstimate' does not match a canonical fluorophore or alias.",
+    )
   })
 })
