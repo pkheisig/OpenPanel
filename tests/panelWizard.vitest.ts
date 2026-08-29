@@ -32,7 +32,7 @@ import { resetPanelWizardReferencesForTests } from '../src/panelWizardReferences
 beforeEach(mockBundledData)
 
 describe('panel wizard recommendation engine', () => {
-  test('falls back cleanly when reference files are unavailable or malformed', async () => {
+  test('fails closed when reference files are unavailable', async () => {
     resetPanelWizardReferencesForTests()
     vi.stubGlobal('fetch', async (input: string | URL) => {
       const source = String(input)
@@ -42,10 +42,8 @@ describe('panel wizard recommendation engine', () => {
       if (source.includes('antigen_density')) return new Response('unavailable', { status: 404 })
       throw new Error('network down')
     })
-    const references = await loadPanelWizardReferences('aurora', 'config')
-    expect(references.brightnessByFluorophore).toEqual({ fitc: 3 })
-    expect(references.antigenDensityByContext).toEqual({})
-    expect(references.markerOptions.length).toBeGreaterThan(0)
+    await expect(loadPanelWizardReferences('aurora', 'config'))
+      .rejects.toThrow(/panel_wizard_(antigen_density|marker_dictionary)\.csv/)
     vi.unstubAllGlobals()
   })
 

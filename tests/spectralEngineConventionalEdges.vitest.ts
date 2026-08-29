@@ -183,6 +183,23 @@ describe('conventional spectral engine defensive paths', () => {
     expect(result.detectors.find((detector) => detector.detector === '450/50-V')?.laser).toBe('Violet')
   })
 
+  test('deduplicates equivalent detector aliases across conventional configurations', async () => {
+    const bundledFetch = customFetch()
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/conventional_detector_dictionary.csv')) return response
+      const body = (await response.text()).replace(
+        'fortessa,fortessa_3l,450/50-V-A,',
+        'fortessa,fortessa_3l,450/50-V,',
+      )
+      return new Response(body, { status: 200 })
+    }))
+    const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC'])
+    expect(result.detectors).toHaveLength(detectorNames.length)
+    expect(result.detectors.filter((detector) => detector.detector.startsWith('450/50-V'))).toHaveLength(1)
+  })
+
   test('normalizes conventional cytometer scopes before constructing a library', async () => {
     const bundledFetch = customFetch()
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {

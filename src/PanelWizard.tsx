@@ -420,6 +420,9 @@ export function PanelWizard({
   const [showClearConfirmation, setShowClearConfirmation] = useState(false)
   const [dialog, setDialog] = useState<'coexpression' | null>(null)
   const [markerReferenceOptions, setMarkerReferenceOptions] = useState(MARKER_OPTIONS)
+  const [loadedReferenceContext, setLoadedReferenceContext] = useState<string | null>(null)
+  const referenceContext = `${cytometer}\u0000${configuration}`
+  const referencesReady = loadedReferenceContext === referenceContext
 
   const setupReady = desiredSize > 0
     && markers.length === desiredSize
@@ -466,16 +469,21 @@ export function PanelWizard({
   useEffect(() => {
     let active = true
     void loadPanelWizardReferences(cytometer, configuration).then((references) => {
-      if (active) setMarkerReferenceOptions(references.markerOptions)
+      if (!active) return
+      setMarkerReferenceOptions(references.markerOptions)
+      setLoadedReferenceContext(referenceContext)
     }).catch((referenceError: unknown) => {
-      if (active) setError(referenceError instanceof Error
+      if (!active) return
+      setResults(null)
+      setLoadedReferenceContext(null)
+      setError(referenceError instanceof Error
         ? referenceError.message
         : 'The panel wizard reference data could not be loaded.')
     })
     return () => {
       active = false
     }
-  }, [configuration, cytometer])
+  }, [configuration, cytometer, referenceContext])
 
   useEffect(() => {
     onStateChange({
@@ -624,7 +632,7 @@ export function PanelWizard({
   }
 
   const calculate = async () => {
-    if (!recommendationsUnlocked) return
+    if (!recommendationsUnlocked || !referencesReady) return
     setCalculating(true)
     setError('')
     setResults(null)
@@ -653,6 +661,7 @@ export function PanelWizard({
   }
 
   const applyRecommendations = async () => {
+    if (!referencesReady) return
     setApplying(true)
     try {
       await runWizardApplication(activeResult, markers, desiredSize, onApply, onClose)
@@ -926,7 +935,7 @@ export function PanelWizard({
                       type="button"
                       className="wizard-calculate"
                       onClick={() => void calculate()}
-                      disabled={calculating || setupMatchesProject}
+                      disabled={calculating || setupMatchesProject || !referencesReady}
                       aria-describedby={setupMatchesProject ? 'wizard-calculation-unavailable' : undefined}
                     >
                       {calculating
@@ -1098,10 +1107,10 @@ export function PanelWizard({
 
                   <div className="wizard-result-footer">
                     <div>
-                      <button type="button" className="wizard-secondary" onClick={() => void calculate()}>
+                      <button type="button" className="wizard-secondary" onClick={() => void calculate()} disabled={!referencesReady}>
                         Recalculate
                       </button>
-                      <button type="button" className="wizard-primary" onClick={() => void applyRecommendations()} disabled={applying}>
+                      <button type="button" className="wizard-primary" onClick={() => void applyRecommendations()} disabled={applying || !referencesReady}>
                         {applying ? 'Applying…' : `Apply ${desiredSize}-color panel`}
                       </button>
                     </div>

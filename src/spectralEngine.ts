@@ -927,8 +927,13 @@ export function dataUrl(filename: string): string {
 }
 
 async function loadCsv(filename: string): Promise<string[][]> {
-  const response = await fetch(dataUrl(filename))
-  if (!response.ok) throw new Error(`Could not load bundled data file ${filename} (${response.status}).`)
+  let response: Response
+  try {
+    response = await fetch(dataUrl(filename))
+  } catch (error) {
+    validationError(filename, `could not load bundled data file: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (!response.ok) validationError(filename, `could not load bundled data file (${response.status}).`)
   let rows: string[][]
   try {
     rows = parseCsv(await response.text())
@@ -1184,6 +1189,28 @@ function validateCytometerDictionary(filename: string, rows: string[][]): void {
   })
 }
 
+function validateSpectralDetectorMetadata(filename: string, rows: string[][]): void {
+  const entry = (Object.entries(LIBRARY_FILES) as Array<[CytometerId, string | undefined]>)
+    .find(([, source]) => source === filename)
+  if (!entry) return
+  const [cytometer] = entry
+  const scope = runtimeCytometerScope(cytometer)
+  const dictionaryRows = cytometerDictionary.filter((row) => runtimeCytometerScope(rowValue(row, 'cytometer')) === scope)
+  const detectors = (rows[0] ?? []).slice(1)
+  detectors.forEach((detector) => {
+    const matches = dictionaryRows.filter((row) => detectorNamesMatch(rowValue(row, 'detector'), detector))
+    if (matches.length === 0) {
+      validationError(filename, `detector column '${detector}' has no matching cytometer dictionary metadata.`)
+    }
+    const metadata = new Set(matches.map((row) => (
+      `${normalizeLaserName(rowValue(row, 'laser'))}\u0000${rowValue(row, 'description')}`
+    )))
+    if (metadata.size !== 1) {
+      validationError(filename, `detector column '${detector}' has conflicting cytometer dictionary metadata.`)
+    }
+  })
+}
+
 function validateFluorophoreDictionary(filename: string, rows: string[][]): void {
   const records = recordsForTable(
     filename,
@@ -1414,7 +1441,7 @@ function validatePanelWizardBrightness(filename: string, rows: string[][]): void
     const configurationValue = rowValue(row, 'configuration')
     const cytometerKey = cytometerValue === '*' ? '*' : normalizeToken(cytometerValue)
     const configurationKey = configurationValue === '*' ? '*' : normalizeToken(configurationValue)
-    const fluorophoreKey = normalizeToken(rowValue(row, 'fluorophore'))
+    const fluorophoreKey = normalizeToken(canonicalizeFluorophoreName(rowValue(row, 'fluorophore')))
     if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
     if (!configurationKey) validationError(filename, `row ${rowNumber(index)} configuration has an empty canonical identity.`)
     if (!fluorophoreKey) validationError(filename, `row ${rowNumber(index)} fluorophore has an empty canonical identity.`)
@@ -1485,10 +1512,6 @@ export function validateBundledDataRows(filename: string, rows: string[][]): voi
   }
 }
 
-function uniqueValues(values: string[]): string[] {
-  return Array.from(new Set(values.filter(Boolean)))
-}
-
 function initializeDictionaries(): Promise<void> {
   if (dictionaryInitialization) return dictionaryInitialization
   const pending = Promise.all([
@@ -1517,8 +1540,11 @@ function initializeLibrary(cytometer: CytometerId): Promise<void> {
     ? initializeDictionaries().then(() => {
       libraries.set(cytometer, buildConventionalLibrary(cytometer))
     })
-    : loadCsv(LIBRARY_FILES[cytometer]!).then((rows) => {
-      libraries.set(cytometer, parseLibrary(rows, LIBRARY_FILES[cytometer]!))
+    : initializeDictionaries().then(async () => {
+      const filename = LIBRARY_FILES[cytometer]!
+      const rows = await loadCsv(filename)
+      validateSpectralDetectorMetadata(filename, rows)
+      libraries.set(cytometer, parseLibrary(rows, filename))
     })
   libraryInitializations.set(cytometer, pending)
   return pending.catch((error) => {
@@ -1854,7 +1880,15 @@ export function ninePointBandpass(center: number, width: number): number[] {
 function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
   const scope = runtimeCytometerScope(cytometer)
   const rows = conventionalDetectorDictionary.filter((row) => runtimeCytometerScope(row.cytometer) === scope)
-  const detectors = uniqueValues(rows.filter((row) => row.is_scatter?.toUpperCase() !== 'TRUE').map((row) => row.detector))
+  const detectorsByIdentity = new Map<string, string>()
+  rows
+    .filter((row) => row.is_scatter?.toUpperCase() !== 'TRUE')
+    .forEach((row) => {
+      const detector = rowValue(row, 'detector')
+      const identity = detectorKeys(detector).sort()[0]
+      if (identity && !detectorsByIdentity.has(identity)) detectorsByIdentity.set(identity, detector)
+    })
+  const detectors = Array.from(detectorsByIdentity.values())
   if (detectors.length === 0) throw new Error(`No conventional detector reference data is available for cytometer '${cytometer}'.`)
 
   const canonicalLookup = fluorophoreCanonicalLookup()

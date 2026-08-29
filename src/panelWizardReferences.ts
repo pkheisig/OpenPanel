@@ -1,4 +1,5 @@
 import { BundledDataValidationError, parseCsv, validateBundledDataRows } from './spectralEngine'
+import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import { buildMarkerOptions } from './panelWizardKnowledge'
 import type { UiSelectOption } from './UiSelect'
 
@@ -24,10 +25,14 @@ async function loadCsv(filename: string): Promise<string[][]> {
   let response: Response
   try {
     response = await fetch(dataUrl(filename))
-  } catch {
-    return []
+  } catch (error) {
+    throw new BundledDataValidationError(
+      `${filename}: could not load bundled reference data: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
-  if (!response.ok) return []
+  if (!response.ok) {
+    throw new BundledDataValidationError(`${filename}: could not load bundled reference data (${response.status}).`)
+  }
   let rows: string[][]
   try {
     rows = parseCsv(await response.text())
@@ -48,7 +53,7 @@ export function antigenDensityKey(cellType: string, antigen: string): string {
 }
 
 export function fluorophoreBrightnessKey(fluorophore: string): string {
-  return normalize(fluorophore)
+  return normalize(canonicalizeFluorophoreName(fluorophore))
 }
 
 function rowsToRecords(rows: string[][]): Array<Record<string, string>> {

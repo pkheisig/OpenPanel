@@ -164,6 +164,7 @@ describe('PanelWizard component', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Recommendations/ }))
     expect(screen.getByRole('button', { name: 'Calculate recommendations' })).not.toBeNull()
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Calculate recommendations' }))
     await waitFor(() => expect(screen.getByText('Recommended')).not.toBeNull(), { timeout: 2_000 })
     expect(mocks.generateResults).toHaveBeenCalled()
@@ -219,17 +220,30 @@ describe('PanelWizard component', () => {
     fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search or enter marker' }), { key: 'Enter' })
     fireEvent.click(screen.getByRole('button', { name: /Co-expression/ }))
     fireEvent.click(screen.getByRole('button', { name: /Recommendations/ }))
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Calculate recommendations' }))
     await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull(), { timeout: 2_000 })
     expect(screen.getByRole('alert').textContent).toContain('calculation failed')
   })
 
-  test('surfaces bundled reference failures instead of silently continuing', async () => {
+  test('surfaces bundled reference failures and clears stale results', async () => {
     mocks.loadReferences.mockRejectedValueOnce(new Error('panel_wizard_brightness.csv: malformed reference data'))
-    renderWizard()
+    renderWizard({
+      slots: ['FITC', 'PE'], markerNames: { 0: 'CD3', 1: 'CD4' },
+      initialState: {
+        desiredSize: 2,
+        markers: [
+          { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'FITC' },
+          { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'high', currentFluorophore: 'PE' },
+        ],
+        coexpression: {}, coexpressionVisited: true, coexpressionCompleted: true,
+        activeTab: 'recommendations', results: wizardResults, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
+      },
+    })
     await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull())
     expect(screen.getByRole('alert').textContent).toContain('panel_wizard_brightness.csv')
     expect(mocks.generateResults).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /Apply 2-color panel/ })).toBeNull()
   })
 
   test('keeps the clear confirmation open while clearing is in progress', async () => {
@@ -354,6 +368,7 @@ describe('PanelWizard component', () => {
         activeTab: 'recommendations', results: null, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
       },
     })
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Calculate recommendations' }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('The panel recommendations could not be calculated.'))
 
@@ -372,6 +387,7 @@ describe('PanelWizard component', () => {
         activeTab: 'recommendations', results: wizardResults, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
       },
     })
+    await waitFor(() => expect((screen.getByRole('button', { name: /Apply 2-color panel/ }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: /Apply 2-color panel/ }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('The recommendations could not be applied.'))
 
@@ -390,6 +406,7 @@ describe('PanelWizard component', () => {
         activeTab: 'recommendations', results: wizardResults, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
       },
     })
+    await waitFor(() => expect((screen.getByRole('button', { name: /Apply 2-color panel/ }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: /Apply 2-color panel/ }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('apply failed with Error'))
 

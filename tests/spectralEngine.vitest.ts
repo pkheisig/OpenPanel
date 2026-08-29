@@ -123,6 +123,17 @@ describe('browser spectral engine parity', () => {
     await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('pinned coverage')
   })
 
+  test('reports the source when a bundled data fetch rejects', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (source.endsWith('/aurora_spectra.csv')) throw new Error('network down')
+      return bundledFetch(input)
+    })
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r'))
+      .rejects.toThrow('aurora_spectra.csv: could not load bundled data file: network down')
+  })
+
   test('normalizes accepted dictionary laser aliases before selecting spectral detectors', async () => {
     const bundledFetch = globalThis.fetch
     vi.stubGlobal('fetch', async (input: string | URL | Request) => {
@@ -138,6 +149,22 @@ describe('browser spectral engine parity', () => {
     const payload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['FITC'])
     expect(payload.detectors).toHaveLength(64)
     expect(payload.detectors.find((detector) => detector.detector === 'B1-A')?.laser).toBe('Blue')
+  })
+
+  test('rejects a spectral detector without matching dictionary metadata', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/cytometer_dictionary.csv')) return response
+      const body = (await response.text())
+        .split('\n')
+        .filter((line) => !line.startsWith('"xenith","FL09-A",'))
+        .join('\n')
+      return new Response(body, { status: 200 })
+    })
+    await expect(buildPanelPayload('xenith', 'full'))
+      .rejects.toThrow("xenith_spectra.csv: detector column 'FL09-A' has no matching cytometer dictionary metadata.")
   })
 
   test('rejects a library detector that shadows the fluorophore identity field', async () => {
