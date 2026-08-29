@@ -1241,7 +1241,7 @@ function validateFluorophoreDictionary(filename: string, rows: string[][]): void
     const canonicalKey = normalizeToken(canonical)
     uniqueKey(filename, canonicalSeen, canonicalKey, index, `canonical fluorophore '${canonical}'`)
     knownLaserField(filename, index, row, 'excitation_laser')
-    finiteField(filename, index, row, 'nominal_wavelength', { minimum: 1 })
+    finiteField(filename, index, row, 'nominal_wavelength', { minimum: 1, maximum: 900 })
     booleanField(filename, index, row, 'is_viability')
     const aliases = [rowValue(row, 'fluorophore'), ...dictionaryText(row.aliases).split(';')]
     aliases.forEach((alias) => {

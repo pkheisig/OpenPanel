@@ -146,6 +146,13 @@ describe('conventional spectral engine defensive paths', () => {
     ])).toThrow('implausible spectral detector wavelength')
   })
 
+  test('fails closed for implausible fluorophore nominal wavelengths', () => {
+    expect(() => validateBundledDataRows('fluorophore_dictionary.csv', [
+      ['fluorophore', 'aliases', 'excitation_laser', 'nominal_wavelength', 'is_viability'],
+      ['FITC', '', 'Blue', '901', 'FALSE'],
+    ])).toThrow("column 'nominal_wavelength' has value '901' above 900")
+  })
+
   test('validates and canonicalizes panel wizard instrument scopes', () => {
     const headers = ['cytometer', 'configuration', 'fluorophore', 'brightness_score', 'source']
     expect(() => validateBundledDataRows('panel_wizard_brightness.csv', [
