@@ -246,6 +246,30 @@ describe('PanelWizard component', () => {
     expect(screen.queryByRole('button', { name: /Apply 2-color panel/ })).toBeNull()
   })
 
+  test('retries reference loading from an in-wizard failure', async () => {
+    mocks.loadReferences.mockRejectedValueOnce(new Error('panel_wizard_brightness.csv: temporary failure'))
+    renderWizard({
+      slots: ['FITC', 'PE'],
+      markerNames: { 0: 'CD3', 1: 'CD4' },
+      initialState: {
+        desiredSize: 2,
+        markers: [
+          { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'FITC' },
+          { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'high', currentFluorophore: 'PE' },
+        ],
+        coexpression: {}, coexpressionVisited: true, coexpressionCompleted: true,
+        activeTab: 'recommendations', results: null, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
+      },
+    })
+
+    await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull())
+    const retry = screen.getByRole('button', { name: 'Retry loading reference data' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(mocks.loadReferences).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   test('keeps the clear confirmation open while clearing is in progress', async () => {
     let resolveClear: (() => void) | undefined
     const onClearPanel = vi.fn(() => new Promise<void>((resolve) => { resolveClear = resolve }))

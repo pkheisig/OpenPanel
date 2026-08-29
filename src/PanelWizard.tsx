@@ -425,6 +425,7 @@ export function PanelWizard({
   const [dialog, setDialog] = useState<'coexpression' | null>(null)
   const [markerReferenceOptions, setMarkerReferenceOptions] = useState(MARKER_OPTIONS)
   const [loadedReferenceContext, setLoadedReferenceContext] = useState<string | null>(null)
+  const [referenceRetryVersion, setReferenceRetryVersion] = useState(0)
   const referenceRequestVersionRef = useRef(0)
   const calculationRequestVersionRef = useRef(0)
   const previousReferenceContextRef = useRef<string | null>(null)
@@ -488,6 +489,7 @@ export function PanelWizard({
       if (!active || referenceRequestVersionRef.current !== referenceRequestVersion) return
       setMarkerReferenceOptions(references.markerOptions)
       setLoadedReferenceContext(referenceContext)
+      setError('')
     }).catch((referenceError: unknown) => {
       if (!active || referenceRequestVersionRef.current !== referenceRequestVersion) return
       setResults(null)
@@ -500,7 +502,7 @@ export function PanelWizard({
     return () => {
       active = false
     }
-  }, [configuration, cytometer, referenceContext])
+  }, [configuration, cytometer, referenceContext, referenceRetryVersion])
 
   useEffect(() => {
     onStateChange({
@@ -541,6 +543,12 @@ export function PanelWizard({
     setResults(null)
     setResultContext(null)
     setError('')
+  }
+
+  const retryReferenceLoad = () => {
+    setLoadedReferenceContext(null)
+    setError('')
+    setReferenceRetryVersion((current) => current + 1)
   }
 
   const updateDesiredSize = (nextValue: number) => {
@@ -1154,7 +1162,18 @@ export function PanelWizard({
             </div>
           )}
 
-          {error && <div className="wizard-error" role="alert">{error}</div>}
+          {error && (
+            <div className="wizard-error" role="alert">
+              <div>{error}</div>
+              {!referencesReady && (
+                <div className="wizard-error-actions">
+                  <button type="button" className="wizard-secondary" onClick={retryReferenceLoad}>
+                    Retry loading reference data
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </main>
 
         {dialog === 'coexpression' && (
