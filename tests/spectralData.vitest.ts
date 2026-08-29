@@ -129,6 +129,13 @@ describe('bundled spectral data', () => {
       substitutedBrightness,
       { requireComplete: true },
     )).toThrow('is not in pinned panel wizard brightness coverage')
+    const substitutedBrightnessScore = brightnessRows.map((row) => [...row])
+    substitutedBrightnessScore[1]![3] = '1'
+    expect(() => validateBundledDataRows(
+      'panel_wizard_brightness.csv',
+      substitutedBrightnessScore,
+      { requireComplete: true },
+    )).toThrow("has score 1, expected pinned score 4")
 
     const substitutedDetectorMetadata = conventionalRows.slice(1).map((row) => [...row])
     const detectorMetadataIndex = substitutedDetectorMetadata.findIndex((row) => row[0] === 'attune_nxt' && row[5] === 'FALSE')

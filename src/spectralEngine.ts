@@ -7,6 +7,7 @@ import {
   PINNED_MARKER_ALIASES,
   PINNED_MARKER_KEYS,
   PINNED_PANEL_WIZARD_BRIGHTNESS_KEYS,
+  PINNED_PANEL_WIZARD_BRIGHTNESS_SCORES,
   PINNED_SPECTRAL_FLUOROPHORE_KEYS,
 } from './spectralLibraryManifest'
 import type {
@@ -1630,7 +1631,7 @@ function validatePanelWizardBrightness(
     ['cytometer', 'configuration', 'fluorophore', 'brightness_score', 'source'],
     { requireRows: false },
   )
-  const seen = new Map<string, number>()
+  const seen = new Map<string, { index: number; score: number }>()
   records.forEach((row, index) => {
     const score = finiteField(filename, index, row, 'brightness_score', { minimum: 1, maximum: 5 })
     if (![1, 3, 4, 5].includes(score)) {
@@ -1676,13 +1677,14 @@ function validatePanelWizardBrightness(
     if (!fluorophoreKey) {
       validationError(filename, `row ${rowNumber(index)} column 'fluorophore' value '${fluorophoreValue}' does not match a supported fluorophore or alias.`)
     }
-    uniqueKey(
-      filename,
-      seen,
-      `${cytometerKey}:${configurationKey}:${fluorophoreKey}`,
-      index,
-      `brightness reference for '${rowValue(row, 'fluorophore')}'`,
-    )
+    const key = `${cytometerKey}:${configurationKey}:${fluorophoreKey}`
+    if (seen.has(key)) {
+      validationError(
+        filename,
+        `row ${rowNumber(index)} duplicates brightness reference for '${rowValue(row, 'fluorophore')}' (first seen at row ${rowNumber(seen.get(key)!.index)}).`,
+      )
+    }
+    seen.set(key, { index, score })
   })
   if (options.requireComplete) {
     const pinnedKeys = new Set(PINNED_PANEL_WIZARD_BRIGHTNESS_KEYS)
@@ -1696,7 +1698,16 @@ function validatePanelWizardBrightness(
     if (unexpected) {
       validationError(
         filename,
-        `row ${unexpected[1]} brightness reference '${unexpected[0]}' is not in pinned panel wizard brightness coverage.`,
+        `row ${rowNumber(unexpected[1].index)} brightness reference '${unexpected[0]}' is not in pinned panel wizard brightness coverage.`,
+      )
+    }
+    const mismatched = Array.from(seen.entries()).find(([key, value]) => (
+      PINNED_PANEL_WIZARD_BRIGHTNESS_SCORES[key] !== value.score
+    ))
+    if (mismatched) {
+      validationError(
+        filename,
+        `row ${rowNumber(mismatched[1].index)} brightness reference '${mismatched[0]}' has score ${mismatched[1].score}, expected pinned score ${PINNED_PANEL_WIZARD_BRIGHTNESS_SCORES[mismatched[0]]}.`,
       )
     }
     const missing = PINNED_PANEL_WIZARD_BRIGHTNESS_KEYS.filter((key) => !seen.has(key))
