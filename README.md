@@ -57,7 +57,7 @@ npm run check
 
 OpenPanel targets current Chrome, Edge, Firefox, and Safari releases. Chromium browsers can use native open/save pickers; Firefox and Safari receive upload/download fallbacks. Persistence and offline reopening require JavaScript, browser storage, and service workers. Private browsing or hardened storage policies may limit saved state, so JSON export is recommended for durable backups.
 
-The repository is a single Vite, React, and TypeScript application with a `/OpenPanel/` production base. Calculations and reference libraries are bundled into the static `dist/` site, while `vite-plugin-pwa` supplies offline caching. [The GitHub Pages workflow](.github/workflows/pages.yml) tests, lints, builds, and runs browser workflows on every push, then deploys only `dist/` from `main2`. No R runtime or server-side API is involved.
+The repository is a single Vite, React, and TypeScript application with a `/OpenPanel/` production base. Calculations and reference libraries are bundled into the static `dist/` site, while `vite-plugin-pwa` supplies offline caching. [The GitHub Pages workflow](.github/workflows/pages.yml) tests, lints, builds, and runs browser workflows on every push, then deploys only `dist/` from `dev`, the repository's default release branch. No R runtime or server-side API is involved.
 
 ## Project links
 
