@@ -20,17 +20,35 @@ import {
 } from '../src/spectralEngine'
 
 describe('spectral engine defensive and reference helpers', () => {
-  test('parses sparse library rows and rejects missing detector columns', () => {
+  test('fails closed for malformed spectral library rows and headers', () => {
     expect(() => parseLibrary([])).toThrow('no detector columns')
-    const library = parseLibrary([
+    expect(() => parseLibrary([['fluorophore', 'B1-A']])).toThrow('contains no fluorophore rows')
+    const valid = [
+      ['fluorophore', 'B1-A', 'V1-A'],
+      ['FITC', '1', '0'],
+    ]
+    expect(parseLibrary(valid, 'fixture.csv')).toMatchObject({
+      detectors: ['B1-A', 'V1-A'], fluorophores: ['FITC'], values: [[1, 0]],
+    })
+    const expectFailure = (rows: string[][], message: string) => {
+      expect(() => parseLibrary(rows, 'fixture.csv')).toThrow(message)
+    }
+    expect(() => parseLibrary([
       ['fluorophore', 'B1-A', 'V1-A'],
       ['FITC', '1', 'not-a-number'],
-      ['FITC', '2', '2'],
-      ['', '4', '5'],
-      [],
-    ])
-    expect(library).toMatchObject({ detectors: ['B1-A', 'V1-A'], fluorophores: ['FITC'], values: [[1, 0]] })
-    expect(parseLibrary([['fluorophore', 'B1-A'], ['PE', '0.5']]).fluorophores).toEqual(['PE'])
+    ], 'fixture.csv')).toThrow("fixture.csv: row 2 column 'V1-A' for fluorophore 'FITC' has non-finite value 'not-a-number'.")
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', 'NaN', '1']], "column 'B1-A'")
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', 'Infinity', '1']], "column 'B1-A'")
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '', '1']], "column 'B1-A'")
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '1']], 'expected 3')
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '1', '1'], ['FITC', '2', '2']], 'duplicates canonical fluorophore')
+    expectFailure([['fluorophore', 'B1-A', 'B1'], ['FITC', '1', '1']], 'duplicates')
+    expectFailure([['fluorophore', '', 'V1-A'], ['FITC', '1', '1']], 'blank detector header')
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['', '1', '1']], 'blank fluorophore identity')
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '0', '0']], 'no meaningful nonzero')
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '1.01', '0']], 'outside')
+    expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '-1.01', '0']], 'outside')
+    expectFailure([['name', 'B1-A', 'V1-A'], ['FITC', '1', '1']], 'identity column')
     expect(rowsToObjects([])).toEqual([])
     expect(rowsToObjects([['name', 'value'], ['x']])).toEqual([{ name: 'x', value: '' }])
     expect(dictionaryText(undefined)).toBe('')

@@ -1,4 +1,4 @@
-import { parseCsv } from './spectralEngine'
+import { BundledDataValidationError, parseCsv, validateBundledDataRows } from './spectralEngine'
 import { buildMarkerOptions } from './panelWizardKnowledge'
 import type { UiSelectOption } from './UiSelect'
 
@@ -24,8 +24,11 @@ async function loadCsv(filename: string): Promise<string[][]> {
   try {
     const response = await fetch(dataUrl(filename))
     if (!response.ok) return []
-    return parseCsv(await response.text())
-  } catch {
+    const rows = parseCsv(await response.text())
+    validateBundledDataRows(filename, rows)
+    return rows
+  } catch (error) {
+    if (error instanceof BundledDataValidationError) throw error
     return []
   }
 }
@@ -54,7 +57,7 @@ export async function loadPanelWizardReferences(
   configuration: string,
 ): Promise<WizardReferenceData> {
   if (!referenceRowsPromise) {
-    referenceRowsPromise = Promise.all([
+    const pending = Promise.all([
       loadCsv('panel_wizard_brightness.csv'),
       loadCsv('panel_wizard_antigen_density.csv'),
       loadCsv('marker_dictionary.csv'),
@@ -63,6 +66,10 @@ export async function loadPanelWizardReferences(
       antigenDensity,
       markerDictionary,
     }))
+    referenceRowsPromise = pending.catch((error: unknown) => {
+      referenceRowsPromise = null
+      throw error
+    })
   }
   const rows = await referenceRowsPromise
   const brightnessByFluorophore: Record<string, number> = {}

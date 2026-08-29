@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { parseCsv } from '../src/spectralEngine'
+import {
+  BUNDLED_DATA_FILES,
+  parseCsv,
+  validateBundledDataRows,
+} from '../src/spectralEngine'
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
 const discoverPath = fileURLToPath(new URL('../public/data/discover_spectra.csv', import.meta.url))
@@ -16,6 +20,14 @@ const markerDictionaryPath = fileURLToPath(
 )
 
 describe('bundled spectral data', () => {
+  test('validates every bundled CSV before use', () => {
+    BUNDLED_DATA_FILES.forEach((filename) => {
+      const path = fileURLToPath(new URL(`../public/data/${filename}`, import.meta.url))
+      const rows = parseCsv(readFileSync(path, 'utf8'))
+      expect(() => validateBundledDataRows(filename, rows), filename).not.toThrow()
+    })
+  })
+
   test('includes the expanded official Aurora viability-dye signatures', () => {
     const rows = parseCsv(readFileSync(auroraPath, 'utf8'))
     const names = rows.slice(1).map((row) => row[0])
@@ -53,7 +65,7 @@ describe('bundled spectral data', () => {
     const fluorophores = fluorophoreRows.slice(1).map((row) => normalized(row[0]))
     const markers = markerRows.slice(1).map((row) => normalized(row[0]))
 
-    expect(fluorophores).toHaveLength(446)
+    expect(fluorophores).toHaveLength(445)
     expect(new Set(fluorophores).size).toBe(fluorophores.length)
     expect(markers).toHaveLength(878)
     expect(new Set(markers).size).toBe(markers.length)

@@ -25,12 +25,30 @@ For rows added from the Cytek export:
 Existing higher-precision Aurora rows were retained unchanged. No spectrum is
 interpolated from a different dye or cytometer.
 
+## Bundled-data validation contract
+
+Every bundled CSV is validated before it can contribute to a panel payload.
+The validators require the documented headers, exact row widths, nonblank
+identities and required metadata, finite numeric fields, unique canonical
+identities, and unambiguous detector definitions. Spectral response values
+must remain in the signed normalized domain `[-1, 1]`; small negative values
+are retained baseline residuals, not missing values, and no malformed value is
+coerced to zero. Each spectral row must contain a meaningful nonzero response.
+
+On 2026-08-29, the bundled inputs were repaired to satisfy that contract: the
+FACSymphony identity header was restored to `fluorophore`, the redundant
+`LIVE/DEAD Fixable Near-IR` dictionary row was removed because it canonicalized
+to `LIVE DEAD NIR`, and ambiguous overlapping aliases were removed from the
+BYG750, EYFP/YFP, and NovaFluor Blue dictionary entries. These changes only
+resolve identity/schema ambiguity; they do not alter spectral response values.
+
 On 2026-07-31, missing reference records were merged from the AutoSpectral
 development branch at commit
 [`f262593f8dc9461dedf2b95cd6a55cc57550f589`](https://github.com/DrCytometer/AutoSpectral/commit/f262593f8dc9461dedf2b95cd6a55cc57550f589).
 The merge added 25 Aurora signatures and 10 FACSDiscover signatures without
 replacing any existing OpenPanel spectrum. It also expanded the local
-fluorophore dictionary to 446 unique canonical names. ID7000 and Xenith were
+fluorophore dictionary to 445 unique canonical names after the identity
+cleanup above. ID7000 and Xenith were
 already complete relative to that snapshot.
 
 OpenPanel supports spectral Aurora, FACSDiscover, ID7000, and Attune Xenith,

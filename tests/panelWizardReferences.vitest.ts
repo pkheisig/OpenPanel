@@ -19,10 +19,10 @@ describe('panel wizard reference loading in a browser origin', () => {
       requests.push(String(input))
       const source = String(input)
       if (source.includes('brightness')) {
-        return new Response('cytometer,configuration,fluorophore,brightness_score\n*,*,PE,5', { status: 200 })
+        return new Response('cytometer,configuration,fluorophore,brightness_score,source\n*,*,PE,5,test', { status: 200 })
       }
       if (source.includes('antigen_density')) {
-        return new Response('cell_type,antigen,molecules_per_cell\nT cells,CD3,123', { status: 200 })
+        return new Response('cell_type,antigen,molecules_per_cell,source\nT cells,CD3,123,test', { status: 200 })
       }
       return new Response('marker,aliases\nCD3,T cell', { status: 200 })
     }))

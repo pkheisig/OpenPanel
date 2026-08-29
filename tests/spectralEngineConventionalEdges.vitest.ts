@@ -16,30 +16,28 @@ function csv(rows: string[][]): string {
 
 function customFetch() {
   const conventionalRows = [
-    ['cytometer', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
-    ['', '', 'Other', '', 'false', 'PE'],
-    ['fortessa', '450/50-V-A', 'Other', '', 'false', 'PE'],
-    ['fortessa', '525/50-V-A', 'Blue', '530/30', 'false', 'FITC;SSC'],
-    ...detectorNames.slice(2).map((detector) => ['fortessa', detector, 'Blue', '530/30', 'false', 'FITC']),
-    ['fortessa', 'SSC-A', 'Blue', '500/50', 'TRUE', 'FITC'],
+    ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
+    ['fortessa', 'fortessa_3l', '450/50-V-A', 'Other', 'unfiltered reference', 'false', 'PE'],
+    ['fortessa', 'fortessa_3l', '525/50-V-A', 'Blue', '530/30', 'false', 'FITC;SSC'],
+    ...detectorNames.slice(2).map((detector) => ['fortessa', 'fortessa_3l', detector, 'Blue', '530/30', 'false', 'FITC']),
+    ['fortessa', 'fortessa_3l', 'SSC-A', 'Blue', '500/50', 'TRUE', 'FITC'],
   ]
   const fluorophoreRows = [
-    ['fluorophore', 'aliases', 'nominal_wavelength', 'excitation_laser'],
-    ['FITC', '', '520', 'Blue'],
-    ['PE', '', '575', 'Blue'],
-    ['NoLaser', '', '620', ''],
-    ['', '', '', ''],
+    ['fluorophore', 'aliases', 'excitation_laser', 'nominal_wavelength', 'is_viability'],
+    ['FITC', '', 'Blue', '520', 'FALSE'],
+    ['PE', '', 'Blue', '575', 'FALSE'],
+    ['NoLaser', '', 'Red', '620', 'FALSE'],
   ]
   const estimateRows = [
-    ['fluorophore', 'source_url', 'source_note'],
-    ['NoLaser', 'https://example.test/no-laser', 'missing excitation'],
-    ['Unknown', 'https://example.test/unknown', 'missing dictionary row'],
+    ['fluorophore', 'source_url', 'source_note', 'mapping_confidence'],
+    ['NoLaser', 'https://example.test/no-laser', 'reference mapping', 'estimated'],
+    ['Unknown', 'https://example.test/unknown', 'missing dictionary row', 'estimated'],
   ]
   return vi.fn(async (input: string | URL | Request) => {
     const source = input instanceof Request ? input.url : String(input)
     const filename = new URL(source).pathname.split('/').at(-1)
     const bodies: Record<string, string> = {
-      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\n',
+      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\naurora,UV1-A,UV,UV detector\n',
       'fluorophore_dictionary.csv': csv(fluorophoreRows),
       'conventional_detector_dictionary.csv': csv(conventionalRows),
       'conventional_fluorophore_estimates.csv': csv(estimateRows),
@@ -50,32 +48,31 @@ function customFetch() {
 
 function gappedFetch() {
   const conventionalRows = [
-    ['cytometer', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
-    ['fortessa', 'MissingDetector', 'Mystery'],
-    ['fortessa', '', 'Blue', '530/30', 'false', 'Blank;NoFilter'],
-    ['fortessa', '450/50-V-A', 'Blue', '500/50', 'false', 'Preferred'],
-    ['fortessa', '525/50-B-A', 'Blue', '500/50', 'false', 'Preferred'],
-    ['fortessa', 'NotInConfig', 'Mystery', '', 'false', 'OutOfConfig'],
-    ['fortessa', 'SSC-A', 'Blue', '500/50', 'TRUE', 'Scatter'],
+    ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
+    ['fortessa', 'fortessa_3l', 'MissingDetector', 'Other', 'unknown detector', 'false', ''],
+    ['fortessa', 'fortessa_3l', '450/50-V-A', 'Blue', '500/50', 'false', 'Preferred'],
+    ['fortessa', 'fortessa_3l', '525/50-B-A', 'Blue', '500/50', 'false', 'Preferred'],
+    ['fortessa', 'fortessa_3l', 'NotInConfig', 'Other', 'unknown detector', 'false', 'OutOfConfig'],
+    ['fortessa', 'fortessa_3l', 'SSC-A', 'Blue', '500/50', 'TRUE', 'Scatter'],
   ]
   const fluorophoreRows = [
-    ['fluorophore', 'nominal_wavelength', 'excitation_laser'],
-    ['Blank', '', ''],
-    ['Estimate', '500', 'Blue'],
-    ['NoFilter', '', 'Blue'],
-    ['OutOfConfig', '610', 'Blue'],
-    ['Preferred', '520', 'Blue'],
+    ['fluorophore', 'aliases', 'excitation_laser', 'nominal_wavelength', 'is_viability'],
+    ['Blank', '', 'Blue', '500', 'FALSE'],
+    ['Estimate', '', 'Blue', '500', 'FALSE'],
+    ['NoFilter', '', 'Blue', '600', 'FALSE'],
+    ['OutOfConfig', '', 'Blue', '610', 'FALSE'],
+    ['Preferred', '', 'Blue', '520', 'FALSE'],
   ]
   const estimateRows = [
-    ['fluorophore', 'source_url', 'source_note'],
-    ['Estimate', 'https://example.test/estimate', 'estimated response'],
-    ['UnknownEstimate', 'https://example.test/unknown', 'missing dictionary row'],
+    ['fluorophore', 'source_url', 'source_note', 'mapping_confidence'],
+    ['Estimate', 'https://example.test/estimate', 'estimated response', 'estimated'],
+    ['UnknownEstimate', 'https://example.test/unknown', 'missing dictionary row', 'estimated'],
   ]
   return vi.fn(async (input: string | URL | Request) => {
     const source = input instanceof Request ? input.url : String(input)
     const filename = new URL(source).pathname.split('/').at(-1)
     const bodies: Record<string, string> = {
-      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\n',
+      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\naurora,UV1-A,UV,UV detector\n',
       'fluorophore_dictionary.csv': csv(fluorophoreRows),
       'conventional_detector_dictionary.csv': csv(conventionalRows),
       'conventional_fluorophore_estimates.csv': csv(estimateRows),
@@ -110,7 +107,11 @@ describe('conventional spectral engine defensive paths', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const source = input instanceof Request ? input.url : String(input)
       if (source.endsWith('/conventional_detector_dictionary.csv')) {
-        return new Response('cytometer,detector,laser,description,is_scatter,common_fluorophores\n', { status: 200 })
+        return new Response(
+          'cytometer,configuration,detector,laser,description,is_scatter,common_fluorophores\n'
+          + 'celesta,celesta_bv,530/30-B-A,Blue,530/30,FALSE,FITC\n',
+          { status: 200 },
+        )
       }
       return fetch(input)
     }))

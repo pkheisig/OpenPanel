@@ -467,6 +467,10 @@ export function PanelWizard({
     let active = true
     void loadPanelWizardReferences(cytometer, configuration).then((references) => {
       if (active) setMarkerReferenceOptions(references.markerOptions)
+    }).catch((referenceError: unknown) => {
+      if (active) setError(referenceError instanceof Error
+        ? referenceError.message
+        : 'The panel wizard reference data could not be loaded.')
     })
     return () => {
       active = false
