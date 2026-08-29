@@ -9,6 +9,9 @@ import {
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
 const discoverPath = fileURLToPath(new URL('../public/data/discover_spectra.csv', import.meta.url))
+const conventionalDetectorPath = fileURLToPath(
+  new URL('../public/data/conventional_detector_dictionary.csv', import.meta.url),
+)
 const fluorophoreDictionaryPath = fileURLToPath(
   new URL('../public/data/fluorophore_dictionary.csv', import.meta.url),
 )
@@ -56,6 +59,13 @@ describe('bundled spectral data', () => {
     expect(new Set(names.map((name) => name.toLocaleLowerCase())).size).toBe(names.length)
     expect(names).toHaveLength(78)
     expect(rows.slice(1).every((row) => row.length === 79)).toBe(true)
+  })
+
+  test('rejects a full-scale conventional dictionary with a missing cytometer scope', () => {
+    const rows = parseCsv(readFileSync(conventionalDetectorPath, 'utf8'))
+    const withoutFortessa = [rows[0]!, ...rows.slice(1).filter((row) => row[0] !== 'fortessa')]
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', withoutFortessa))
+      .toThrow('pinned complete conventional detector bundle')
   })
 
   test('bundles expanded fluorophore and marker dictionaries without duplicate canonical names', () => {

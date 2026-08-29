@@ -1,5 +1,9 @@
 import { Matrix, SingularValueDecomposition } from 'ml-matrix'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import {
+  PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
+  PINNED_SPECTRAL_FLUOROPHORE_KEYS,
+} from './spectralLibraryManifest'
 import type {
   ConfigurationInfo,
   DetectorInfo,
@@ -1103,6 +1107,8 @@ function validateSpectralLibrary(
   if (expected && rows.length - 1 !== expected.fluorophoreCount) {
     validationError(filename, `expected ${expected.fluorophoreCount} fluorophore rows for pinned coverage, received ${rows.length - 1}.`)
   }
+  const pinnedFluorophoreKeys = PINNED_SPECTRAL_FLUOROPHORE_KEYS[filename]
+  const pinnedFluorophoreSet = pinnedFluorophoreKeys ? new Set(pinnedFluorophoreKeys) : undefined
   const seen = new Set<string>()
   rows.slice(1).forEach((row, index) => {
     const sourceRow = rowNumber(index)
@@ -1116,6 +1122,9 @@ function validateSpectralLibrary(
     if (!identityKey) validationError(filename, `row ${sourceRow} fluorophore '${fluorophore}' has an empty canonical identity.`)
     if (seen.has(identityKey)) {
       validationError(filename, `row ${sourceRow} duplicates canonical fluorophore '${fluorophore}'.`)
+    }
+    if (pinnedFluorophoreSet && !pinnedFluorophoreSet.has(identityKey)) {
+      validationError(filename, `row ${sourceRow} fluorophore '${fluorophore}' is not in pinned fluorophore coverage.`)
     }
     seen.add(identityKey)
     let meaningful = false
@@ -1137,6 +1146,12 @@ function validateSpectralLibrary(
       validationError(filename, `row ${sourceRow} for fluorophore '${fluorophore}' has no meaningful nonzero detector response; ${domain.description}.`)
     }
   })
+  if (pinnedFluorophoreKeys) {
+    const missingFluorophores = pinnedFluorophoreKeys.filter((key) => !seen.has(key))
+    if (missingFluorophores.length > 0) {
+      validationError(filename, `pinned fluorophore coverage is missing [${missingFluorophores.join(', ')}].`)
+    }
+  }
 }
 
 export function parseLibrary(
@@ -1166,6 +1181,7 @@ function validateCytometerDictionary(filename: string, rows: string[][]): void {
     const detector = rowValue(row, 'detector')
     if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
     if (!normalizeToken(detector)) validationError(filename, `row ${rowNumber(index)} detector '${detector}' has an empty canonical identity.`)
+    if (rowValue(row, 'description')) validateDetectorDescription(filename, index, row)
     detectorKeys(detector).forEach((key) => uniqueKey(
       filename,
       seen,
@@ -1288,6 +1304,16 @@ const SUPPORTED_NON_FILTER_DETECTOR_DESCRIPTIONS = new Set(['unfiltered referenc
 
 function validateDetectorDescription(filename: string, rowIndex: number, row: CsvRow): void {
   const description = rowValue(row, 'description')
+  const spectral = description.match(/^(\d{3})nm\s*[-–]\s*(\d{3})(?:\/(\d{1,3})|\/LP)-A$/i)
+  if (spectral) {
+    const excitation = Number(spectral[1])
+    const emission = Number(spectral[2])
+    const width = spectral[3] ? Number(spectral[3]) : undefined
+    if (excitation < 300 || excitation > 900 || emission < 300 || emission > 900 || (width !== undefined && width <= 0)) {
+      validationError(filename, `row ${rowNumber(rowIndex)} column 'description' has an implausible spectral detector wavelength or width '${description}'.`)
+    }
+    return
+  }
   const bandpass = description.match(/^(\d{3})\s*\/\s*(\d{1,3})$/)
   if (bandpass) {
     if (Number(bandpass[1]) <= 0) {
@@ -1327,6 +1353,9 @@ const SHARED_CONVENTIONAL_CONFIGURATION_BY_CYTOMETER: Record<string, string> = {
   lsrii: 'lsrii_reference',
 }
 
+const PINNED_CONVENTIONAL_DETECTOR_ROW_COUNT = 506
+const FULL_CONVENTIONAL_BUNDLE_ROW_THRESHOLD = 100
+
 function detectorSetContains(actual: Set<string>, expected: string): boolean {
   return detectorKeys(expected).some((key) => actual.has(key))
 }
@@ -1337,13 +1366,25 @@ function detectorNamesMatch(left: string, right: string): boolean {
 }
 
 function validateConventionalConfigurationCoverage(filename: string, records: CsvRow[]): void {
+  const looksLikeFullBundle = records.length >= FULL_CONVENTIONAL_BUNDLE_ROW_THRESHOLD
+  if (looksLikeFullBundle && records.length !== PINNED_CONVENTIONAL_DETECTOR_ROW_COUNT) {
+    validationError(
+      filename,
+      `expected ${PINNED_CONVENTIONAL_DETECTOR_ROW_COUNT} rows for the pinned complete conventional detector bundle, received ${records.length}.`,
+    )
+  }
   Object.entries(CONFIGURATIONS).forEach(([cytometer, configurations]) => {
     if (!CONVENTIONAL_CYTOMETERS.has(cytometer as CytometerId)) return
     const cytometerKey = runtimeCytometerScope(cytometer)
     const scopedRows = records.flatMap((row, index) => (
       runtimeCytometerScope(rowValue(row, 'cytometer')) === cytometerKey ? [{ row, index }] : []
     ))
-    if (scopedRows.length === 0) return
+    if (scopedRows.length === 0) {
+      if (looksLikeFullBundle) {
+        validationError(filename, `is missing pinned cytometer scope '${cytometer}'.`)
+      }
+      return
+    }
 
     const configurationByKey = new Map(configurations.map((configuration) => [
       normalizeToken(configuration.id),
@@ -1468,10 +1509,15 @@ function validatePanelWizardBrightness(filename: string, rows: string[][]): void
       }
       configurationKey = canonicalConfiguration
     }
-    const fluorophoreKey = normalizeToken(canonicalizeFluorophoreName(rowValue(row, 'fluorophore')))
+    const fluorophoreValue = rowValue(row, 'fluorophore')
+    const normalizedFluorophoreKey = normalizeToken(canonicalizeFluorophoreName(fluorophoreValue))
+    const fluorophoreKey = resolveBundledFluorophoreKey(fluorophoreValue)
     if (!cytometerKey) validationError(filename, `row ${rowNumber(index)} cytometer has an empty canonical identity.`)
     if (!configurationKey) validationError(filename, `row ${rowNumber(index)} configuration has an empty canonical identity.`)
-    if (!fluorophoreKey) validationError(filename, `row ${rowNumber(index)} fluorophore has an empty canonical identity.`)
+    if (!normalizedFluorophoreKey) validationError(filename, `row ${rowNumber(index)} fluorophore has an empty canonical identity.`)
+    if (!fluorophoreKey) {
+      validationError(filename, `row ${rowNumber(index)} column 'fluorophore' value '${fluorophoreValue}' does not match a supported fluorophore or alias.`)
+    }
     uniqueKey(
       filename,
       seen,
@@ -1594,6 +1640,10 @@ export async function initializeSpectralEngine(): Promise<void> {
 
 function normalizeToken(value: unknown): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+export function resolveBundledFluorophoreKey(value: string): string | undefined {
+  return PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL[normalizeToken(canonicalizeFluorophoreName(value))]
 }
 
 function runtimeCytometerScope(value: unknown): string {
@@ -1865,14 +1915,25 @@ function validateConventionalCommonFluorophores(): void {
 
 function validateConventionalEstimateReferences(): void {
   const canonicalLookup = fluorophoreCanonicalLookup()
+  const seen = new Map<string, number>()
   conventionalFluorophoreEstimateDictionary.forEach((row, index) => {
     const fluorophore = dictionaryText(row.fluorophore).trim()
-    if (!canonicalLookup.has(normalizeToken(fluorophore))) {
+    const canonical = canonicalLookup.get(normalizeToken(fluorophore))
+    if (!canonical) {
       validationError(
         'conventional_fluorophore_estimates.csv',
         `row ${rowNumber(index)} column 'fluorophore' value '${fluorophore}' does not match a canonical fluorophore or alias.`,
       )
     }
+    const canonicalKey = normalizeToken(canonical)
+    const previous = seen.get(canonicalKey)
+    if (previous !== undefined) {
+      validationError(
+        'conventional_fluorophore_estimates.csv',
+        `row ${rowNumber(index)} fluorophore '${fluorophore}' resolves to canonical fluorophore '${canonical}' already defined on row ${previous}.`,
+      )
+    }
+    seen.set(canonicalKey, rowNumber(index))
   })
 }
 

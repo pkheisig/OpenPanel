@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- wizard formatting/state helpers are part of the tested view contract */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   Check,
@@ -409,8 +409,12 @@ export function PanelWizard({
     () => Boolean(initialTemplate || initialState?.inputsChanged),
   )
   const [calculating, setCalculating] = useState(false)
+  const [calculatingContext, setCalculatingContext] = useState<string | null>(null)
   const [results, setResults] = useState<WizardResults | null>(
     initialTemplate ? null : initialState?.results ?? null,
+  )
+  const [resultContext, setResultContext] = useState<string | null>(
+    initialTemplate || !initialState?.results ? null : `${cytometer}\u0000${configuration}`,
   )
   const [resultMode, setResultMode] = useState<WizardResultMode>(initialState?.resultMode ?? 'recommended')
   const [resultSort, setResultSort] = useState<WizardResultSort>(initialState?.resultSort ?? 'recommended')
@@ -421,8 +425,12 @@ export function PanelWizard({
   const [dialog, setDialog] = useState<'coexpression' | null>(null)
   const [markerReferenceOptions, setMarkerReferenceOptions] = useState(MARKER_OPTIONS)
   const [loadedReferenceContext, setLoadedReferenceContext] = useState<string | null>(null)
+  const referenceRequestVersionRef = useRef(0)
+  const calculationRequestVersionRef = useRef(0)
+  const previousReferenceContextRef = useRef<string | null>(null)
   const referenceContext = `${cytometer}\u0000${configuration}`
   const referencesReady = loadedReferenceContext === referenceContext
+  const isCalculating = calculating && calculatingContext === referenceContext
 
   const setupReady = desiredSize > 0
     && markers.length === desiredSize
@@ -435,7 +443,7 @@ export function PanelWizard({
       marker.name.trim() === (markerNames[index]?.trim() ?? '')
       && marker.currentFluorophore === (slots[index] ?? '')
     ))
-  const activeResult: WizardPanelResult | null = results
+  const activeResult: WizardPanelResult | null = results && resultContext === referenceContext
     ? (resultMode === 'recommended' ? results.recommended : results.bestFit)
     : null
   const sortedRows = useMemo(
@@ -467,14 +475,23 @@ export function PanelWizard({
   }, [clearing, dialog, onClose, showClearConfirmation])
 
   useEffect(() => {
+    const contextChanged = previousReferenceContextRef.current !== null
+      && previousReferenceContextRef.current !== referenceContext
+    previousReferenceContextRef.current = referenceContext
+    const referenceRequestVersion = referenceRequestVersionRef.current + 1
+    referenceRequestVersionRef.current = referenceRequestVersion
+    if (contextChanged) {
+      calculationRequestVersionRef.current += 1
+    }
     let active = true
     void loadPanelWizardReferences(cytometer, configuration).then((references) => {
-      if (!active) return
+      if (!active || referenceRequestVersionRef.current !== referenceRequestVersion) return
       setMarkerReferenceOptions(references.markerOptions)
       setLoadedReferenceContext(referenceContext)
     }).catch((referenceError: unknown) => {
-      if (!active) return
+      if (!active || referenceRequestVersionRef.current !== referenceRequestVersion) return
       setResults(null)
+      setResultContext(null)
       setLoadedReferenceContext(null)
       setError(referenceError instanceof Error
         ? referenceError.message
@@ -496,7 +513,7 @@ export function PanelWizard({
       coexpressionCompleted,
       inputsChanged: wizardInputsChanged,
       activeTab,
-      results,
+      results: resultContext === referenceContext ? results : null,
       resultMode,
       resultSort,
     })
@@ -510,13 +527,19 @@ export function PanelWizard({
     markers,
     onStateChange,
     resultMode,
+    resultContext,
     resultSort,
+    referenceContext,
     results,
     wizardInputsChanged,
   ])
 
   const invalidateResults = () => {
+    calculationRequestVersionRef.current += 1
+    setCalculating(false)
+    setCalculatingContext(null)
     setResults(null)
+    setResultContext(null)
     setError('')
   }
 
@@ -633,9 +656,14 @@ export function PanelWizard({
 
   const calculate = async () => {
     if (!recommendationsUnlocked || !referencesReady) return
+    const calculationRequestVersion = calculationRequestVersionRef.current + 1
+    calculationRequestVersionRef.current = calculationRequestVersion
+    const calculationContext = referenceContext
     setCalculating(true)
+    setCalculatingContext(calculationContext)
     setError('')
     setResults(null)
+    setResultContext(null)
     await new Promise((resolve) => window.setTimeout(resolve, 30))
     try {
       const candidatePayload = await buildPanelPayload(
@@ -644,6 +672,7 @@ export function PanelWizard({
         availableFluorophores,
       )
       const references = await loadPanelWizardReferences(cytometer, configuration)
+      if (calculationRequestVersionRef.current !== calculationRequestVersion) return
       setResults(generateWizardResults(
         candidatePayload,
         markers,
@@ -651,12 +680,17 @@ export function PanelWizard({
         desiredSize,
         references,
       ))
+      setResultContext(calculationContext)
     } catch (calculationError) {
+      if (calculationRequestVersionRef.current !== calculationRequestVersion) return
       setError(calculationError instanceof Error
         ? calculationError.message
         : 'The panel recommendations could not be calculated.')
     } finally {
-      setCalculating(false)
+      if (calculationRequestVersionRef.current === calculationRequestVersion) {
+        setCalculating(false)
+        setCalculatingContext(null)
+      }
     }
   }
 
@@ -935,10 +969,10 @@ export function PanelWizard({
                       type="button"
                       className="wizard-calculate"
                       onClick={() => void calculate()}
-                      disabled={calculating || setupMatchesProject || !referencesReady}
+                      disabled={isCalculating || setupMatchesProject || !referencesReady}
                       aria-describedby={setupMatchesProject ? 'wizard-calculation-unavailable' : undefined}
                     >
-                      {calculating
+                      {isCalculating
                         ? <><LoaderCircle className="spin" size={18} /> Calculating panels…</>
                         : <><Sparkles size={18} /> Calculate recommendations</>}
                     </button>

@@ -52,7 +52,7 @@ function customFetch() {
     const source = input instanceof Request ? input.url : String(input)
     const filename = new URL(source).pathname.split('/').at(-1)
     const bodies: Record<string, string> = {
-      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\naurora,UV1-A,UV,UV detector\n',
+      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\naurora,UV1-A,UV,\n',
       'fluorophore_dictionary.csv': csv(fluorophoreRows),
       'conventional_detector_dictionary.csv': csv(conventionalRows),
       'conventional_fluorophore_estimates.csv': csv(estimateRows),
@@ -86,7 +86,7 @@ function gappedFetch() {
     const source = input instanceof Request ? input.url : String(input)
     const filename = new URL(source).pathname.split('/').at(-1)
     const bodies: Record<string, string> = {
-      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\naurora,UV1-A,UV,UV detector\n',
+      'cytometer_dictionary.csv': 'cytometer,detector,laser,description\naurora,UV1-A,UV,\n',
       'fluorophore_dictionary.csv': csv(fluorophoreRows),
       'conventional_detector_dictionary.csv': csv(conventionalRows),
       'conventional_fluorophore_estimates.csv': csv(estimateRows),
@@ -133,6 +133,17 @@ describe('conventional spectral engine defensive paths', () => {
       ['cytometer', 'configuration', 'fluorophore', 'brightness_score', 'source'],
       ['*', '*', 'FITC', '2', 'test'],
     ])).toThrow('one of 1, 3, 4, or 5')
+    expect(() => validateBundledDataRows('panel_wizard_brightness.csv', [
+      ['cytometer', 'configuration', 'fluorophore', 'brightness_score', 'source'],
+      ['*', '*', 'Unknown dye', '3', 'test'],
+    ])).toThrow('does not match a supported fluorophore')
+  })
+
+  test('fails closed for malformed spectral detector descriptions', () => {
+    expect(() => validateBundledDataRows('cytometer_dictionary.csv', [
+      ['cytometer', 'detector', 'laser', 'description'],
+      ['xenith', 'FL00-A', 'UV', '349nm - 999/10-A'],
+    ])).toThrow('implausible spectral detector wavelength')
   })
 
   test('validates and canonicalizes panel wizard instrument scopes', () => {
@@ -274,6 +285,28 @@ describe('conventional spectral engine defensive paths', () => {
     }))
     await expect(buildPanelPayload('fortessa', 'fortessa_3l')).rejects.toThrow(
       "conventional_fluorophore_estimates.csv: row 2 column 'fluorophore' value 'UnknownEstimate' does not match a canonical fluorophore or alias.",
+    )
+  })
+
+  test('rejects conventional estimate aliases that resolve to the same canonical fluorophore', async () => {
+    const bundledFetch = customFetch()
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (source.endsWith('/fluorophore_dictionary.csv')) {
+        return new Response((await response.text()).replace('FITC,,', 'FITC,Fluorescein,'), { status: 200 })
+      }
+      if (source.endsWith('/conventional_fluorophore_estimates.csv')) {
+        const body = (await response.text()).replace(
+          'NoLaser,https://example.test/no-laser,reference mapping,estimated',
+          'Fluorescein,https://example.test/fluorescein,reference mapping,estimated\nFITC,https://example.test/fitc,reference mapping,estimated',
+        )
+        return new Response(body, { status: 200 })
+      }
+      return response
+    }))
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l')).rejects.toThrow(
+      "fluorophore 'FITC' resolves to canonical fluorophore 'FITC' already defined on row 2",
     )
   })
 })

@@ -3,6 +3,7 @@ import {
   parseCsv,
   resolveCytometer,
   resolveConfiguration,
+  resolveBundledFluorophoreKey,
   resolveKnownConfiguration,
   resolveKnownConfigurationAcrossCytometers,
   validateBundledDataRows,
@@ -61,7 +62,8 @@ export function antigenDensityKey(cellType: string, antigen: string): string {
 }
 
 export function fluorophoreBrightnessKey(fluorophore: string): string {
-  return normalize(canonicalizeFluorophoreName(fluorophore))
+  return resolveBundledFluorophoreKey(fluorophore)
+    ?? normalize(canonicalizeFluorophoreName(fluorophore))
 }
 
 function rowsToRecords(rows: string[][]): Array<Record<string, string>> {

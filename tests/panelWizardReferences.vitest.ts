@@ -19,7 +19,12 @@ describe('panel wizard reference loading in a browser origin', () => {
       requests.push(String(input))
       const source = String(input)
       if (source.includes('brightness')) {
-        return new Response('cytometer,configuration,fluorophore,brightness_score,source\n*,*,PE,5,test', { status: 200 })
+        return new Response(
+          'cytometer,configuration,fluorophore,brightness_score,source\n'
+          + '*,*,PE,5,test\n'
+          + '*,*,Fluorescein,3,test',
+          { status: 200 },
+        )
       }
       if (source.includes('antigen_density')) {
         return new Response('cell_type,antigen,molecules_per_cell,source\nT cells,CD3,123,test', { status: 200 })
@@ -28,9 +33,10 @@ describe('panel wizard reference loading in a browser origin', () => {
     }))
     expect(antigenDensityKey('T cells', 'CD3')).toBe('tcells::cd3')
     expect(fluorophoreBrightnessKey('PE-Cy7')).toBe('pecy7')
+    expect(fluorophoreBrightnessKey('Fluorescein')).toBe('fitc')
     expect(fluorophoreBrightnessKey('LIVE/DEAD Fixable Near-IR')).toBe('livedeadnir')
     const references = await loadPanelWizardReferences('aurora', 'config')
-    expect(references.brightnessByFluorophore).toEqual({ pe: 5 })
+    expect(references.brightnessByFluorophore).toEqual({ pe: 5, fitc: 3 })
     expect(references.antigenDensityByContext).toEqual({ 'tcells::cd3': 123 })
     expect(requests.every((url) => url.startsWith('http://localhost'))).toBe(true)
   })

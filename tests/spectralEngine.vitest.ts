@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildPanelPayload,
@@ -12,8 +14,11 @@ import {
   resetSpectralEngineForTests,
   resolveConfiguration,
   resolveCytometer,
+  validateBundledDataRows,
 } from '../src/spectralEngine'
 import { mockBundledData } from './helpers'
+
+const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
 
 beforeEach(mockBundledData)
 
@@ -121,6 +126,13 @@ describe('browser spectral engine parity', () => {
       return bundledFetch(input)
     })
     await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('pinned coverage')
+  })
+
+  test('pins spectral fluorophore identities as well as dimensions', () => {
+    const rows = parseCsv(readFileSync(auroraPath, 'utf8'))
+    rows[1]![0] = 'FITCC'
+    expect(() => validateBundledDataRows('aurora_spectra.csv', rows))
+      .toThrow('not in pinned fluorophore coverage')
   })
 
   test('reports the source when a bundled data fetch rejects', async () => {
