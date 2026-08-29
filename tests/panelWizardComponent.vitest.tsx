@@ -331,6 +331,49 @@ describe('PanelWizard component', () => {
     resolvePayload?.(basePayload)
   })
 
+  test('clears completed results when the cytometer context changes', async () => {
+    function ContextHarness() {
+      const [cytometer, setCytometer] = React.useState('aurora')
+      const initialState = {
+        desiredSize: 2,
+        markers: [
+          { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'medium' as const, currentFluorophore: 'FITC' },
+          { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'high' as const, currentFluorophore: 'PE' },
+        ],
+        coexpression: {}, coexpressionVisited: true, coexpressionCompleted: true,
+        activeTab: 'recommendations' as const, results: wizardResults, resultMode: 'recommended' as const,
+        resultSort: 'recommended' as const, inputsChanged: true,
+      }
+      return (
+        <>
+          <button type="button" onClick={() => setCytometer('discover')}>Switch completed result context</button>
+          <PanelWizard
+            cytometer={cytometer}
+            configuration="config"
+            configurationLabel="Aurora 5L: UV/V/B"
+            availableFluorophores={['FITC', 'PE', 'APC']}
+            maxPanelSize={3}
+            measurementMode="spectral"
+            slots={['FITC', 'PE']}
+            markerNames={{ 0: 'CD3', 1: 'CD4' }}
+            theme="light"
+            initialState={initialState}
+            onStateChange={vi.fn()}
+            onClearPanel={vi.fn(async () => undefined)}
+            onClose={vi.fn()}
+            onApply={vi.fn(async () => undefined)}
+          />
+        </>
+      )
+    }
+
+    render(<ContextHarness />)
+    await waitFor(() => expect(screen.getByText('Complexity')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Switch completed result context' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Calculate recommendations' })).not.toBeNull())
+    expect(screen.queryByText('Complexity')).toBeNull()
+  })
+
   test('keeps the clear confirmation open while clearing is in progress', async () => {
     let resolveClear: (() => void) | undefined
     const onClearPanel = vi.fn(() => new Promise<void>((resolve) => { resolveClear = resolve }))

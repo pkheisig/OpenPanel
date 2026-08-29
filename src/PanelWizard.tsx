@@ -485,6 +485,8 @@ export function PanelWizard({
       calculationRequestVersionRef.current += 1
       setCalculating(false)
       setCalculatingContext(null)
+      setResults(null)
+      setResultContext(null)
     }
     let active = true
     void loadPanelWizardReferences(cytometer, configuration).then((references) => {
