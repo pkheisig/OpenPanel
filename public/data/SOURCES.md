@@ -42,6 +42,12 @@ to `LIVE DEAD NIR`, and ambiguous overlapping aliases were removed from the
 BYG750, EYFP/YFP, and NovaFluor Blue dictionary entries. These changes only
 resolve identity/schema ambiguity; they do not alter spectral response values.
 
+The response-matrix coverage is pinned at 64 detectors x 395 fluorophores for
+Aurora, 78 x 78 for FACSDiscover, 182 x 65 for ID7000, 51 x 63 for Attune
+Xenith, and 48 x 24 for FACSymphony. The validator rejects unknown or missing
+detector columns and rejects any row-count change instead of constructing a
+partial payload.
+
 On 2026-07-31, missing reference records were merged from the AutoSpectral
 development branch at commit
 [`f262593f8dc9461dedf2b95cd6a55cc57550f589`](https://github.com/DrCytometer/AutoSpectral/commit/f262593f8dc9461dedf2b95cd6a55cc57550f589).

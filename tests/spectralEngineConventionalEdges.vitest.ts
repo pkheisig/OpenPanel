@@ -21,7 +21,7 @@ function customFetch() {
     ['fortessa', 'fortessa_3l', '450/50-V-A', 'Other', 'unfiltered reference', 'false', 'PE'],
     ['fortessa', 'fortessa_3l', '525/50-V-A', 'Blue', '530/30', 'false', 'FITC;SSC'],
     ...detectorNames.slice(2).map((detector) => ['fortessa', 'fortessa_3l', detector, 'Blue', '530/30', 'false', 'FITC']),
-    ['fortessa', 'fortessa_3l', 'SSC-A', 'Blue', '500/50', 'TRUE', 'FITC'],
+    ['fortessa', 'fortessa_3l', 'SSC-A', 'Blue', '500/50', ' TRUE ', 'FITC'],
   ]
   const fluorophoreRows = [
     ['fluorophore', 'aliases', 'excitation_laser', 'nominal_wavelength', 'is_viability'],
@@ -105,6 +105,20 @@ describe('conventional spectral engine defensive paths', () => {
       headers,
       ['fortessa', 'fortessa_3l', '530/30-B-A', 'Blue', 'not a filter', 'FALSE', 'FITC'],
     ])).toThrow('must be a positive bandpass')
+  })
+
+  test('rejects conflicting detector metadata in a shared runtime scope', () => {
+    expect(() => validateBundledDataRows('cytometer_dictionary.csv', [
+      ['cytometer', 'detector', 'laser', 'description'],
+      ['discover_s8', 'V1 (420)-A', 'Violet', ''],
+      ['discover_a8', 'V1 (420)-A', 'Blue', ''],
+    ])).toThrow('shared runtime cytometer scope')
+
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', [
+      ['cytometer', 'configuration', 'detector', 'laser', 'description', 'is_scatter', 'common_fluorophores'],
+      ['fortessa', 'fortessa_3l', '530/30-B-A', 'Blue', '530/30', 'FALSE', 'FITC'],
+      ['fortessa', 'fortessa_4l', '530/30-B', 'Red', '600/20', 'FALSE', 'FITC'],
+    ])).toThrow('shared runtime cytometer scope')
   })
 
   test('builds a minimal conventional library from public reference tables', async () => {

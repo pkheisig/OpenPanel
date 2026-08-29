@@ -111,7 +111,7 @@ describe('browser spectral engine parity', () => {
     expect(failedAuroraRequest).toBe(true)
   })
 
-  test('rejects a configuration whose library has no matching detectors', async () => {
+  test('rejects a truncated or substituted spectral library before building a partial payload', async () => {
     const bundledFetch = globalThis.fetch
     vi.stubGlobal('fetch', async (input: string | URL | Request) => {
       const source = input instanceof Request ? input.url : String(input)
@@ -120,7 +120,7 @@ describe('browser spectral engine parity', () => {
       }
       return bundledFetch(input)
     })
-    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('no matching detectors')
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('pinned coverage')
   })
 
   test('rejects a library detector that shadows the fluorophore identity field', async () => {

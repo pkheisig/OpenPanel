@@ -85,6 +85,74 @@ const SPECTRAL_RESPONSE_DOMAINS: Record<string, SpectralResponseDomain> = {
   'symphony_spectra.csv': DEFAULT_SPECTRAL_RESPONSE_DOMAIN,
 }
 
+type SpectralLibraryExpectation = {
+  detectors: readonly string[]
+  fluorophoreCount: number
+}
+
+function detectorRange(prefix: string, first: number, last: number): string[] {
+  return Array.from({ length: last - first + 1 }, (_, index) => `${prefix}${first + index}-A`)
+}
+
+function indexedWavelengthDetectors(prefix: string, wavelengths: readonly number[]): string[] {
+  return wavelengths.map((wavelength, index) => `${prefix}${index + 1} (${wavelength})-A`)
+}
+
+function wavelengthDetectors(prefix: string, wavelengths: readonly number[]): string[] {
+  return wavelengths.map((wavelength) => `${prefix}${wavelength}-A`)
+}
+
+// These dimensions and channel sets are part of the bundled-data contract.
+// Keep them pinned so a truncated or substituted response cannot silently
+// produce a partial panel payload.
+const SPECTRAL_LIBRARY_EXPECTATIONS: Record<string, SpectralLibraryExpectation> = {
+  'aurora_spectra.csv': {
+    detectors: [
+      ...detectorRange('UV', 1, 16),
+      ...detectorRange('V', 1, 16),
+      ...detectorRange('B', 1, 14),
+      ...detectorRange('YG', 1, 10),
+      ...detectorRange('R', 1, 8),
+    ],
+    fluorophoreCount: 395,
+  },
+  'discover_spectra.csv': {
+    detectors: [
+      ...indexedWavelengthDetectors('UV', [375, 390, 420, 440, 460, 475, 500, 515, 530, 545, 575, 590, 605, 625, 655, 675, 700, 725, 750, 780, 810, 845]),
+      ...indexedWavelengthDetectors('V', [420, 440, 460, 475, 500, 515, 530, 545, 575, 590, 605, 625, 655, 675, 700, 725, 750, 780, 810, 845]),
+      ...indexedWavelengthDetectors('B', [500, 515, 530, 545, 575, 590, 605, 625, 655, 675, 700, 725, 750, 780, 810, 845]),
+      ...indexedWavelengthDetectors('YG', [575, 590, 605, 625, 655, 675, 700, 725, 750, 780, 810, 845]),
+      ...indexedWavelengthDetectors('R', [655, 675, 700, 725, 750, 780, 810, 845]),
+    ],
+    fluorophoreCount: 78,
+  },
+  'id7000_spectra.csv': {
+    detectors: [
+      ...detectorRange('320CH', 1, 35),
+      ...detectorRange('355CH', 1, 35),
+      ...detectorRange('405CH', 1, 35),
+      ...detectorRange('488CH', 4, 35),
+      ...detectorRange('561CH', 10, 35),
+      ...detectorRange('637CH', 17, 35),
+    ],
+    fluorophoreCount: 65,
+  },
+  'xenith_spectra.csv': {
+    detectors: Array.from({ length: 51 }, (_, index) => `FL${String(index).padStart(2, '0')}-A`),
+    fluorophoreCount: 63,
+  },
+  'symphony_spectra.csv': {
+    detectors: [
+      ...wavelengthDetectors('UV', [379, 446, 515, 540, 585, 610, 660, 695, 736, 809]),
+      ...wavelengthDetectors('V', [427, 450, 470, 510, 540, 576, 595, 615, 660, 680, 710, 750, 785, 845]),
+      ...wavelengthDetectors('B', [510, 537, 576, 602, 660, 675, 710, 750, 810]),
+      ...wavelengthDetectors('YG', [585, 602, 660, 670, 695, 730, 750, 780, 825]),
+      ...wavelengthDetectors('R', [660, 675, 680, 710, 730, 780]),
+    ],
+    fluorophoreCount: 24,
+  },
+}
+
 export class BundledDataValidationError extends Error {
   constructor(message: string) {
     super(message)
@@ -844,7 +912,9 @@ export function parseCsv(text: string): string[][] {
 
 export function rowsToObjects(rows: string[][]): CsvRow[] {
   const headers = rows[0] ?? []
-  return rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])))
+  return rows.slice(1).map((values) => Object.fromEntries(
+    headers.map((header, index) => [header, (values[index] ?? '').trim()]),
+  ))
 }
 
 export function dictionaryText(value: unknown): string {
@@ -995,7 +1065,23 @@ function validateSpectralLibrary(
       }
     }
   }
+  const expected = SPECTRAL_LIBRARY_EXPECTATIONS[filename]
+  if (expected) {
+    const expectedDetectors = new Set(expected.detectors)
+    const actualDetectors = new Set(detectors)
+    const missingDetectors = expected.detectors.filter((detector) => !actualDetectors.has(detector))
+    const unknownDetectors = detectors.filter((detector) => !expectedDetectors.has(detector))
+    if (missingDetectors.length > 0 || unknownDetectors.length > 0) {
+      validationError(
+        filename,
+        `detector columns do not match pinned coverage; missing [${missingDetectors.join(', ')}]${unknownDetectors.length > 0 ? `; unknown [${unknownDetectors.join(', ')}]` : ''}.`,
+      )
+    }
+  }
   if (rows.length < 2) validationError(filename, 'contains no fluorophore rows.')
+  if (expected && rows.length - 1 !== expected.fluorophoreCount) {
+    validationError(filename, `expected ${expected.fluorophoreCount} fluorophore rows for pinned coverage, received ${rows.length - 1}.`)
+  }
   const seen = new Set<string>()
   rows.slice(1).forEach((row, index) => {
     const sourceRow = rowNumber(index)
@@ -1051,6 +1137,7 @@ export function parseLibrary(
 function validateCytometerDictionary(filename: string, rows: string[][]): void {
   const records = recordsForTable(filename, rows, ['cytometer', 'detector', 'laser', 'description'], ['cytometer', 'detector', 'laser'])
   const seen = new Map<string, number>()
+  const metadata = new Map<string, { laser: string; description: string; row: number }>()
   records.forEach((row, index) => {
     knownLaserField(filename, index, row, 'laser')
     const detector = rowValue(row, 'detector')
@@ -1061,6 +1148,19 @@ function validateCytometerDictionary(filename: string, rows: string[][]): void {
       index,
       `detector '${detector}' for cytometer '${rowValue(row, 'cytometer')}'`,
     ))
+    const current = {
+      laser: normalizeLaserName(row.laser),
+      description: rowValue(row, 'description'),
+      row: rowNumber(index),
+    }
+    detectorKeys(detector).forEach((key) => {
+      const metadataKey = `${runtimeCytometerScope(row.cytometer)}:${key}`
+      const previous = metadata.get(metadataKey)
+      if (previous && (previous.laser !== current.laser || previous.description !== current.description)) {
+        validationError(filename, `row ${rowNumber(index)} conflicts with detector '${detector}' metadata from row ${previous.row} in the shared runtime cytometer scope.`)
+      }
+      if (!previous) metadata.set(metadataKey, current)
+    })
   })
 }
 
@@ -1114,18 +1214,20 @@ function validateConventionalDetectorDictionary(filename: string, rows: string[]
       index,
       `detector '${detector}' in configuration '${rowValue(row, 'configuration')}'`,
     ))
-    const detectorKey = `${normalizeToken(row.cytometer)}:${detectorKeys(detector)[0]}`
     const current = {
       laser: normalizeLaserName(row.laser),
       description: rowValue(row, 'description'),
       isScatter: rowValue(row, 'is_scatter').toUpperCase(),
       row: rowNumber(index),
     }
-    const previous = metadata.get(detectorKey)
-    if (previous && (previous.laser !== current.laser || previous.description !== current.description || previous.isScatter !== current.isScatter)) {
-      validationError(filename, `row ${rowNumber(index)} conflicts with detector '${detector}' metadata from row ${previous.row}.`)
-    }
-    metadata.set(detectorKey, current)
+    detectorKeys(detector).forEach((key) => {
+      const detectorKey = `${runtimeCytometerScope(row.cytometer)}:${key}`
+      const previous = metadata.get(detectorKey)
+      if (previous && (previous.laser !== current.laser || previous.description !== current.description || previous.isScatter !== current.isScatter)) {
+        validationError(filename, `row ${rowNumber(index)} conflicts with detector '${detector}' metadata from row ${previous.row} in the shared runtime cytometer scope.`)
+      }
+      if (!previous) metadata.set(detectorKey, current)
+    })
   })
 }
 
@@ -1317,6 +1419,13 @@ export async function initializeSpectralEngine(): Promise<void> {
 
 function normalizeToken(value: unknown): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function runtimeCytometerScope(value: unknown): string {
+  const key = normalizeToken(value)
+  if (key === 'discover' || key === 'discovers8' || key === 'discovera8') return 'discover'
+  if (key === 'symphony' || key === 'a5se') return 'symphony'
+  return key
 }
 
 export function normalizeLaserName(value: unknown): string {
