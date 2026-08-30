@@ -703,6 +703,7 @@ describe('PanelBuilder', () => {
       wizard,
       ['B', ''],
       basePayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+      true,
     ))
     await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledWith(
       'panel-1',

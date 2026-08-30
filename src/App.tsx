@@ -187,6 +187,7 @@ export default function App() {
             state.wizard,
             canonicalSlots,
             payload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+            true,
           )
           const canonicalCytometerPanels: Record<string, CytometerPanelState> = {}
           const seenPanelCytometers = new Map<string, string>()
@@ -239,6 +240,7 @@ export default function App() {
               panelState.wizard,
               panelSlots,
               panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+              true,
             )
             if (canonicalPanelCytometer === canonicalCytometer) {
               if (panelCytometer !== state.cytometer) {

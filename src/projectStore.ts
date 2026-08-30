@@ -446,6 +446,7 @@ export function alignWizardFluorophores(
   wizard: WizardProjectState | null,
   slots: string[],
   availableFluorophores = slots,
+  invalidateUnalignedResults = false,
 ): WizardProjectState | null {
   if (!wizard) return null
   const canonicalByToken = new Map<string, string>()
@@ -459,14 +460,58 @@ export function alignWizardFluorophores(
       canonicalByBundledKey.set(bundledKey, fluorophore)
     }
   })
+  const resolveCanonical = (value: string): string | undefined => {
+    const requested = canonicalizeFluorophoreName(value).trim()
+    return canonicalByToken.get(normalizeFluorophoreToken(requested))
+      ?? canonicalByBundledKey.get(resolveBundledFluorophoreKey(requested) ?? '')
+  }
+  const alignResult = (result: WizardPanelResult): { result: WizardPanelResult; hasUnalignedFluorophore: boolean } => {
+    let hasUnalignedFluorophore = false
+    const alignValue = (value: string): string => {
+      if (!value.trim()) return value
+      const canonical = resolveCanonical(value)
+      if (!canonical) hasUnalignedFluorophore = true
+      return canonical ?? value
+    }
+    return {
+      result: {
+        ...result,
+        rows: result.rows.map((row) => ({
+          ...row,
+          fluorophore: alignValue(row.fluorophore),
+          ...(typeof row.closestFluorophore === 'string'
+            ? { closestFluorophore: alignValue(row.closestFluorophore) }
+            : {}),
+        })),
+        alternatives: result.alternatives.map((row) => ({
+          ...row,
+          fluorophore: alignValue(row.fluorophore),
+          ...(typeof row.closestFluorophore === 'string'
+            ? { closestFluorophore: alignValue(row.closestFluorophore) }
+            : {}),
+        })),
+      },
+      hasUnalignedFluorophore,
+    }
+  }
+  const alignedResults = wizard.results
+    ? (() => {
+      const recommended = alignResult(wizard.results.recommended)
+      const bestFit = alignResult(wizard.results.bestFit)
+      return invalidateUnalignedResults
+        && (recommended.hasUnalignedFluorophore || bestFit.hasUnalignedFluorophore)
+        ? null
+        : { ...wizard.results, recommended: recommended.result, bestFit: bestFit.result }
+    })()
+    : null
   return {
     ...wizard,
     markers: wizard.markers.map((marker) => {
-      const requested = canonicalizeFluorophoreName(marker.currentFluorophore).trim()
-      const canonical = canonicalByToken.get(normalizeFluorophoreToken(requested))
-        ?? canonicalByBundledKey.get(resolveBundledFluorophoreKey(requested) ?? '')
+      const canonical = resolveCanonical(marker.currentFluorophore)
       return canonical ? { ...marker, currentFluorophore: canonical } : marker
     }),
+    results: alignedResults,
+    ...(wizard.results && !alignedResults ? { resultsInvalidated: true } : {}),
   }
 }
 

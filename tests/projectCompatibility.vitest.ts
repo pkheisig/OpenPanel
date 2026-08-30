@@ -179,6 +179,86 @@ describe('OpenPanel project files', () => {
       .toBe('EGFP')
   })
 
+  test('canonicalizes cached wizard result fluorophore aliases', () => {
+    const cachedResults = {
+      ...wizard.results!,
+      recommended: {
+        ...wizard.results!.recommended,
+        rows: [{
+          markerId: 'marker-0',
+          markerName: 'CD3',
+          slotIndex: 0,
+          antigenDensity: 'high' as const,
+          fluorophore: 'AF488',
+          brightnessLevel: 90,
+          isExisting: true,
+          peakLaser: 'blue',
+          spectralFit: 0.9,
+          recommendedScore: 0.9,
+          maxSimilarity: 0.1,
+          closestFluorophore: 'AF647',
+          complexityDelta: 0,
+          availabilityScore: 88,
+          availabilityTier: 'Common' as const,
+          availabilityConfidence: 'Curated' as const,
+        }],
+        alternatives: [{
+          fluorophore: 'AF647',
+          brightnessLevel: 90,
+          isExisting: false,
+          peakLaser: 'red',
+          spectralFit: 0.8,
+          recommendedScore: 0.8,
+          maxSimilarity: 0.2,
+          closestFluorophore: 'AF488',
+          complexityDelta: 0.1,
+          availabilityScore: 72,
+          availabilityTier: 'Common' as const,
+          availabilityConfidence: 'Curated' as const,
+        }],
+      },
+    }
+    const imported: WizardProjectState = {
+      ...wizard,
+      results: cachedResults,
+    }
+
+    const aligned = alignWizardFluorophores(
+      imported,
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      true,
+    )
+
+    expect(aligned?.results?.recommended.rows[0].fluorophore).toBe('Alexa Fluor 488')
+    expect(aligned?.results?.recommended.rows[0].closestFluorophore).toBe('Alexa Fluor 647')
+    expect(aligned?.results?.recommended.alternatives[0].fluorophore).toBe('Alexa Fluor 647')
+    expect(aligned?.results?.recommended.alternatives[0].closestFluorophore).toBe('Alexa Fluor 488')
+  })
+
+  test('invalidates cached wizard results with unaligned fluorophores', () => {
+    const imported: WizardProjectState = {
+      ...wizard,
+      results: {
+        ...wizard.results!,
+        recommended: {
+          ...wizard.results!.recommended,
+          rows: [{ fluorophore: 'Unknown dye' } as never],
+        },
+      },
+    }
+
+    const aligned = alignWizardFluorophores(
+      imported,
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      true,
+    )
+
+    expect(aligned?.results).toBeNull()
+    expect(aligned?.resultsInvalidated).toBe(true)
+  })
+
   test('migrates former frequency and cell-type marker settings to antigen density', () => {
     const legacy = JSON.parse(serializeProject(project)) as Record<string, unknown>
     legacy.wizard = {

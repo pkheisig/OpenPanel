@@ -411,6 +411,7 @@ async function canonicalizeImportedInactivePanels(
             panelState.wizard,
             panelSlots,
             panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+            true,
         );
         const canonicalPanelCytometer = panelPayload.cytometer;
         const previousPanelCytometer = seenPanelCytometers.get(canonicalPanelCytometer);
@@ -823,6 +824,7 @@ const PanelBuilder = ({
                     wizardStateRef.current,
                     canonicalSlots,
                     initial.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+                    true,
                 );
                 slotsRef.current = canonicalSlots;
                 wizardStateRef.current = canonicalWizard;
@@ -1289,6 +1291,7 @@ const PanelBuilder = ({
                 state.wizard,
                 nextSlots,
                 nextPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+                true,
             );
             const nextColorCount = new Set(nextSlots.filter(Boolean).map(fluorophoreIdentity)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
