@@ -121,6 +121,9 @@ export default function App() {
           setShowLanding(false)
         }}
         onExport={async (panel) => {
+          if (panel.loadError) {
+            throw new Error(`Cannot export '${panel.name}' until its saved state is recovered or deleted.`)
+          }
           await saveBlob(new Blob([serializeProject(panel.state)], { type: 'application/json' }), {
             suggestedName: projectJsonFilename(panel.name),
             description: 'OpenPanel project',
@@ -152,6 +155,7 @@ export default function App() {
           await refreshPanels()
         }}
         onOpen={(panel) => {
+          if (panel.loadError) return
           setActivePanelProject(panel.id)
           setActivePanel(panel)
           rememberSurface('editor')

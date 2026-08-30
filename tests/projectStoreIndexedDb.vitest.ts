@@ -111,6 +111,24 @@ describe('IndexedDB project persistence', () => {
     })
   })
 
+  test('does not overwrite unreadable saved panels through project actions', async () => {
+    const rawPanel = {
+      id: 'unreadable',
+      name: 'Unreadable',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array(257).fill('FITC') },
+    }
+    fakeDb.records.set('panel:unreadable', rawPanel)
+
+    await expect(renamePanelProject('unreadable', 'Renamed')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(archivePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(restorePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(savePanelProject('unreadable', 'Saved', state)).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    expect(fakeDb.records.get('panel:unreadable')).toEqual(rawPanel)
+    await expect(duplicatePanelProject('unreadable')).resolves.toBeNull()
+  })
+
   test('keeps active project selection and ignores non-panel records', async () => {
     const panel = await createPanelProject('Active', state)
     fakeDb.records.set('other', { id: 'other', state })

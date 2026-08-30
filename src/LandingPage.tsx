@@ -737,6 +737,7 @@ function ProjectCard({
   onMenu: (x: number, y: number) => void
 }) {
   const colors = panel.state.slots.filter(Boolean).length
+  const recoveryRequired = Boolean(panel.loadError)
   return (
     <article
       className={`panel-library-card ${archived ? 'archived' : ''}`}
@@ -749,6 +750,7 @@ function ProjectCard({
         type="button"
         className="panel-project-preview"
         onClick={onOpen}
+        disabled={recoveryRequired}
         aria-label={`Open ${panel.name}`}
       >
         <ProjectSpectrumPreview panel={panel} />
@@ -761,7 +763,7 @@ function ProjectCard({
         {panel.loadError && <span className="panel-library-error" role="status">Saved panel needs attention: {panel.loadError}</span>}
       </button>
       <div className="panel-library-content">
-        <button type="button" className="panel-project-title" onClick={onOpen}>
+        <button type="button" className="panel-project-title" onClick={onOpen} disabled={recoveryRequired}>
           <strong>{panel.name}</strong>
           <small>{formatUpdatedAt(panel.updatedAt)}</small>
         </button>
@@ -883,6 +885,7 @@ function ProjectActionMenu({
   onRestore: () => void | Promise<void>
   onDelete: () => void | Promise<void>
 }) {
+  const recoveryRequired = Boolean(state.panel.loadError)
   const action = (callback: () => void | Promise<void>) => () => {
     onClose()
     void callback()
@@ -895,21 +898,21 @@ function ProjectActionMenu({
       style={{ left: state.x, top: state.y }}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <button type="button" role="menuitem" onClick={action(onRename)}>
+      <button type="button" role="menuitem" onClick={action(onRename)} disabled={recoveryRequired}>
         <Pencil size={14} /> Rename
       </button>
-      <button type="button" role="menuitem" onClick={action(onExport)}>
+      <button type="button" role="menuitem" onClick={action(onExport)} disabled={recoveryRequired}>
         <Download size={14} /> Export project
       </button>
-      <button type="button" role="menuitem" onClick={action(onDuplicate)}>
+      <button type="button" role="menuitem" onClick={action(onDuplicate)} disabled={recoveryRequired}>
         <Copy size={14} /> Duplicate
       </button>
       {state.panel.archivedAt ? (
-        <button type="button" role="menuitem" onClick={action(onRestore)}>
+        <button type="button" role="menuitem" onClick={action(onRestore)} disabled={recoveryRequired}>
           <ArchiveRestore size={14} /> Restore
         </button>
       ) : (
-        <button type="button" role="menuitem" onClick={action(onArchive)}>
+        <button type="button" role="menuitem" onClick={action(onArchive)} disabled={recoveryRequired}>
           <Archive size={14} /> Archive
         </button>
       )}

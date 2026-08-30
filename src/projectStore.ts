@@ -705,6 +705,7 @@ export async function savePanelProject(
   state: ProjectState,
 ): Promise<StoredPanelProject> {
   const existing = await loadPanelProject(id)
+  if (existing?.loadError) return existing
   const now = new Date().toISOString()
   const panel: StoredPanelProject = {
     id,
@@ -765,6 +766,7 @@ export async function renamePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return panel
   return writeStoredPanel({
     ...panel,
     name: normalizePanelName(name),
@@ -777,6 +779,7 @@ export async function duplicatePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return null
   const now = new Date().toISOString()
   const duplicate: StoredPanelProject = {
     ...panel,
@@ -795,6 +798,7 @@ export async function archivePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return panel
   const archived = await writeStoredPanel({
     ...panel,
     archivedAt: new Date().toISOString(),
@@ -810,6 +814,7 @@ export async function restorePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return panel
   const restored = { ...panel }
   delete restored.archivedAt
   return writeStoredPanel({

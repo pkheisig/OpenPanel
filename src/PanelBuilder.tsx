@@ -613,6 +613,7 @@ const PanelBuilder = ({
         nextSelected: string[],
         showLoading = false,
         rejectInvalidRequested = false,
+        commit = true,
     ): Promise<PanelPayload | null> => {
         const requestSequence = panelRequestSequenceRef.current.begin();
         setError('');
@@ -621,12 +622,14 @@ const PanelBuilder = ({
             const nextPayload = await requestPanel(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested);
             if (!nextPayload) return null;
             if (!panelRequestSequenceRef.current.isCurrent(requestSequence)) return null;
-            setPayload(nextPayload);
-            setCytometer(getCytometerName(nextPayload.cytometer));
-            setConfiguration(getCytometerName(nextPayload.configuration));
-            const nextColorCount = new Set(nextSelected.filter(Boolean).map(fluorophoreIdentity)).size;
-            if (nextColorCount > nextPayload.max_panel_size) {
-                setError(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
+            if (commit) {
+                setPayload(nextPayload);
+                setCytometer(getCytometerName(nextPayload.cytometer));
+                setConfiguration(getCytometerName(nextPayload.configuration));
+                const nextColorCount = new Set(nextSelected.filter(Boolean).map(fluorophoreIdentity)).size;
+                if (nextColorCount > nextPayload.max_panel_size) {
+                    setError(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
+                }
             }
             return nextPayload;
         } catch (err) {
@@ -1108,6 +1111,7 @@ const PanelBuilder = ({
                 state.slots.filter(Boolean),
                 true,
                 true,
+                false,
             );
             if (!nextPayload) return;
             const fluorophoreValidation = validatePanelFluorophores(state.slots, nextPayload.fluorophores);
@@ -1128,6 +1132,9 @@ const PanelBuilder = ({
             const nextMarkers = Object.fromEntries(
                 Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
             ) as Record<number, string>;
+            setPayload(nextPayload);
+            setCytometer(getCytometerName(nextPayload.cytometer));
+            setConfiguration(getCytometerName(nextPayload.configuration));
             slotsRef.current = nextSlots;
             markersRef.current = nextMarkers;
             wizardStateRef.current = state.wizard;

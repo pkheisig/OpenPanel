@@ -52,6 +52,21 @@ const panel = (overrides: Partial<StoredPanelProject> = {}): StoredPanelProject 
 })
 
 describe('LandingPage workflows', () => {
+  test('blocks opening and mutating a saved panel that needs recovery', async () => {
+    const props = callbacks()
+    const recovery = panel({ id: 'recovery', name: 'Recovery', loadError: 'project.slots is too large.' })
+    render(<LandingPage panels={[recovery]} {...props} />)
+
+    expect((screen.getByRole('button', { name: 'Open Recovery' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions for Recovery' }))
+    expect((screen.getByRole('menuitem', { name: 'Rename' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('menuitem', { name: 'Export project' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('menuitem', { name: 'Duplicate' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('menuitem', { name: 'Archive' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Recovery' }))
+    expect(props.onOpen).not.toHaveBeenCalled()
+  })
+
   test('sorts projects deterministically and maps published OMIP instrument labels', () => {
     const a = panel({ id: 'a', name: 'Panel 2', createdAt: '2026-01-01', updatedAt: '2026-01-03' })
     const b = panel({ id: 'b', name: 'Panel 10', createdAt: '2026-01-02', updatedAt: '2026-01-02' })

@@ -162,6 +162,24 @@ describe('IndexedDB fallback error paths', () => {
     expect(await listPanelProjects()).toEqual([])
   })
 
+  test('does not overwrite unreadable fallback panels through project actions', async () => {
+    const rawPanel = {
+      id: 'unreadable',
+      name: 'Unreadable',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array(257).fill('FITC') },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    await expect(renamePanelProject('unreadable', 'Renamed')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(archivePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(restorePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(savePanelProject('unreadable', 'Saved', state)).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    expect(JSON.parse(localStorage.getItem('openpanel.panel-library.v1') ?? 'null')).toEqual([rawPanel])
+    await expect(duplicatePanelProject('unreadable')).resolves.toBeNull()
+  })
+
   test('recovers a populated legacy state only when the library is empty', async () => {
     localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify({ ...state, slots: [''] }))
     expect(await loadLastPanelProject()).toBeNull()
