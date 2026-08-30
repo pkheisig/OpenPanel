@@ -27,6 +27,7 @@ import {
   responseMeasurementModeForCytometer,
 } from '../src/panelBuilderShared'
 import { mockBundledData } from './helpers'
+import { CYTOMETER_ALIASES } from '../src/cytometerAliases'
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
 
@@ -416,7 +417,7 @@ describe('browser spectral engine parity', () => {
       { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'medium', currentFluorophore: '' },
     ], {}, 2)
 
-    expect(results.scoring_version).toBe('wizard-response-provenance-v2')
+    expect(results.scoring_version).toBe('wizard-response-provenance-v1')
     expect(results.response_provenance).toMatchObject({ class: 'synthetic_filter_proxy' })
     expect(results.response_context).toEqual({
       cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional',
@@ -434,7 +435,7 @@ describe('browser spectral engine parity', () => {
     expect(responseProvenanceForPayload('unknown-lab-prototype', 'spectral')).toMatchObject({
       class: 'synthetic_filter_proxy',
     })
-    expect(responseMeasurementModeForCytometer('unknown-lab-prototype')).toBe('spectral')
+    expect(responseMeasurementModeForCytometer('unknown-lab-prototype')).toBe('conventional')
     expect(responseProvenanceForMeasurementMode('spectral')).toMatchObject({
       class: 'measured_full_spectrum',
     })
@@ -472,6 +473,26 @@ describe('browser spectral engine parity', () => {
       class: 'measured_detector_response',
       source: 'symphony_spectra.csv',
     })
+  })
+
+  test('keeps response provenance aliases aligned with cytometer resolution', () => {
+    for (const [alias, canonical] of Object.entries(CYTOMETER_ALIASES)) {
+      expect(resolveCytometer(alias)).toBe(canonical)
+      const measurementMode = responseMeasurementModeForCytometer(alias)
+      expect(measurementMode).toBe(canonical === 'aurora'
+        || canonical === 'discover'
+        || canonical === 'id7000'
+        || canonical === 'xenith'
+        ? 'spectral'
+        : 'conventional')
+      expect(responseProvenanceForCytometer(alias, measurementMode).class).toBe(
+        canonical === 'symphony'
+          ? 'measured_detector_response'
+          : measurementMode === 'spectral'
+              ? 'measured_full_spectrum'
+              : 'synthetic_filter_proxy',
+      )
+    }
   })
 
   test('restores the FACSymphony provenance fallback for legacy payloads', async () => {

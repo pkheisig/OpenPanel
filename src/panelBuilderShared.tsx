@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- shared panel primitives intentionally colocate the PDF glyph with pure helpers */
 import { mapDetectorToEmission, wavelengthToColor } from './detectorAxis';
 import { canonicalizeFluorophoreName } from './fluorophoreNames';
+import { CYTOMETER_ALIASES } from './cytometerAliases';
 
 const unboxGuiState = (value: unknown): unknown => {
     if (Array.isArray(value)) {
@@ -45,7 +46,7 @@ type ResponseMatrixProvenance = {
 };
 
 const RESPONSE_PROVENANCE_CONTRACT_VERSION = 'response-provenance-v1';
-const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v2';
+const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v1';
 const responseProvenanceDefaults: Record<ResponseMatrixProvenanceClass, Omit<ResponseMatrixProvenance, 'class'>> = {
     measured_full_spectrum: {
         label: 'Measured/full-spectrum response',
@@ -81,9 +82,9 @@ const responseMatrixProvenance = (
 
 const FULL_SPECTRUM_CYTOMETER_KEYS = ['aurora', 'discover', 'id7000', 'xenith'];
 const CONVENTIONAL_CYTOMETER_KEYS = [
-    'symphony', 'fortessa', 'celesta', 'attunenxt', 'accuri', 'calibur', 'canto', 'lyric',
-    'ze5', 'cytpix', 'quanteon', 'macsquant', 'facsverse', 'lsrii', 'cytoflex', 'navios',
-    'dxflex', 'facsaria',
+    'symphony', 'fortessa', 'celesta', 'attunenxt', 'accuric6plus', 'facscalibur', 'canto', 'lyric',
+    'ze5', 'cytpix', 'quanteon', 'macsquant', 'facsverse', 'lsrii', 'cytoflexlx', 'navios',
+    'dxflex', 'facsariafusion',
 ];
 
 const RESPONSE_LIBRARY_SOURCES: Record<string, string> = {
@@ -94,92 +95,21 @@ const RESPONSE_LIBRARY_SOURCES: Record<string, string> = {
     symphony: 'symphony_spectra.csv',
 };
 
-const RESPONSE_CYTOMETER_ALIASES: Record<string, string> = {
-    cytekaurora: 'aurora',
-    bdfacsdiscover: 'discover',
-    discovers8: 'discover',
-    discovera8: 'discover',
-    sonyid7000: 'id7000',
-    thermofisherxenith: 'xenith',
-    attunexenith: 'xenith',
-    thermofisherattunexenith: 'xenith',
-    thermoscientificxenith: 'xenith',
-    thermoscientificattunexenith: 'xenith',
-    facsymphony: 'symphony',
-    facssymphony: 'symphony',
-    bdfacsymphony: 'symphony',
-    a5se: 'symphony',
-    bdfacsymphonya5se: 'symphony',
-    bdfacssymphonya5se: 'symphony',
-    bdlsrfortessa: 'fortessa',
-    lsrfortessa: 'fortessa',
-    bdfacscelesta: 'celesta',
-    facscelesta: 'celesta',
-    bdcelesta: 'celesta',
-    attune: 'attunenxt',
-    thermoscientificattunenxt: 'attunenxt',
-    thermofisherattunenxt: 'attunenxt',
-    accuric6: 'accuri',
-    accuric6plus: 'accuri',
-    bdaccuric6plus: 'accuri',
-    facscalibur: 'calibur',
-    bdfacscalibur: 'calibur',
-    facscanto: 'canto',
-    facscanto2: 'canto',
-    facscantoii: 'canto',
-    bdfacscanto: 'canto',
-    bdfacscanto2: 'canto',
-    bdfacscantoii: 'canto',
-    facslyric: 'lyric',
-    bdfacslyric: 'lyric',
-    bioradze5: 'ze5',
-    bioradze5cellanalyzer: 'ze5',
-    attunecytpix: 'cytpix',
-    thermofisherattunecytpix: 'cytpix',
-    thermoscientificattunecytpix: 'cytpix',
-    novocytequanteon: 'quanteon',
-    agilentnovocytequanteon: 'quanteon',
-    miltenyimacsquant: 'macsquant',
-    macsquantanalyzer: 'macsquant',
-    macsquantanalyzer10: 'macsquant',
-    macsquantanalyzer16: 'macsquant',
-    macsquantvyb: 'macsquant',
-    miltenyimacsquantanalyzer10: 'macsquant',
-    miltenyimacsquantanalyzer16: 'macsquant',
-    miltenyimacsquantvyb: 'macsquant',
-    bdfacsverse: 'facsverse',
-    lsr2: 'lsrii',
-    bdlsr2: 'lsrii',
-    bdlsrii: 'lsrii',
-    cytoflex: 'cytoflex',
-    beckmancoultercytoflexlx: 'cytoflex',
-    cytoflexlx: 'cytoflex',
-    naviosex: 'navios',
-    beckmannavios: 'navios',
-    beckmancoulternavios: 'navios',
-    dxf: 'dxflex',
-    beckmancoulterdxflex: 'dxflex',
-    ariafusion: 'facsaria',
-    facsariafusion: 'facsaria',
-    bdfacsariafusion: 'facsaria',
-};
-
 const normalizedCytometerKey = (cytometer: string): string => (
     String(cytometer ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
 );
 
 const responseCytometerFamily = (cytometer: string): string | undefined => {
     const normalizedCytometer = normalizedCytometerKey(cytometer);
-    const knownFamily = [...FULL_SPECTRUM_CYTOMETER_KEYS, ...CONVENTIONAL_CYTOMETER_KEYS]
-        .find((name) => name === normalizedCytometer);
-    return knownFamily ?? RESPONSE_CYTOMETER_ALIASES[normalizedCytometer];
+    const canonical = CYTOMETER_ALIASES[normalizedCytometer];
+    return canonical ? normalizedCytometerKey(canonical) : undefined;
 };
 
 const responseMeasurementModeForCytometer = (cytometer: string): PanelMeasurementMode => {
     const family = responseCytometerFamily(cytometer);
-    return family && CONVENTIONAL_CYTOMETER_KEYS.includes(family)
-        ? 'conventional'
-        : 'spectral';
+    if (!normalizedCytometerKey(cytometer)) return 'spectral';
+    if (!family) return 'conventional';
+    return CONVENTIONAL_CYTOMETER_KEYS.includes(family) ? 'conventional' : 'spectral';
 };
 
 const responseSourceForCytometer = (cytometer: string): string | undefined => {
@@ -259,15 +189,14 @@ const responseProvenanceForPayload = (
     measurementMode: PanelMeasurementMode,
     _provided?: unknown,
 ): ResponseMatrixProvenance => {
+    void _provided;
     const expected = responseProvenanceForCytometer(
         cytometer,
         measurementMode,
         responseSourceForCytometer(cytometer),
     );
     // Display copy is not identity; always render the canonical contract.
-    return responseProvenanceMatchesPayload(cytometer, measurementMode, _provided)
-        ? { ...expected }
-        : expected;
+    return { ...expected };
 };
 
 const responseProvenanceWarningForPayload = (

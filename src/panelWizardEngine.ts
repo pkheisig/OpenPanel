@@ -418,7 +418,7 @@ function panelMetrics(
     ? 0
     : pairs.slice(0, topCount).reduce((sum, value) => sum + value, 0) / topCount
   let maxResponseSeparation = 1
-  if (similarities.length > 1 && responseProvenance.class === 'measured_full_spectrum') {
+  if (similarities.length > 1 && responseProvenance.class !== 'synthetic_filter_proxy') {
     try {
       const regularized = new Matrix(similarities)
       for (let index = 0; index < regularized.rows; index += 1) {
