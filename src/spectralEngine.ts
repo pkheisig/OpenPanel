@@ -17,6 +17,7 @@ import type {
   FluorInfo,
   LibraryInfo,
   NumericRow,
+  PanelMeasurementMode,
   PanelPayload,
   ResponseMatrixProvenance,
 } from './panelBuilderShared'
@@ -1245,7 +1246,9 @@ function validateSpectralLibrary(
 
 export function parseLibrary(
   rows: string[][],
-  source = 'bundled spectral library',
+  source: string,
+  measurementMode: PanelMeasurementMode,
+  cytometer = '',
 ): SpectralLibrary {
   const domain = SPECTRAL_RESPONSE_DOMAINS[source] ?? DEFAULT_SPECTRAL_RESPONSE_DOMAIN
   validateSpectralLibrary(source, rows, domain)
@@ -1258,8 +1261,8 @@ export function parseLibrary(
     values.push(row.slice(1).map((value) => Number(value.trim())))
   })
   const response_provenance = responseProvenanceForCytometer(
-    source === 'symphony_spectra.csv' ? 'symphony' : '',
-    source === 'symphony_spectra.csv' ? 'conventional' : 'spectral',
+    cytometer,
+    measurementMode,
     source,
   )
   return { detectors, fluorophores, values, response_provenance }
@@ -1902,7 +1905,10 @@ function initializeLibrary(cytometer: CytometerId): Promise<void> {
       const filename = LIBRARY_FILES[cytometer]!
       const rows = await loadCsv(filename)
       validateSpectralDetectorMetadata(filename, rows)
-      libraries.set(cytometer, parseLibrary(rows, filename))
+      libraries.set(
+        cytometer,
+        parseLibrary(rows, filename, cytometer === 'symphony' ? 'conventional' : 'spectral', cytometer),
+      )
     })
   libraryInitializations.set(cytometer, pending)
   return pending.catch((error) => {

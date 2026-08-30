@@ -4,6 +4,8 @@ import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import {
   isResponseMatrixProvenance,
   RESPONSE_PROVENANCE_CONTRACT_VERSION,
+  responseMeasurementModeForCytometer,
+  responseProvenanceForCytometer,
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
@@ -125,6 +127,7 @@ function isWizardResponseContext(value: unknown): value is WizardResponseContext
   return isRecord(value)
     && typeof value.cytometer === 'string'
     && typeof value.configuration === 'string'
+    && (value.measurement_mode === 'spectral' || value.measurement_mode === 'conventional')
 }
 
 export function normalizeWizardResults(
@@ -139,9 +142,14 @@ export function normalizeWizardResults(
   ) return null
   const responseContext = value.response_context
   if (!isWizardResponseContext(responseContext)) return null
+  if (
+    value.response_provenance.class
+      !== responseProvenanceForCytometer(responseContext.cytometer, responseContext.measurement_mode).class
+  ) return null
   if (expectedContext && (
     responseContext.cytometer !== expectedContext.cytometer
     || responseContext.configuration !== expectedContext.configuration
+    || responseContext.measurement_mode !== expectedContext.measurement_mode
   )) return null
   const recommended = normalizeWizardPanelResult(value.recommended)
   const bestFit = normalizeWizardPanelResult(value.bestFit)
@@ -191,6 +199,15 @@ function normalizeWizardState(
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
   const rawResults = normalizeWizardResults(value.results, expectedContext)
+  if (isRecord(value.results) && rawResults === null) {
+    const rawProvenance = isRecord(value.results.response_provenance)
+      ? value.results.response_provenance
+      : undefined
+    console.info('OpenPanel discarded incompatible Wizard results during restore.', {
+      scoringVersion: value.results.scoring_version,
+      provenanceVersion: rawProvenance?.version,
+    })
+  }
   const activeTab = value.activeTab === 'coexpression' || value.activeTab === 'recommendations'
     ? value.activeTab
     : 'frequency'
@@ -239,7 +256,11 @@ function normalizeCytometerPanel(
   const effectiveConfiguration = typeof configuration === 'string' && configuration
     ? configuration
     : fallbackConfiguration
-  const expectedContext = { cytometer, configuration: effectiveConfiguration }
+  const expectedContext = {
+    cytometer,
+    configuration: effectiveConfiguration,
+    measurement_mode: responseMeasurementModeForCytometer(cytometer),
+  }
   return {
     configuration: effectiveConfiguration,
     slots: normalizeSlots(value.slots),
@@ -271,7 +292,11 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
     configuration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard, { cytometer, configuration }),
+    wizard: normalizeWizardState(value.wizard, {
+      cytometer,
+      configuration,
+      measurement_mode: responseMeasurementModeForCytometer(cytometer),
+    }),
   }
   const rawCytometerPanels = isRecord(value.cytometerPanels) ? value.cytometerPanels : {}
   const cytometerPanels = Object.fromEntries(

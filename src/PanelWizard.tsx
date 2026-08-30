@@ -34,7 +34,7 @@ import {
   generateWizardResults,
   isWizardFluorophoreAllowed,
 } from './panelWizardEngine'
-import { responseProvenanceForCytometer } from './panelBuilderShared'
+import { responseProvenanceForPayload } from './panelBuilderShared'
 import type {
   AntigenDensity,
   CoexpressionLevel,
@@ -328,8 +328,11 @@ export function PanelWizard({
   onClose,
   onApply,
 }: PanelWizardProps) {
-  const responseProvenance = providedResponseProvenance
-    ?? responseProvenanceForCytometer(cytometer, measurementMode)
+  const responseProvenance = responseProvenanceForPayload(
+    cytometer,
+    measurementMode,
+    providedResponseProvenance,
+  )
   const responseFitLabel = responseProvenance.class === 'synthetic_filter_proxy'
     ? 'Detector-peak fit'
     : responseProvenance.class === 'measured_detector_response'

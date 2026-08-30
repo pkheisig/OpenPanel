@@ -4,11 +4,16 @@ import {
   fluorophoreBrightnessKey,
 } from './panelWizardReferences'
 import {
+  responseProvenanceForPayload,
   responseMatrixProvenance,
-  responseProvenanceForCytometer,
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
-import type { NumericRow, PanelPayload, ResponseMatrixProvenance } from './panelBuilderShared'
+import type {
+  NumericRow,
+  PanelMeasurementMode,
+  PanelPayload,
+  ResponseMatrixProvenance,
+} from './panelBuilderShared'
 import type { WizardReferenceData } from './panelWizardReferences'
 
 export type CoexpressionLevel = 0 | 1 | 2 | 3 | 4
@@ -70,6 +75,7 @@ export type WizardPanelResult = {
 export type WizardResponseContext = {
   cytometer: string
   configuration: string
+  measurement_mode: PanelMeasurementMode
 }
 
 export type WizardResults = {
@@ -902,8 +908,11 @@ export function generateWizardResults(
   desiredSize: number,
   references?: WizardReferenceData,
 ): WizardResults {
-  const responseProvenance = payload.response_provenance
-    ?? responseProvenanceForCytometer(payload.cytometer, payload.measurement_mode)
+  const responseProvenance = responseProvenanceForPayload(
+    payload.cytometer,
+    payload.measurement_mode,
+    payload.response_provenance,
+  )
   const detectorNames = payload.detectors.map((detector) => detector.detector)
   const spectra = new Map(payload.spectra.map((row) => [
     row.fluorophore,
@@ -1005,6 +1014,7 @@ export function generateWizardResults(
     response_context: {
       cytometer: payload.cytometer,
       configuration: payload.configuration,
+      measurement_mode: payload.measurement_mode,
     },
     recommended: buildResult(
       'recommended',

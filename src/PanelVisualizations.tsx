@@ -31,7 +31,7 @@ import {
     laserWavelength,
     linePath,
     toSimilarityValue,
-    responseProvenanceForCytometer,
+    responseProvenanceForPayload,
 } from './panelBuilderShared';
 import type { NumericRow, PanelPayload, TabId } from './panelBuilderShared';
 
@@ -142,8 +142,11 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumLeft = 42;
     const spectrumRight = spectrumWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
-    const responseProvenance = payload.response_provenance
-        ?? responseProvenanceForCytometer(payload.cytometer, payload.measurement_mode);
+    const responseProvenance = responseProvenanceForPayload(
+        payload.cytometer,
+        payload.measurement_mode,
+        payload.response_provenance,
+    );
     const responseLabel = responseProvenance.class === 'synthetic_filter_proxy'
         ? 'detector peaks'
         : responseProvenance.class === 'measured_detector_response'

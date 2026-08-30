@@ -23,7 +23,7 @@ const wizard: WizardProjectState = {
   results: {
     scoring_version: WIZARD_SCORING_VERSION,
     response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
-    response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' },
+    response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
     recommended: {
       kind: 'recommended',
       rows: [],
@@ -217,7 +217,7 @@ describe('OpenPanel project files', () => {
         results: {
           scoring_version: WIZARD_SCORING_VERSION,
           response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'discover_spectra.csv' }),
-          response_context: { cytometer: 'discover', configuration: 'discover_s8' },
+          response_context: { cytometer: 'discover', configuration: 'discover_s8', measurement_mode: 'spectral' },
           recommended: {
             kind: 'recommended',
             rows: [{ markerId: 'm', markerName: 'CD3', slotIndex: 0, frequency: 'high', fluorophore: 'PE' }],
@@ -282,6 +282,22 @@ describe('OpenPanel project files', () => {
         : null,
     }
     expect(parseProject(serializeProject(staleProvenance)).wizard?.results).toBeNull()
+
+    const mismatchedProvenance = {
+      ...project,
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? {
+              ...project.wizard.results,
+              response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+            }
+            : null,
+        }
+        : null,
+    }
+    expect(parseProject(serializeProject(mismatchedProvenance)).wizard?.results).toBeNull()
   })
 
   test('invalidates wizard results from a different cytometer or configuration', () => {
@@ -295,7 +311,7 @@ describe('OpenPanel project files', () => {
           results: project.wizard.results
             ? {
               ...project.wizard.results,
-              response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' },
+              response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
             }
             : null,
         }
@@ -311,7 +327,8 @@ describe('OpenPanel project files', () => {
       results: wizard.results
         ? {
           ...wizard.results,
-          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l' },
+          response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional' },
         }
         : null,
     }
@@ -338,7 +355,8 @@ describe('OpenPanel project files', () => {
       results: wizard.results
         ? {
           ...wizard.results,
-          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l' },
+          response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional' },
         }
         : null,
     }

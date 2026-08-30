@@ -10,6 +10,7 @@ import {
   withSpectrumPlotResizeTarget,
 } from '../src/PanelVisualizations'
 import type { DetectorInfo, NumericRow, PanelPayload } from '../src/panelBuilderShared'
+import { responseMatrixProvenance } from '../src/panelBuilderShared'
 
 vi.mock('../src/SpectrumBandPlot', () => ({
   SpectrumBandPlot: ({ fluorophore }: { fluorophore: string }) => (
@@ -75,7 +76,12 @@ function Wrapper({
   const [tab, setTab] = useState<typeof initialTab>(initialTab)
   const [scale, setScale] = useState(100)
   const activePayload = mode === 'conventional'
-    ? { ...payload, measurement_mode: 'conventional' as const }
+    ? {
+      ...payload,
+      cytometer: 'fortessa',
+      measurement_mode: 'conventional' as const,
+      response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+    }
     : payload
   return (
     <PanelVisualizations

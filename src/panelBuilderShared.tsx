@@ -46,7 +46,6 @@ type ResponseMatrixProvenance = {
 
 const RESPONSE_PROVENANCE_CONTRACT_VERSION = 'response-provenance-v1';
 const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v1';
-
 const responseProvenanceDefaults: Record<ResponseMatrixProvenanceClass, Omit<ResponseMatrixProvenance, 'class'>> = {
     measured_full_spectrum: {
         label: 'Measured/full-spectrum response',
@@ -80,15 +79,36 @@ const responseMatrixProvenance = (
     ...overrides,
 });
 
+const FULL_SPECTRUM_CYTOMETER_KEYS = ['aurora', 'discover', 'id7000', 'xenith'];
+const CONVENTIONAL_CYTOMETER_KEYS = [
+    'symphony', 'fortessa', 'celesta', 'attunenxt', 'accuri', 'calibur', 'canto', 'lyric',
+    'ze5', 'cytpix', 'quanteon', 'macsquant', 'facsverse', 'lsrii', 'cytoflex', 'navios',
+    'dxflex', 'facsaria',
+];
+
+const normalizedCytometerKey = (cytometer: string): string => (
+    String(cytometer ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+);
+
+const responseMeasurementModeForCytometer = (cytometer: string): PanelMeasurementMode => {
+    const normalizedCytometer = normalizedCytometerKey(cytometer);
+    return CONVENTIONAL_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+        ? 'conventional'
+        : 'spectral';
+};
+
 const responseProvenanceForCytometer = (
     cytometer: string,
     measurementMode: PanelMeasurementMode,
     source?: string,
 ): ResponseMatrixProvenance => {
-    const normalizedCytometer = String(cytometer ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-    const provenanceClass: ResponseMatrixProvenanceClass = normalizedCytometer.includes('facsymphony')
-        || normalizedCytometer === 'symphony'
+    const normalizedCytometer = normalizedCytometerKey(cytometer);
+    const provenanceClass: ResponseMatrixProvenanceClass = normalizedCytometer.includes('symphony')
         ? 'measured_detector_response'
+        : FULL_SPECTRUM_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+            ? 'measured_full_spectrum'
+        : CONVENTIONAL_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+            ? 'synthetic_filter_proxy'
         : measurementMode === 'conventional'
             ? 'synthetic_filter_proxy'
             : 'measured_full_spectrum';
@@ -112,6 +132,19 @@ const isResponseMatrixProvenance = (value: unknown): value is ResponseMatrixProv
         && typeof record.source === 'string'
         && typeof record.limitation === 'string'
     );
+};
+
+const responseProvenanceForPayload = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    provided?: unknown,
+): ResponseMatrixProvenance => {
+    const expected = responseProvenanceForCytometer(cytometer, measurementMode);
+    return isResponseMatrixProvenance(provided)
+        && provided.class === expected.class
+        && provided.version === expected.version
+        ? provided
+        : expected;
 };
 
 type LibraryInfo = {
@@ -488,6 +521,8 @@ export {
     responseMatrixProvenance,
     responseProvenanceForCytometer,
     responseProvenanceForMeasurementMode,
+    responseMeasurementModeForCytometer,
+    responseProvenanceForPayload,
     RESPONSE_PROVENANCE_CONTRACT_VERSION,
     WIZARD_SCORING_VERSION,
 };

@@ -56,7 +56,7 @@ describe('IndexedDB fallback error paths', () => {
         results: {
           scoring_version: WIZARD_SCORING_VERSION,
           response_provenance: responseMatrixProvenance('measured_full_spectrum'),
-          response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' },
+          response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
           recommended: {
             kind: 'recommended',
             rows: [{ markerId: 'm1', markerName: 'CD3', slotIndex: 0, antigenDensity: 'medium', fluorophore: 'FITC' }],
@@ -81,14 +81,14 @@ describe('IndexedDB fallback error paths', () => {
     expect(normalizeWizardResults({
       scoring_version: WIZARD_SCORING_VERSION,
       response_provenance: responseMatrixProvenance('measured_full_spectrum'),
-      response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' },
+      response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
       recommended: { kind: 'recommended', rows: [], alternatives: [] },
       bestFit: { kind: 'best-fit', rows: [], alternatives: [] },
     })?.bestFit.kind).toBe('best-fit')
     expect(normalizeWizardResults({
       scoring_version: 'wizard-response-provenance-v0',
       response_provenance: responseMatrixProvenance('measured_full_spectrum'),
-      response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' },
+      response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
       recommended: { kind: 'recommended', rows: [], alternatives: [] },
       bestFit: { kind: 'best-fit', rows: [], alternatives: [] },
     })).toBeNull()

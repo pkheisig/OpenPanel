@@ -3,6 +3,7 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { PanelWizard } from '../src/PanelWizard'
+import { responseMatrixProvenance } from '../src/panelBuilderShared'
 
 const mocks = vi.hoisted(() => ({
   buildPanelPayload: vi.fn(),
@@ -389,7 +390,9 @@ describe('PanelWizard component', () => {
 
   test('renders existing results, conventional wording, and template imports', async () => {
     renderWizard({
+      cytometer: 'fortessa',
       measurementMode: 'conventional',
+      responseProvenance: responseMatrixProvenance('synthetic_filter_proxy'),
       initialState: {
         desiredSize: 2,
         markers: [
