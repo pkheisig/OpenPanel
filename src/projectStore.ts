@@ -723,16 +723,22 @@ function recoverStoredProjectState(value: Record<string, unknown>): ProjectState
   const safeMarkers = (candidate: unknown): Record<string, string> => {
     if (!isRecord(candidate)) return {}
     return Object.fromEntries(
-      Object.entries(candidate).slice(0, PROJECT_RESOURCE_LIMITS.maxMarkers).map(([key, marker]) => [
-        key,
-        typeof marker === 'string' && marker.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? marker : '',
-      ]),
+      Object.entries(candidate)
+        .filter(([key]) => key.trim() !== '' && Number.isInteger(Number(key)) && Number(key) >= 0)
+        .slice(0, PROJECT_RESOURCE_LIMITS.maxMarkers)
+        .map(([key, marker]) => [
+          key,
+          typeof marker === 'string' && marker.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? marker : '',
+        ]),
     )
   }
+  const safeCytometer = safeString(value.cytometer, 'aurora')
   const safeCytometerPanels: Record<string, Record<string, unknown>> = {}
-  if (isRecord(value.cytometerPanels)
-    && Object.keys(value.cytometerPanels).length <= PROJECT_RESOURCE_LIMITS.maxCytometerPanels) {
-    Object.entries(value.cytometerPanels).forEach(([key, panel]) => {
+  if (isRecord(value.cytometerPanels)) {
+    Object.entries(value.cytometerPanels)
+      .filter(([key]) => key !== safeCytometer)
+      .slice(0, PROJECT_RESOURCE_LIMITS.maxCytometerPanels - 1)
+      .forEach(([key, panel]) => {
       if (!isRecord(panel)) return
       safeCytometerPanels[key] = {
         configuration: safeString(panel.configuration, ''),
@@ -740,10 +746,10 @@ function recoverStoredProjectState(value: Record<string, unknown>): ProjectState
         markers: safeMarkers(panel.markers),
         wizard: null,
       }
-    })
+      })
   }
   return normalizeState({
-    cytometer: safeString(value.cytometer, 'aurora'),
+    cytometer: safeCytometer,
     configuration: safeString(value.configuration, '5l_uv_v_b_yg_r'),
     slots: safeSlots(value.slots),
     markers: safeMarkers(value.markers),

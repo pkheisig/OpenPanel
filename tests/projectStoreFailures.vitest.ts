@@ -232,6 +232,46 @@ describe('IndexedDB fallback error paths', () => {
     expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toBeNull()
   })
 
+  test('preserves valid marker keys while recovering malformed marker state', async () => {
+    const rawState = { ...state, markers: { 0: 'CD3', abc: 'CD4' } }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('invalid marker slot "abc"')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      state: { markers: { 0: 'CD3' } },
+      loadError: 'project.markers contains invalid marker slot "abc". Marker slots must be nonnegative integers.',
+    })
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('"abc":"CD4"')
+  })
+
+  test('keeps a bounded subset of oversized cytometer panels during recovery', async () => {
+    const rawPanel = {
+      id: 'many-panels',
+      name: 'Many panels',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: {
+        ...state,
+        cytometerPanels: Object.fromEntries(Array.from({ length: 65 }, (_, index) => [
+          `panel-${index}`,
+          { configuration: state.configuration, slots: [], markers: {}, wizard: null },
+        ])),
+      },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    const recovered = await loadPanelProject(rawPanel.id)
+    expect(recovered).toMatchObject({
+      id: rawPanel.id,
+      loadError: 'project.cytometerPanels contains 65 entries; maximum is 64.',
+    })
+    expect(Object.keys(recovered?.state.cytometerPanels ?? {})).toHaveLength(64)
+    expect(recovered?.state.cytometerPanels['panel-0']).toBeDefined()
+    expect(recovered?.state.cytometerPanels['panel-62']).toBeDefined()
+  })
+
   test('surfaces duplicate legacy active slots without normalizing them away', async () => {
     const rawState = { ...state, slots: ['FITC', 'fit-c'] }
     localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
