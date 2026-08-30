@@ -372,7 +372,7 @@ function normalizeProjectSlot(value: unknown): string {
 
 function projectSlotIdentity(value: string): string { return fluorophoreIdentity(value) }
 
-function alignWizardFluorophores(
+export function alignWizardFluorophores(
   wizard: WizardProjectState | null,
   slots: string[],
 ): WizardProjectState | null {

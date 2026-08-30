@@ -18,6 +18,7 @@ import {
     MAX_PLOT_SCALE,
     MIN_PLOT_SCALE,
     PROJECT_RESOURCE_LIMITS,
+    alignWizardFluorophores,
     saveActiveProject,
     savePanelProject,
     serializeProject,
@@ -1136,6 +1137,7 @@ const PanelBuilder = ({
             const nextSlots = state.slots.map((slot) => (
                 slot.trim() ? fluorophoreValidation.accepted[acceptedIndex++] : ''
             ));
+            const nextWizard = alignWizardFluorophores(state.wizard, nextSlots);
             const nextColorCount = new Set(nextSlots.filter(Boolean).map(fluorophoreIdentity)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
@@ -1148,7 +1150,7 @@ const PanelBuilder = ({
             setConfiguration(getCytometerName(nextPayload.configuration));
             slotsRef.current = nextSlots;
             markersRef.current = nextMarkers;
-            wizardStateRef.current = state.wizard;
+            wizardStateRef.current = nextWizard;
             setSlots(nextSlots);
             setMarkers(nextMarkers);
             setTab(state.tab);
@@ -1156,14 +1158,14 @@ const PanelBuilder = ({
             setSidebarWidth(state.sidebarWidth);
             setSidebarCollapsed(state.sidebarCollapsed);
             setPlotScale(state.plotScale);
-            setWizardState(state.wizard);
+            setWizardState(nextWizard);
             const nextCytometerPanels = {
                 ...state.cytometerPanels,
                 [state.cytometer]: {
                     configuration: getCytometerName(nextPayload.configuration),
                     slots: nextSlots,
                     markers: nextMarkers,
-                    wizard: state.wizard,
+                    wizard: nextWizard,
                 },
             };
             setCytometerPanels(nextCytometerPanels);
@@ -1172,6 +1174,7 @@ const PanelBuilder = ({
                 configuration: getCytometerName(nextPayload.configuration),
                 slots: nextSlots,
                 markers: nextMarkers,
+                wizard: nextWizard,
                 cytometerPanels: nextCytometerPanels,
             });
             clearPanelHistory();

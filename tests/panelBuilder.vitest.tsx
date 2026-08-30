@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   buildPanelPayload: vi.fn(),
   saveActiveProject: vi.fn(async () => undefined),
   savePanelProject: vi.fn(async () => undefined),
+  alignWizardFluorophores: vi.fn((wizard: unknown) => wizard),
   serializeProject: vi.fn((state: unknown) => JSON.stringify(state)),
   parseProject: vi.fn(),
   saveBlob: vi.fn(async () => undefined),
@@ -32,6 +33,7 @@ vi.mock('../src/projectStore', () => ({
   PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024, maxStringLength: 8192 },
   saveActiveProject: mocks.saveActiveProject,
   savePanelProject: mocks.savePanelProject,
+  alignWizardFluorophores: mocks.alignWizardFluorophores,
   serializeProject: mocks.serializeProject,
   parseProject: mocks.parseProject,
 }))
@@ -213,6 +215,8 @@ beforeEach(() => {
   mocks.createPanelOverviewPdf.mockImplementation(() => new Blob(['pdf'], { type: 'application/pdf' }))
   mocks.saveActiveProject.mockClear()
   mocks.savePanelProject.mockClear()
+  mocks.alignWizardFluorophores.mockReset()
+  mocks.alignWizardFluorophores.mockImplementation((wizard: unknown) => wizard)
   mocks.writeLocalStorage.mockClear()
   mocks.readThemePreference.mockReturnValue('light')
   HTMLElement.prototype.setPointerCapture = vi.fn()
@@ -629,6 +633,36 @@ describe('PanelBuilder', () => {
     mocks.createPanelOverviewPdf.mockImplementationOnce(() => { throw new Error('PDF failed') })
     fireEvent.click(screen.getByRole('button', { name: 'Generate PDF' }))
     await waitFor(() => expect(screen.getByText('PDF failed')).not.toBeNull())
+  })
+
+  test('aligns wizard fluorophores when importing a project', async () => {
+    const wizard: NonNullable<ProjectState['wizard']> = {
+      desiredSize: 1,
+      markers: [{ id: 'm1', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'A' }],
+      coexpression: {},
+      coexpressionVisited: false,
+      coexpressionCompleted: false,
+      inputsChanged: true,
+      activeTab: 'frequency',
+      results: null,
+      resultMode: 'recommended',
+      resultSort: 'recommended',
+    }
+    const importedState = { ...project, slots: ['B', ''], markers: {}, wizard }
+    const alignedWizard = { ...wizard, markers: [{ ...wizard.markers[0], currentFluorophore: 'B' }] }
+    mocks.parseProject.mockReturnValueOnce(importedState)
+    mocks.alignWizardFluorophores.mockReturnValueOnce(alignedWizard)
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={project} projectId="panel-1" projectName="My panel" />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(mocks.alignWizardFluorophores).toHaveBeenCalledWith(wizard, ['B', '']))
+    await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledWith(
+      'panel-1',
+      'My panel',
+      expect.objectContaining({ wizard: alignedWizard }),
+    ))
   })
 
   test('covers idle preloading, update/clear fallback errors, and null project imports', async () => {
