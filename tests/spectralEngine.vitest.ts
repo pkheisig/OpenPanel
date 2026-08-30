@@ -22,10 +22,12 @@ import {
   responseProvenanceForCytometer,
   responseProvenanceForMeasurementMode,
   responseProvenanceForPayload,
+  responseProvenanceMatchesPayload,
   responseProvenanceWarningForPayload,
   responseMeasurementModeForCytometer,
 } from '../src/panelBuilderShared'
 import { mockBundledData } from './helpers'
+import { CYTOMETER_ALIASES } from '../src/cytometerAliases'
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
 
@@ -440,6 +442,27 @@ describe('browser spectral engine parity', () => {
     expect(responseProvenanceForMeasurementMode('conventional')).toMatchObject({
       class: 'synthetic_filter_proxy',
     })
+    expect(responseProvenanceWarningForPayload('unknown-lab-prototype', 'spectral')).toContain('not recognized')
+    for (const conventionalCytometer of ['accuri_c6_plus', 'facscalibur', 'cytoflex_lx', 'facsaria_fusion']) {
+      expect(responseMeasurementModeForCytometer(conventionalCytometer)).toBe('conventional')
+      expect(responseProvenanceWarningForPayload(conventionalCytometer, 'conventional')).toBeNull()
+    }
+    for (const conventionalAlias of ['Thermo Scientific Attune NxT', 'Attune', 'BD Accuri C6 Plus', 'BD FACSCalibur']) {
+      expect(responseMeasurementModeForCytometer(conventionalAlias)).toBe('conventional')
+      expect(responseProvenanceWarningForPayload(conventionalAlias, 'conventional')).toBeNull()
+    }
+    const editorialChange = {
+      ...payload.response_provenance,
+      label: 'Edited display label',
+      method: 'Edited display method',
+      limitation: 'Edited display limitation',
+    }
+    expect(responseProvenanceMatchesPayload('fortessa', 'conventional', editorialChange)).toBe(true)
+    expect(responseProvenanceForPayload('fortessa', 'conventional', editorialChange)).toMatchObject({
+      label: payload.response_provenance.label,
+      method: payload.response_provenance.method,
+      limitation: payload.response_provenance.limitation,
+    })
     const forgedSource = { ...payload.response_provenance, source: 'aurora_spectra.csv' }
     expect(responseProvenanceForPayload('fortessa', 'conventional', forgedSource).source)
       .toBe('conventional_detector_dictionary.csv + fluorophore_dictionary.csv')
@@ -450,6 +473,26 @@ describe('browser spectral engine parity', () => {
       class: 'measured_detector_response',
       source: 'symphony_spectra.csv',
     })
+  })
+
+  test('keeps response provenance aliases aligned with cytometer resolution', () => {
+    for (const [alias, canonical] of Object.entries(CYTOMETER_ALIASES)) {
+      expect(resolveCytometer(alias)).toBe(canonical)
+      const measurementMode = responseMeasurementModeForCytometer(alias)
+      expect(measurementMode).toBe(canonical === 'aurora'
+        || canonical === 'discover'
+        || canonical === 'id7000'
+        || canonical === 'xenith'
+        ? 'spectral'
+        : 'conventional')
+      expect(responseProvenanceForCytometer(alias, measurementMode).class).toBe(
+        canonical === 'symphony'
+          ? 'measured_detector_response'
+          : measurementMode === 'spectral'
+              ? 'measured_full_spectrum'
+              : 'synthetic_filter_proxy',
+      )
+    }
   })
 
   test('restores the FACSymphony provenance fallback for legacy payloads', async () => {

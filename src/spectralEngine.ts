@@ -22,32 +22,9 @@ import type {
   ResponseMatrixProvenance,
 } from './panelBuilderShared'
 import { responseProvenanceForCytometer } from './panelBuilderShared'
+import { CYTOMETER_ALIASES, type CytometerId } from './cytometerAliases'
 
 export { resolveBundledFluorophoreKey } from './fluorophoreNames'
-
-type CytometerId =
-  | 'aurora'
-  | 'discover'
-  | 'id7000'
-  | 'xenith'
-  | 'symphony'
-  | 'fortessa'
-  | 'celesta'
-  | 'attune_nxt'
-  | 'accuri_c6_plus'
-  | 'facscalibur'
-  | 'canto'
-  | 'lyric'
-  | 'ze5'
-  | 'cytpix'
-  | 'quanteon'
-  | 'macsquant'
-  | 'facsverse'
-  | 'lsrii'
-  | 'cytoflex_lx'
-  | 'navios'
-  | 'dxflex'
-  | 'facsaria_fusion'
 
 type CsvRow = Record<string, string>
 
@@ -212,99 +189,6 @@ const LIBRARY_FILES: Partial<Record<CytometerId, string>> = {
   id7000: 'id7000_spectra.csv',
   xenith: 'xenith_spectra.csv',
   symphony: 'symphony_spectra.csv',
-}
-
-const CYTOMETER_ALIASES: Record<string, CytometerId> = {
-  aurora: 'aurora',
-  cytekaurora: 'aurora',
-  discover: 'discover',
-  facsdiscover: 'discover',
-  bdfacsdiscover: 'discover',
-  discovers8: 'discover',
-  discovera8: 'discover',
-  id7000: 'id7000',
-  sonyid7000: 'id7000',
-  xenith: 'xenith',
-  attunexenith: 'xenith',
-  thermofisherxenith: 'xenith',
-  thermofisherattunexenith: 'xenith',
-  thermoscientificxenith: 'xenith',
-  thermoscientificattunexenith: 'xenith',
-  symphony: 'symphony',
-  facsymphony: 'symphony',
-  facssymphony: 'symphony',
-  bdfacsymphony: 'symphony',
-  a5se: 'symphony',
-  bdfacsymphonya5se: 'symphony',
-  bdfacssymphonya5se: 'symphony',
-  fortessa: 'fortessa',
-  lsrfortessa: 'fortessa',
-  bdlsrfortessa: 'fortessa',
-  celesta: 'celesta',
-  facscelesta: 'celesta',
-  bdfacscelesta: 'celesta',
-  bdcelesta: 'celesta',
-  attune: 'attune_nxt',
-  attunenxt: 'attune_nxt',
-  thermofisherattunenxt: 'attune_nxt',
-  thermoscientificattunenxt: 'attune_nxt',
-  accuri: 'accuri_c6_plus',
-  accuric6: 'accuri_c6_plus',
-  accuric6plus: 'accuri_c6_plus',
-  bdaccuric6plus: 'accuri_c6_plus',
-  facscalibur: 'facscalibur',
-  bdfacscalibur: 'facscalibur',
-  calibur: 'facscalibur',
-  canto: 'canto',
-  facscanto: 'canto',
-  facscanto2: 'canto',
-  facscantoii: 'canto',
-  bdfacscanto: 'canto',
-  bdfacscanto2: 'canto',
-  bdfacscantoii: 'canto',
-  lyric: 'lyric',
-  facslyric: 'lyric',
-  bdfacslyric: 'lyric',
-  ze5: 'ze5',
-  bioradze5: 'ze5',
-  bioradze5cellanalyzer: 'ze5',
-  cytpix: 'cytpix',
-  attunecytpix: 'cytpix',
-  thermofisherattunecytpix: 'cytpix',
-  thermoscientificattunecytpix: 'cytpix',
-  quanteon: 'quanteon',
-  novocytequanteon: 'quanteon',
-  agilentnovocytequanteon: 'quanteon',
-  macsquant: 'macsquant',
-  macsquantanalyzer: 'macsquant',
-  macsquantanalyzer10: 'macsquant',
-  macsquantanalyzer16: 'macsquant',
-  macsquantvyb: 'macsquant',
-  miltenyimacsquantanalyzer10: 'macsquant',
-  miltenyimacsquantanalyzer16: 'macsquant',
-  miltenyimacsquantvyb: 'macsquant',
-  miltenyimacsquant: 'macsquant',
-  facsverse: 'facsverse',
-  bdfacsverse: 'facsverse',
-  lsr2: 'lsrii',
-  lsrii: 'lsrii',
-  bdlsr2: 'lsrii',
-  bdlsrii: 'lsrii',
-  cytoflex: 'cytoflex_lx',
-  cytoflexlx: 'cytoflex_lx',
-  beckmancytoflexlx: 'cytoflex_lx',
-  beckmancoultercytoflexlx: 'cytoflex_lx',
-  navios: 'navios',
-  naviosex: 'navios',
-  beckmannavios: 'navios',
-  beckmancoulternavios: 'navios',
-  dxf: 'dxflex',
-  dxflex: 'dxflex',
-  beckmandxflex: 'dxflex',
-  beckmancoulterdxflex: 'dxflex',
-  facsariafusion: 'facsaria_fusion',
-  bdfacsariafusion: 'facsaria_fusion',
-  ariafusion: 'facsaria_fusion',
 }
 
 const CONFIGURATIONS: Record<CytometerId, ConfigurationInfo[]> = {

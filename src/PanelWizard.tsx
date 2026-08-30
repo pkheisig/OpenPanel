@@ -508,6 +508,7 @@ export function PanelWizard({
       setCalculatingContext(null)
       setResults(null)
       setResultContext(null)
+      setResultsInvalidated(false)
     }
     let active = true
     void loadPanelWizardReferences(cytometer, configuration).then((references) => {
@@ -569,6 +570,7 @@ export function PanelWizard({
     setCalculatingContext(null)
     setResults(null)
     setResultContext(null)
+    setResultsInvalidated(false)
     setError('')
   }
 
