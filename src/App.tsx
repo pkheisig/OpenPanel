@@ -100,7 +100,7 @@ export default function App() {
     }
   }, [])
 
-  const refreshPanels = async (recoveryPanel: StoredPanelProject | null | undefined = activePanel) => {
+  const refreshPanels = async (recoveryPanel: StoredPanelProject | null) => {
     setPanels(includeRecoveryPanel(await listPanelProjects(), recoveryPanel))
   }
 
@@ -114,7 +114,7 @@ export default function App() {
         panels={panels}
         onStart={async (selection) => {
           const panel = await createPanelProject(selection.name, emptyProject(selection))
-          setPanels(await listPanelProjects())
+          await refreshPanels(activePanel)
           setActivePanel(panel)
           rememberSurface('editor')
           setShowLanding(false)
@@ -136,7 +136,7 @@ export default function App() {
           const payload = await buildPanelPayload(
             state.cytometer,
             configuration,
-            state.slots.filter(Boolean),
+            state.slots.filter((slot) => slot.trim()),
             true,
           )
           if (validation.accepted.length > payload.max_panel_size) {
@@ -149,7 +149,7 @@ export default function App() {
           const canonicalMarkers = Object.fromEntries(
             Object.entries(state.markers).filter(([index]) => canonicalSlots[Number(index)]),
           ) as Record<number, string>
-          const activePanel = state.cytometerPanels[state.cytometer]
+          const activeCytometerPanel = state.cytometerPanels[state.cytometer]
           const canonicalState: ProjectState = {
             ...state,
             slots: canonicalSlots,
@@ -157,7 +157,7 @@ export default function App() {
             cytometerPanels: {
               ...state.cytometerPanels,
               [state.cytometer]: {
-                ...(activePanel ?? { configuration, wizard: state.wizard }),
+                ...(activeCytometerPanel ?? { configuration, wizard: state.wizard }),
                 configuration,
                 slots: canonicalSlots,
                 markers: canonicalMarkers,
@@ -169,7 +169,7 @@ export default function App() {
             projectNameFromFilename(file.name),
             canonicalState,
           )
-          await refreshPanels()
+          await refreshPanels(activePanel)
           setActivePanel(panel)
           rememberSurface('editor')
           setShowLanding(false)
@@ -188,20 +188,20 @@ export default function App() {
         onRename={async (panel, name) => {
           const renamed = await renamePanelProject(panel.id, name)
           if (renamed && activePanel?.id === renamed.id) setActivePanel(renamed)
-          await refreshPanels()
+          await refreshPanels(activePanel)
         }}
         onDuplicate={async (panel) => {
           await duplicatePanelProject(panel.id)
-          await refreshPanels()
+          await refreshPanels(activePanel)
         }}
         onArchive={async (panel) => {
           await archivePanelProject(panel.id)
           if (activePanel?.id === panel.id) setActivePanel(null)
-          await refreshPanels()
+          await refreshPanels(activePanel)
         }}
         onRestore={async (panel) => {
           await restorePanelProject(panel.id)
-          await refreshPanels()
+          await refreshPanels(activePanel)
         }}
         onDelete={async (panel) => {
           await deletePanelProject(panel.id)
@@ -228,7 +228,7 @@ export default function App() {
       recoveryMode={Boolean(activePanel.loadError)}
       onRequestExit={async () => {
         rememberSurface('landing')
-        await refreshPanels()
+        await refreshPanels(activePanel)
         setShowLanding(true)
       }}
     />

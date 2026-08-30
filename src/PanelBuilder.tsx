@@ -1119,7 +1119,7 @@ const PanelBuilder = ({
             const nextPayload = await fetchPanel(
                 state.cytometer,
                 configuration,
-                state.slots.filter(Boolean),
+                state.slots.filter((slot) => slot.trim()),
                 true,
                 true,
                 false,
