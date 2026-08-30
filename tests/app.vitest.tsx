@@ -22,7 +22,9 @@ vi.mock('../src/LandingPage', () => ({
     <section aria-label="mock landing">
       <button type="button" onClick={() => void props.onStart({ name: 'Started', cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' })}>start</button>
       <button type="button" onClick={() => void props.onStart({ name: 'Configured', cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', slots: ['FITC'], markers: { 0: 'CD3' } })}>start configured</button>
+      <button type="button" onClick={() => void Promise.resolve(props.onStart({ name: 'Blocked', cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' })).catch((error: Error) => { fixtures.calls.push(`start-error:${error.message}`) })}>start blocked</button>
       <button type="button" onClick={() => void props.onImport({ name: 'import.json', text: async () => '{}' })}>import</button>
+      <button type="button" onClick={() => void Promise.resolve(props.onImport({ name: 'blocked.json', text: async () => '{}' })).catch((error: Error) => { fixtures.calls.push(`import-error:${error.message}`) })}>import blocked</button>
       <button type="button" onClick={() => void props.onExport(fixtures.project)}>export</button>
       <button type="button" onClick={() => void props.onRename(fixtures.project, 'Renamed')}>rename</button>
       <button type="button" onClick={() => void props.onDuplicate(fixtures.project)}>duplicate</button>
@@ -144,6 +146,21 @@ describe('App surface restoration and handoff', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: 'mock editor' })).not.toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'exit' }))
     await waitFor(() => expect(screen.getByTestId('recovery-present')).not.toBeNull())
+  })
+
+  test('blocks new projects from overwriting a legacy recovery record', async () => {
+    fixtures.restored = { ...fixtures.project, id: 'active', loadError: 'project is oversized.' }
+    fixtures.surface = 'landing'
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'start blocked' }))
+    fireEvent.click(screen.getByRole('button', { name: 'import blocked' }))
+    await waitFor(() => expect(fixtures.calls).toEqual([
+      'start-error:Recover or delete the legacy panel before starting or importing another project.',
+      'import-error:Recover or delete the legacy panel before starting or importing another project.',
+    ]))
+    expect(vi.mocked(createPanelProject)).not.toHaveBeenCalled()
+    expect(vi.mocked(readTextFileWithinLimit)).not.toHaveBeenCalled()
   })
 
   test('canonicalizes accepted aliases before creating an imported panel', async () => {

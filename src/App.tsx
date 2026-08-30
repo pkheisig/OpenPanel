@@ -104,6 +104,12 @@ export default function App() {
     setPanels(includeRecoveryPanel(await listPanelProjects(), recoveryPanel))
   }
 
+  const assertLegacyRecoveryResolved = () => {
+    if (activePanel?.id === 'active' && activePanel.loadError) {
+      throw new Error('Recover or delete the legacy panel before starting or importing another project.')
+    }
+  }
+
   if (loading) {
     return <div className="app-loading" role="status">Opening your last panel…</div>
   }
@@ -113,6 +119,7 @@ export default function App() {
       <LandingPage
         panels={panels}
         onStart={async (selection) => {
+          assertLegacyRecoveryResolved()
           const panel = await createPanelProject(selection.name, emptyProject(selection))
           await refreshPanels(activePanel)
           setActivePanel(panel)
@@ -120,6 +127,7 @@ export default function App() {
           setShowLanding(false)
         }}
         onImport={async (file) => {
+          assertLegacyRecoveryResolved()
           const state = parseProject(await readTextFileWithinLimit(
             file,
             PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
