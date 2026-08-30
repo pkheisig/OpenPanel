@@ -409,6 +409,7 @@ describe('browser spectral engine parity', () => {
 
     expect(results.scoring_version).toBe('wizard-response-provenance-v1')
     expect(results.response_provenance).toMatchObject({ class: 'synthetic_filter_proxy' })
+    expect(results.response_context).toEqual({ cytometer: 'fortessa', configuration: 'fortessa_3l' })
   })
 
   test('maps public-data conventional fluorophore estimates on compatible detectors', async () => {

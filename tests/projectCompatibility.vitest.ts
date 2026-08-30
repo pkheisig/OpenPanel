@@ -23,6 +23,7 @@ const wizard: WizardProjectState = {
   results: {
     scoring_version: WIZARD_SCORING_VERSION,
     response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
+    response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' },
     recommended: {
       kind: 'recommended',
       rows: [],
@@ -216,6 +217,7 @@ describe('OpenPanel project files', () => {
         results: {
           scoring_version: WIZARD_SCORING_VERSION,
           response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'discover_spectra.csv' }),
+          response_context: { cytometer: 'discover', configuration: 'discover_s8' },
           recommended: {
             kind: 'recommended',
             rows: [{ markerId: 'm', markerName: 'CD3', slotIndex: 0, frequency: 'high', fluorophore: 'PE' }],
@@ -280,6 +282,27 @@ describe('OpenPanel project files', () => {
         : null,
     }
     expect(parseProject(serializeProject(staleProvenance)).wizard?.results).toBeNull()
+  })
+
+  test('invalidates wizard results from a different cytometer or configuration', () => {
+    const mismatched = {
+      ...project,
+      cytometer: 'discover',
+      configuration: 'discover_s8',
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? {
+              ...project.wizard.results,
+              response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' },
+            }
+            : null,
+        }
+        : null,
+      cytometerPanels: {},
+    }
+    expect(parseProject(serializeProject(mismatched)).wizard?.results).toBeNull()
   })
 
   test('uses defaults and legacy plot-height conversion for incomplete state', () => {

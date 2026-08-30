@@ -63,9 +63,15 @@ export type WizardPanelResult = {
   averageAvailability: number
 }
 
+export type WizardResponseContext = {
+  cytometer: string
+  configuration: string
+}
+
 export type WizardResults = {
   scoring_version?: typeof WIZARD_SCORING_VERSION
   response_provenance?: ResponseMatrixProvenance
+  response_context?: WizardResponseContext
   recommended: WizardPanelResult
   bestFit: WizardPanelResult
 }
@@ -988,6 +994,10 @@ export function generateWizardResults(
   return {
     scoring_version: WIZARD_SCORING_VERSION,
     response_provenance: responseProvenance,
+    response_context: {
+      cytometer: payload.cytometer,
+      configuration: payload.configuration,
+    },
     recommended: buildResult(
       'recommended',
       recommendedSelection,

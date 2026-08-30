@@ -11,6 +11,7 @@ import type {
   AntigenDensity,
   WizardPanelResult,
   WizardProjectState,
+  WizardResponseContext,
   WizardResults,
 } from './panelWizardEngine'
 
@@ -120,26 +121,45 @@ export function normalizeWizardPanelResult(value: unknown): WizardPanelResult | 
   } as unknown as WizardPanelResult
 }
 
-export function normalizeWizardResults(value: unknown): WizardResults | null {
+function isWizardResponseContext(value: unknown): value is WizardResponseContext {
+  return isRecord(value)
+    && typeof value.cytometer === 'string'
+    && typeof value.configuration === 'string'
+}
+
+export function normalizeWizardResults(
+  value: unknown,
+  expectedContext?: WizardResponseContext,
+): WizardResults | null {
   if (!isRecord(value)) return null
   if (value.scoring_version !== WIZARD_SCORING_VERSION) return null
   if (
     !isResponseMatrixProvenance(value.response_provenance)
     || value.response_provenance.version !== RESPONSE_PROVENANCE_CONTRACT_VERSION
   ) return null
+  const responseContext = value.response_context
+  if (!isWizardResponseContext(responseContext)) return null
+  if (expectedContext && (
+    responseContext.cytometer !== expectedContext.cytometer
+    || responseContext.configuration !== expectedContext.configuration
+  )) return null
   const recommended = normalizeWizardPanelResult(value.recommended)
   const bestFit = normalizeWizardPanelResult(value.bestFit)
   return recommended && bestFit
     ? {
       scoring_version: WIZARD_SCORING_VERSION,
       response_provenance: value.response_provenance,
+      response_context: responseContext,
       recommended,
       bestFit,
     }
     : null
 }
 
-function normalizeWizardState(value: unknown): WizardProjectState | null {
+function normalizeWizardState(
+  value: unknown,
+  expectedContext?: WizardResponseContext,
+): WizardProjectState | null {
   if (!isRecord(value) || !Array.isArray(value.markers)) return null
   const markers = value.markers
     .filter(isRecord)
@@ -170,7 +190,7 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
     && ['baseline', 'inflammatory', 'tumor'].includes(String(rawContext.condition))
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
-  const rawResults = normalizeWizardResults(value.results)
+  const rawResults = normalizeWizardResults(value.results, expectedContext)
   const activeTab = value.activeTab === 'coexpression' || value.activeTab === 'recommendations'
     ? value.activeTab
     : 'frequency'
@@ -212,16 +232,18 @@ function normalizeMarkers(value: unknown): Record<number, string> {
 function normalizeCytometerPanel(
   value: unknown,
   fallbackConfiguration: string,
+  cytometer: string,
 ): CytometerPanelState | null {
   if (!isRecord(value)) return null
   const configuration = scalar(value.configuration)
+  const effectiveConfiguration = typeof configuration === 'string' && configuration
+    ? configuration
+    : fallbackConfiguration
   return {
-    configuration: typeof configuration === 'string' && configuration
-      ? configuration
-      : fallbackConfiguration,
+    configuration: effectiveConfiguration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard),
+    wizard: normalizeWizardState(value.wizard, { cytometer, configuration: effectiveConfiguration }),
   }
 }
 
@@ -248,14 +270,14 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
     configuration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard),
+    wizard: normalizeWizardState(value.wizard, { cytometer, configuration }),
   }
   const rawCytometerPanels = isRecord(value.cytometerPanels) ? value.cytometerPanels : {}
   const cytometerPanels = Object.fromEntries(
     Object.entries(rawCytometerPanels)
       .map(([key, panel]) => [
         key,
-        normalizeCytometerPanel(panel, key === cytometer ? configuration : ''),
+        normalizeCytometerPanel(panel, key === cytometer ? configuration : '', key),
       ] as const)
       .filter((entry): entry is [string, CytometerPanelState] => entry[1] !== null),
   )
