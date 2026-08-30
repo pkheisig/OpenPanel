@@ -2616,7 +2616,7 @@ function validateRequestedFromBase(
       })
       return
     }
-    accepted.push(requested)
+    accepted.push(canonicalFluorophore)
   })
   return { accepted, diagnostics }
 }

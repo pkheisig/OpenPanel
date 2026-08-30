@@ -518,7 +518,11 @@ const matchImportedFluor = (value: string, lookup: Map<string, string>) => {
     return '';
 };
 
-const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]): ImportedPanelRows => {
+const detectImportedPanelRows = (
+    text: string,
+    fluorophores: FluorInfo[],
+    maxMarkerLength = Number.POSITIVE_INFINITY,
+): ImportedPanelRows => {
     const rows = parseCsvLikeRows(text);
     if (rows.length === 0) throw new Error('The imported CSV file is empty.');
 
@@ -585,6 +589,17 @@ const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]): Impor
             });
             return;
         }
+        const marker = markerCol === undefined ? '' : (row.values[markerCol] || '').trim();
+        if (marker.length > maxMarkerLength) {
+            diagnostics.push({
+                sourceRow: row.sourceRow,
+                rawFluorophore,
+                canonicalFluorophore: fluor,
+                status: 'invalid',
+                reason: `The marker name exceeds the maximum length of ${maxMarkerLength} characters.`,
+            });
+            return;
+        }
         seen.add(fluor);
         firstSourceRowByFluor.set(fluor, row.sourceRow);
         diagnostics.push({
@@ -596,7 +611,7 @@ const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]): Impor
         });
         imported.push({
             fluor,
-            marker: markerCol === undefined ? '' : (row.values[markerCol] || '').trim(),
+            marker,
         });
     });
 

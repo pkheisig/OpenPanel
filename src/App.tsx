@@ -111,9 +111,32 @@ export default function App() {
           if (validation.diagnostics.length > 0) {
             throw new PanelSelectionValidationError(validation.diagnostics)
           }
+          let acceptedIndex = 0
+          const canonicalSlots = state.slots.map((slot) => (
+            slot.trim() ? validation.accepted[acceptedIndex++] : ''
+          ))
+          const canonicalMarkers = Object.fromEntries(
+            Object.entries(state.markers).filter(([index]) => canonicalSlots[Number(index)]),
+          ) as Record<number, string>
+          const activePanel = state.cytometerPanels[state.cytometer]
+          const canonicalState: ProjectState = {
+            ...state,
+            slots: canonicalSlots,
+            markers: canonicalMarkers,
+            cytometerPanels: {
+              ...state.cytometerPanels,
+              [state.cytometer]: {
+                ...(activePanel ?? { configuration: state.configuration, wizard: state.wizard }),
+                configuration: state.configuration,
+                slots: canonicalSlots,
+                markers: canonicalMarkers,
+                wizard: state.wizard,
+              },
+            },
+          }
           const panel = await createPanelProject(
             projectNameFromFilename(file.name),
-            state,
+            canonicalState,
           )
           await refreshPanels()
           setActivePanel(panel)

@@ -439,6 +439,12 @@ export function serializeProject(state: ProjectState): string {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
   assertProjectResourceLimits(normalizedState)
+  const serialized = serializeNormalizedProject(normalizedState)
+  assertProjectTextWithinLimit(serialized)
+  return serialized
+}
+
+function serializeNormalizedProject(normalizedState: ProjectState): string {
   const project: OpenPanelProject = {
     kind: PROJECT_FILE_KIND,
     version: PROJECT_FILE_VERSION,
@@ -446,9 +452,7 @@ export function serializeProject(state: ProjectState): string {
     ...normalizedState,
     markers: Object.fromEntries(Object.entries(normalizedState.markers).map(([key, value]) => [Number(key), String(value)])),
   }
-  const serialized = `${JSON.stringify(project, null, 2)}\n`
-  assertProjectTextWithinLimit(serialized)
-  return serialized
+  return `${JSON.stringify(project, null, 2)}\n`
 }
 
 function normalizeState(value: Record<string, unknown>, traverseResourceTree = true): ProjectState {
@@ -532,7 +536,9 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
     ? record.config as Record<string, unknown>
     : record
   if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
-  return normalizeState(legacyConfig, false)
+  const normalized = normalizeState(legacyConfig, false)
+  assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
+  return normalized
 }
 
 export function parseProject(text: string): ProjectState {

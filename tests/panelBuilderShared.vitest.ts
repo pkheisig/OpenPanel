@@ -157,6 +157,7 @@ describe('panel rendering helpers', () => {
     expect(detectImportedPanelRows('"Fluorophore","Marker"\n"PE (R-phycoerythrin)","CD""4"', fluorophores).rows).toEqual([
       { marker: 'CD"4', fluor: 'PE (R-phycoerythrin)' },
     ])
+    expect(() => detectImportedPanelRows(`Marker,Fluorophore\n${'x'.repeat(8193)},Alexa Fluor 488`, fluorophores, 8192)).toThrow('marker name')
     expect(() => detectImportedPanelRows('Marker,Fluorophore\nCD3,Unknown', [])).toThrow('No known fluorophores')
   })
 

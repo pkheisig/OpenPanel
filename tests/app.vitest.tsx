@@ -79,7 +79,7 @@ vi.mock('../src/browserStorage', () => ({
 vi.mock('../src/themePreference', () => ({ readThemePreference: vi.fn(() => 'light') }))
 
 import App from '../src/App'
-import { loadLastPanelProject } from '../src/projectStore'
+import { createPanelProject, loadLastPanelProject } from '../src/projectStore'
 import { readTextFileWithinLimit } from '../src/browserFiles'
 import { validateRequestedFluorophores } from '../src/spectralEngine'
 
@@ -129,6 +129,19 @@ describe('App surface restoration and handoff', () => {
       '5l_uv_v_b_yg_r',
       [],
     )
+  })
+
+  test('canonicalizes accepted aliases before creating an imported panel', async () => {
+    fixtures.surface = 'landing'
+    fixtures.project.state = { ...fixtures.project.state, slots: ['Alias', ''], markers: { 0: 'CD3' } }
+    vi.mocked(validateRequestedFluorophores).mockResolvedValueOnce({ accepted: ['Canonical'], diagnostics: [] })
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'import' }))
+    await waitFor(() => expect(vi.mocked(createPanelProject)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ slots: ['Canonical', ''], markers: { 0: 'CD3' } }),
+    ))
   })
 
   test('passes configured slots and handles callbacks for the active landing panel', async () => {

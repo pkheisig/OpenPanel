@@ -818,6 +818,10 @@ const PanelBuilder = ({
 
     const updateMarkerWithHistory = useCallback((slotIndex: number, value: string) => {
         if ((markersRef.current[slotIndex] ?? '') === value) return;
+        if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
+            setError(`Marker names cannot exceed ${PROJECT_RESOURCE_LIMITS.maxStringLength} characters.`);
+            return;
+        }
         recordPanelEdit();
         const nextMarkers = { ...markersRef.current };
         if (value) nextMarkers[slotIndex] = value;
@@ -1043,7 +1047,7 @@ const PanelBuilder = ({
                 PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
                 'Panel CSV',
             );
-            const imported = detectImportedPanelRows(text, payload.fluorophores);
+            const imported = detectImportedPanelRows(text, payload.fluorophores, PROJECT_RESOURCE_LIMITS.maxStringLength);
             if (imported.rows.length > payload.max_panel_size) {
                 throw new Error(`The imported panel contains ${imported.rows.length} colors, but this configuration supports at most ${payload.max_panel_size} colors (${payload.max_panel_size} detectors).`);
             }

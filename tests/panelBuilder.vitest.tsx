@@ -26,7 +26,7 @@ vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
   MIN_PLOT_SCALE: 40,
   MAX_PLOT_SCALE: 180,
-  PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024 },
+  PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024, maxStringLength: 8192 },
   saveActiveProject: mocks.saveActiveProject,
   savePanelProject: mocks.savePanelProject,
   serializeProject: mocks.serializeProject,
@@ -58,6 +58,7 @@ vi.mock('../src/PanelVisualizations', () => ({
       <button type="button" onClick={() => setTab('similarity')}>Mock similarity</button>
       <button type="button" onClick={() => setTab('signatures')}>Mock signatures</button>
       <button type="button" onClick={() => onMarkerChange(0, 'CD4')}>Mock marker</button>
+      <button type="button" onClick={() => onMarkerChange(0, 'x'.repeat(8193))}>Mock oversized marker</button>
       <button type="button" onClick={() => onMarkerChange(0, '')}>Mock clear marker</button>
       <button type="button" onClick={() => onMarkerChange(0, `CD${++uniqueMarkerCounter}`)}>Mock unique marker</button>
       <span>{error}</span>
@@ -243,6 +244,8 @@ describe('PanelBuilder', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mock oversized marker' }))
+    expect(screen.getByText('Marker names cannot exceed 8192 characters.')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Mock clear marker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Mock similarity' }))
     const selectors = screen.getAllByPlaceholderText('Select fluorophore') as HTMLInputElement[]
