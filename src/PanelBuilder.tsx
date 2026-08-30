@@ -197,12 +197,25 @@ export function createPanelBuilderProjectState(
         markers,
         wizard,
     };
-    const canonicalPanels = Object.fromEntries(
-        Object.entries(cytometerPanels).map(([panelCytometer, panel]) => [
-            CYTOMETER_ALIASES[panelCytometer.toLowerCase().replace(/[^a-z0-9]+/g, '')] ?? panelCytometer,
-            panel,
-        ]),
-    );
+    const panelEntries = Object.entries(cytometerPanels);
+    const sourceKeysByCanonical = new Map<string, string[]>();
+    panelEntries.forEach(([panelCytometer]) => {
+        const canonical = CYTOMETER_ALIASES[panelCytometer.toLowerCase().replace(/[^a-z0-9]+/g, '')] ?? panelCytometer;
+        const sources = sourceKeysByCanonical.get(canonical) ?? [];
+        sources.push(panelCytometer);
+        sourceKeysByCanonical.set(canonical, sources);
+    });
+    const canonicalPanels: Record<string, CytometerPanelState> = {};
+    panelEntries.forEach(([panelCytometer, panel]) => {
+        const canonical = CYTOMETER_ALIASES[panelCytometer.toLowerCase().replace(/[^a-z0-9]+/g, '')] ?? panelCytometer;
+        // Imports reject these collisions before editor state is installed. If
+        // an older stored state still contains one, preserve both raw keys
+        // rather than silently overwriting one panel during autosave.
+        const key = (sourceKeysByCanonical.get(canonical)?.length ?? 0) > 1
+            ? panelCytometer
+            : canonical;
+        canonicalPanels[key] = panel;
+    });
     return {
         cytometer: activeCytometer,
         configuration: activePanel.configuration,

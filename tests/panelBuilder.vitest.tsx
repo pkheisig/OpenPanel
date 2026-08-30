@@ -790,6 +790,15 @@ describe('PanelBuilder', () => {
     expect(createPanelBuilderProjectState(
       'aurora', 'config', 'light', ['A'], { 0: 'CD3' }, 'panel', 214, false, 80, null, {},
     )).toMatchObject({ cytometer: 'aurora', configuration: 'config', slots: ['A'], markers: { 0: 'CD3' } })
+    const collidingPanels = createPanelBuilderProjectState(
+      'aurora', 'config', 'light', ['A'], {}, 'panel', 214, false, 80, null,
+      {
+        AURORA: { configuration: 'config', slots: ['B'], markers: {}, wizard: null },
+        aurora: { configuration: 'config', slots: ['C'], markers: {}, wizard: null },
+      },
+    )
+    expect(collidingPanels.cytometerPanels.AURORA.slots).toEqual(['B'])
+    expect(collidingPanels.cytometerPanels.aurora.slots).toEqual(['A'])
     expect(synchronizeWizardPanelState(null, ['A'])).toBeNull()
     const wizard = {
       desiredSize: 3,

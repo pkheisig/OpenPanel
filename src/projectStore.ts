@@ -113,8 +113,6 @@ const PANEL_KEY_PREFIX = 'panel:'
 const PANEL_LIBRARY_STORAGE_KEY = 'openpanel.panel-library.v1'
 const ACTIVE_PANEL_ID_STORAGE_KEY = 'openpanel.active-panel-id'
 
-const fallbackRawRecords = new Map<string, Record<string, unknown>>()
-
 function database() {
   return openDB(DATABASE_NAME, DATABASE_VERSION, {
     upgrade(db) {
@@ -772,7 +770,6 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
     state,
     ...(loadError ? { loadError } : {}),
   }
-  if (loadError) fallbackRawRecords.set(panel.id, record)
   return panel
 }
 
@@ -802,8 +799,7 @@ function writeFallbackLibrary(panels: StoredPanelProject[]): void {
   writeLocalStorage(
     PANEL_LIBRARY_STORAGE_KEY,
     JSON.stringify(panels.map((panel) => (
-      fallbackRawRecords.get(panel.id)
-      ?? (panel.loadError ? persistedById.get(panel.id) : undefined)
+      (panel.loadError ? persistedById.get(panel.id) : undefined)
       ?? panel
     ))),
   )
@@ -1024,10 +1020,8 @@ export async function deletePanelProject(id: string): Promise<void> {
   }
   try {
     await (await database()).delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
-    fallbackRawRecords.delete(id)
   } catch {
     writeFallbackLibrary(fallbackLibrary().filter((panel) => panel.id !== id))
-    fallbackRawRecords.delete(id)
   }
   if (readLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY) === id) {
     removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
