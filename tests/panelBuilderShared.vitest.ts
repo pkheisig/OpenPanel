@@ -4,6 +4,7 @@ import { render } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import {
   bandColor,
+  assertPanelSlotsWithinCapacity,
   binEmission,
   buildFluorLookup,
   csvEscape,
@@ -45,6 +46,13 @@ const fluorophores: FluorInfo[] = [
 ]
 
 describe('panel rendering helpers', () => {
+  test('rejects occupied detector slots beyond the configuration capacity', () => {
+    expect(() => assertPanelSlotsWithinCapacity(['A', '', 'B'], 2)).toThrow(
+      'detector slot 3',
+    )
+    expect(() => assertPanelSlotsWithinCapacity(['A', '', ''], 2)).not.toThrow()
+  })
+
   test('formats numeric values and clamps similarity inputs', () => {
     expect(formatMetric(1.234)).toBe('1.23')
     expect(formatMetric('2')).toBe('2.00')

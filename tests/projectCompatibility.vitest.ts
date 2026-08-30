@@ -216,6 +216,14 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject(oversizedPanels)).toThrow('project.cytometerPanels')
   })
 
+  test('applies resource limits to the former R gui_state config envelope', () => {
+    const oversizedLegacy = JSON.stringify({
+      module: 'panel_builder',
+      config: { ...project, slots: Array(PROJECT_RESOURCE_LIMITS.maxSlots + 1).fill('') },
+    })
+    expect(() => parseProject(oversizedLegacy)).toThrow('project.slots contains 257 items')
+  })
+
   test('rejects oversized wizard collections and project text before rendering', () => {
     const oversizedWizard = JSON.stringify({
       ...project,

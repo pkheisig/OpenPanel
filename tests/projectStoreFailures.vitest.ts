@@ -153,6 +153,25 @@ describe('IndexedDB fallback error paths', () => {
     expect(localStorage.getItem('openpanel.panel-library.v1')).toBe(storedBefore)
   })
 
+  test('preserves unreadable fallback records during unrelated writes', async () => {
+    const rawPanel = {
+      id: 'unreadable',
+      name: 'Unreadable',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    const created = await createPanelProject('New panel', state)
+    const stored = JSON.parse(localStorage.getItem('openpanel.panel-library.v1') ?? 'null') as unknown[]
+    expect(stored[1]).toEqual(rawPanel)
+
+    await savePanelProject(created.id, 'Updated panel', state)
+    const storedAfterSave = JSON.parse(localStorage.getItem('openpanel.panel-library.v1') ?? 'null') as unknown[]
+    expect(storedAfterSave[1]).toEqual(rawPanel)
+  })
+
   test('normalizes fallback records and respects active and archived selection', async () => {
     localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([
       null,
@@ -211,6 +230,20 @@ describe('IndexedDB fallback error paths', () => {
     expect(recovered?.state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
     await deletePanelProject('active')
     expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toBeNull()
+  })
+
+  test('surfaces duplicate legacy active slots without normalizing them away', async () => {
+    const rawState = { ...state, slots: ['FITC', 'fit-c'] }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('duplicate fluorophore "fit-c"')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      loadError: 'OpenPanel project contains duplicate fluorophore "fit-c" at project.slots[1] (first used at project.slots[0]).',
+      state: { slots: ['FITC', 'fit-c'] },
+    })
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('fit-c')
   })
 
   test('preserves valid slots and markers when a saved wizard subtree is oversized', async () => {

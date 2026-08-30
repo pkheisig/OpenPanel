@@ -475,6 +475,16 @@ describe('PanelBuilder', () => {
     expect(document.body.textContent).toContain('1 color')
   })
 
+  test('rejects a project with an occupied slot beyond detector capacity', async () => {
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['', '', '', 'A'], markers: { 3: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={project} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText(/detector slot 4/)).not.toBeNull())
+  })
+
   test('covers conventional rendering, embedded persistence, no-op actions, and empty exports', async () => {
     const conventional = { ...basePayload, cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional' as const,
       detectors: basePayload.detectors.map((detector, index) => ({ ...detector, emission: [530, 585, 670][index] })), max_panel_size: 3 }

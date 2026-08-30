@@ -10,6 +10,7 @@ import {
   validateRequestedFluorophores,
 } from './spectralEngine'
 import { readLocalStorage, writeLocalStorage } from './browserStorage'
+import { assertPanelSlotsWithinCapacity } from './panelBuilderShared'
 import {
   DEFAULT_PLOT_SCALE,
   PROJECT_RESOURCE_LIMITS,
@@ -154,6 +155,7 @@ export default function App() {
           const canonicalSlots = state.slots.map((slot) => (
             slot.trim() ? validation.accepted[acceptedIndex++] : ''
           ))
+          assertPanelSlotsWithinCapacity(canonicalSlots, payload.max_panel_size)
           const canonicalMarkers = Object.fromEntries(
             Object.entries(state.markers).filter(([index]) => canonicalSlots[Number(index)]),
           ) as Record<number, string>

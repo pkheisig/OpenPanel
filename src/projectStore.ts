@@ -45,6 +45,15 @@ export class ProjectResourceLimitError extends Error {
   }
 }
 
+export class ProjectValidationError extends Error {
+  rawValue?: Record<string, unknown>
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProjectValidationError'
+  }
+}
+
 export type CytometerPanelState = {
   configuration: string
   slots: string[]
@@ -90,6 +99,8 @@ const LEGACY_STORAGE_KEY = 'openpanel.panel-builder.state.v1'
 const PANEL_KEY_PREFIX = 'panel:'
 const PANEL_LIBRARY_STORAGE_KEY = 'openpanel.panel-library.v1'
 const ACTIVE_PANEL_ID_STORAGE_KEY = 'openpanel.active-panel-id'
+
+const fallbackRawRecords = new WeakMap<StoredPanelProject, Record<string, unknown>>()
 
 function database() {
   return openDB(DATABASE_NAME, DATABASE_VERSION, {
@@ -399,7 +410,7 @@ function assertNoDuplicateSlots(value: Record<string, unknown>): void {
       const identity = projectSlotIdentity(fluorophore)
       const firstIndex = firstIndexByFluorophore.get(identity)
       if (firstIndex !== undefined) {
-        throw new Error(
+        throw new ProjectValidationError(
           `OpenPanel project contains duplicate fluorophore ${JSON.stringify(fluorophore)} at ${path}[${index}] (first used at ${path}[${firstIndex}]).`,
         )
       }
@@ -567,12 +578,13 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
     : record
   try {
     assertProjectResourceLimits(value, false)
+    if (legacyConfig !== value) assertProjectResourceLimits(legacyConfig, false)
     if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
     const normalized = normalizeState(legacyConfig, false)
     assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
     return normalized
   } catch (error) {
-    if (error instanceof ProjectResourceLimitError) error.rawValue = legacyConfig
+    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) error.rawValue = legacyConfig
     throw error
   }
 }
@@ -587,6 +599,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
     const stored = await db.get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
     if (stored) {
       try {
+        assertNoDuplicateSlots(stored as unknown as Record<string, unknown>)
         const normalized = normalizeState(stored as unknown as Record<string, unknown>)
         assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
         try {
@@ -598,19 +611,19 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
         }
         return normalized
       } catch (error) {
-        if (error instanceof ProjectResourceLimitError && isRecord(stored)) error.rawValue = stored
+        if ((error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) && isRecord(stored)) error.rawValue = stored
         throw error
       }
     }
   } catch (error) {
-    if (error instanceof ProjectResourceLimitError) throw error
+    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) throw error
     // IndexedDB can be unavailable in hardened/private contexts; migrate from localStorage below.
   }
   try {
     const legacy = readLocalStorage(LEGACY_STORAGE_KEY)
-    return legacy ? parseProjectText(legacy, false) : null
+    return legacy ? parseProjectText(legacy, true) : null
   } catch (error) {
-    if (error instanceof ProjectResourceLimitError) throw error
+    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) throw error
     return null
   }
 }
@@ -721,7 +734,7 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
     }
     loadError = error instanceof Error ? error.message : 'Saved panel state could not be restored.'
   }
-  return {
+  const panel: StoredPanelProject = {
     id: record.id,
     name: normalizePanelName(record.name),
     createdAt,
@@ -730,6 +743,8 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
     state,
     ...(loadError ? { loadError } : {}),
   }
+  if (loadError) fallbackRawRecords.set(panel, record)
+  return panel
 }
 
 function fallbackLibrary(): StoredPanelProject[] {
@@ -744,7 +759,10 @@ function fallbackLibrary(): StoredPanelProject[] {
 }
 
 function writeFallbackLibrary(panels: StoredPanelProject[]): void {
-  writeLocalStorage(PANEL_LIBRARY_STORAGE_KEY, JSON.stringify(panels))
+  writeLocalStorage(
+    PANEL_LIBRARY_STORAGE_KEY,
+    JSON.stringify(panels.map((panel) => fallbackRawRecords.get(panel) ?? panel)),
+  )
 }
 
 function createPanelId(): string {
@@ -862,7 +880,7 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
   try {
     legacy = await loadActiveProject()
   } catch (error) {
-    if (!(error instanceof ProjectResourceLimitError)) return null
+    if (!(error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError)) return null
     const recoveredState = error.rawValue ? recoverStoredProjectState(error.rawValue) : safeStoredProjectState({})
     return {
       id: ACTIVE_PROJECT_KEY,

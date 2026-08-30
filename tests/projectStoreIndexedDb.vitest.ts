@@ -122,11 +122,18 @@ describe('IndexedDB project persistence', () => {
     expect(fakeDb.records).toEqual(new Map())
   })
 
-  test('heals duplicate active slots when restoring persisted state', async () => {
-    fakeDb.records.set('active', { ...state, slots: ['FITC', 'FITC', ''] })
+  test('surfaces duplicate active slots without normalizing them away', async () => {
+    const rawState = { ...state, slots: ['FITC', 'FITC', ''] }
+    fakeDb.records.set('active', rawState)
 
-    await expect(loadActiveProject()).resolves.toMatchObject({ slots: ['FITC', '', ''] })
-    expect((fakeDb.records.get('active') as ProjectState).slots).toEqual(['FITC', '', ''])
+    await expect(loadActiveProject()).rejects.toThrow('duplicate fluorophore "FITC"')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      loadError: 'OpenPanel project contains duplicate fluorophore "FITC" at project.slots[1] (first used at project.slots[0]).',
+      state: { slots: ['FITC', 'FITC', ''] },
+    })
+    expect(fakeDb.records.get('active')).toEqual(rawState)
   })
 
   test('keeps duplicate saved slots visible with a recovery error', async () => {

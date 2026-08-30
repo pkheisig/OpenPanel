@@ -301,6 +301,15 @@ type PanelFluorophoreValidation = {
 const laserOrder = ['DeepUV', 'UV', 'Violet', 'Blue', 'YellowGreen', 'Red', 'IR', 'Other'];
 const emptySlots = 18;
 
+const assertPanelSlotsWithinCapacity = (slots: string[], maxPanelSize: number): void => {
+    const overflowIndex = slots.findIndex((slot, index) => Boolean(slot.trim()) && index >= maxPanelSize);
+    if (overflowIndex >= 0) {
+        throw new Error(
+            `The imported panel uses detector slot ${overflowIndex + 1}, but the selected configuration supports only ${maxPanelSize} detectors.`,
+        );
+    }
+};
+
 const formatMetric = (value: number | string | null | undefined) => {
     const numeric = typeof value === 'number' ? value : Number(value);
     if (!Number.isFinite(numeric)) return 'NA';
@@ -690,6 +699,7 @@ const binEmission = (val: number, cyt: string): number => {
 export {
     PdfIcon,
     bandColor,
+    assertPanelSlotsWithinCapacity,
     binEmission,
     buildFluorLookup,
     csvEscape,

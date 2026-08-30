@@ -27,6 +27,7 @@ import type { CytometerPanelState, ProjectState } from './projectStore';
 import type { WizardProjectState } from './panelWizardEngine';
 import {
     PdfIcon,
+    assertPanelSlotsWithinCapacity,
     binEmission,
     csvEscape,
     detectImportedPanelRows,
@@ -1142,6 +1143,7 @@ const PanelBuilder = ({
             if (nextColorCount > nextPayload.max_panel_size) {
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
             }
+            assertPanelSlotsWithinCapacity(nextSlots, nextPayload.max_panel_size);
             const nextMarkers = Object.fromEntries(
                 Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
             ) as Record<number, string>;
