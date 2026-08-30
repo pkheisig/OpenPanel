@@ -1821,7 +1821,10 @@ function validatePanelWizardAntigenDensity(filename: string, rows: string[][]): 
   )
   const seen = new Map<string, number>()
   records.forEach((row, index) => {
-    finiteField(filename, index, row, 'molecules_per_cell', { minimum: Number.MIN_VALUE })
+    const moleculesPerCell = finiteField(filename, index, row, 'molecules_per_cell', { minimum: 0 })
+    if (moleculesPerCell <= 0) {
+      validationError(filename, `row ${rowNumber(index)} column 'molecules_per_cell' must be greater than zero.`)
+    }
     const cellTypeKey = normalizeToken(rowValue(row, 'cell_type'))
     const antigenKey = normalizeToken(rowValue(row, 'antigen'))
     if (!cellTypeKey) validationError(filename, `row ${rowNumber(index)} cell_type has an empty canonical identity.`)

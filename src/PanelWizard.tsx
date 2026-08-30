@@ -34,7 +34,7 @@ import {
   generateWizardResults,
   isWizardFluorophoreAllowed,
 } from './panelWizardEngine'
-import { responseProvenanceForPayload } from './panelBuilderShared'
+import { responseProvenanceForPayload, responseProvenanceWarningForPayload } from './panelBuilderShared'
 import type {
   AntigenDensity,
   CoexpressionLevel,
@@ -329,6 +329,11 @@ export function PanelWizard({
   onApply,
 }: PanelWizardProps) {
   const responseProvenance = responseProvenanceForPayload(
+    cytometer,
+    measurementMode,
+    providedResponseProvenance,
+  )
+  const responseProvenanceWarning = responseProvenanceWarningForPayload(
     cytometer,
     measurementMode,
     providedResponseProvenance,
@@ -803,6 +808,7 @@ export function PanelWizard({
         <div className="wizard-provenance-note" role="note">
           <strong>{responseProvenance.label}</strong>
           <span>{responseProvenance.method}. Source: {responseProvenance.source}. {responseProvenance.limitation}</span>
+          {responseProvenanceWarning && <span role="alert">Warning: {responseProvenanceWarning}</span>}
         </div>
 
         <nav className="wizard-tabs" aria-label="Panel wizard steps">

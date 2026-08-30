@@ -199,7 +199,7 @@ function normalizeWizardState(
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
   const rawResults = normalizeWizardResults(value.results, expectedContext)
-  if (isRecord(value.results) && rawResults === null) {
+  if (import.meta.env.DEV && isRecord(value.results) && rawResults === null) {
     const rawProvenance = isRecord(value.results.response_provenance)
       ? value.results.response_provenance
       : undefined

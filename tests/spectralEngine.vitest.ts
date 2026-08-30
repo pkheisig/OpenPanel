@@ -17,7 +17,11 @@ import {
   validateBundledDataRows,
 } from '../src/spectralEngine'
 import { generateWizardResults } from '../src/panelWizardEngine'
-import { responseMatrixProvenance, responseProvenanceForCytometer } from '../src/panelBuilderShared'
+import {
+  responseMatrixProvenance,
+  responseProvenanceForCytometer,
+  responseProvenanceWarningForPayload,
+} from '../src/panelBuilderShared'
 import { mockBundledData } from './helpers'
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
@@ -420,6 +424,9 @@ describe('browser spectral engine parity', () => {
     }
     const tamperedResults = generateWizardResults(tamperedPayload, [], {}, 0)
     expect(tamperedResults.response_provenance).toMatchObject({ class: 'synthetic_filter_proxy' })
+    expect(responseProvenanceWarningForPayload('fortessa', 'conventional', tamperedPayload.response_provenance))
+      .toContain('did not match the selected instrument')
+    expect(responseProvenanceWarningForPayload('fortessa', 'conventional', payload.response_provenance)).toBeNull()
   })
 
   test('keeps the FACSymphony detector-response fallback distinct from synthetic proxies', () => {

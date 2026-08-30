@@ -134,18 +134,37 @@ const isResponseMatrixProvenance = (value: unknown): value is ResponseMatrixProv
     );
 };
 
+const responseProvenanceMatchesPayload = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    provided: unknown,
+): provided is ResponseMatrixProvenance => {
+    const expected = responseProvenanceForCytometer(cytometer, measurementMode);
+    return isResponseMatrixProvenance(provided)
+        && provided.class === expected.class
+        && provided.version === expected.version;
+};
+
 const responseProvenanceForPayload = (
     cytometer: string,
     measurementMode: PanelMeasurementMode,
     provided?: unknown,
 ): ResponseMatrixProvenance => {
     const expected = responseProvenanceForCytometer(cytometer, measurementMode);
-    return isResponseMatrixProvenance(provided)
-        && provided.class === expected.class
-        && provided.version === expected.version
+    return responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
         ? provided
         : expected;
 };
+
+const responseProvenanceWarningForPayload = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    provided?: unknown,
+): string | null => (
+    provided === undefined || provided === null || responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
+        ? null
+        : 'Supplied response provenance did not match the selected instrument; the selected instrument contract was used.'
+);
 
 type LibraryInfo = {
     id: string;
@@ -523,6 +542,7 @@ export {
     responseProvenanceForMeasurementMode,
     responseMeasurementModeForCytometer,
     responseProvenanceForPayload,
+    responseProvenanceWarningForPayload,
     RESPONSE_PROVENANCE_CONTRACT_VERSION,
     WIZARD_SCORING_VERSION,
 };

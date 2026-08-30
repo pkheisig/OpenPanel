@@ -32,6 +32,7 @@ import {
     linePath,
     toSimilarityValue,
     responseProvenanceForPayload,
+    responseProvenanceWarningForPayload,
 } from './panelBuilderShared';
 import type { NumericRow, PanelPayload, TabId } from './panelBuilderShared';
 
@@ -143,6 +144,11 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumRight = spectrumWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
     const responseProvenance = responseProvenanceForPayload(
+        payload.cytometer,
+        payload.measurement_mode,
+        payload.response_provenance,
+    );
+    const responseProvenanceWarning = responseProvenanceWarningForPayload(
         payload.cytometer,
         payload.measurement_mode,
         payload.response_provenance,
@@ -439,6 +445,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     <div className="response-provenance-banner" role="note">
         <strong>{responseProvenance.label}</strong>
         <span>{responseProvenance.method}. Source: {responseProvenance.source}. {responseProvenance.limitation}</span>
+        {responseProvenanceWarning && <span role="alert">Warning: {responseProvenanceWarning}</span>}
     </div>
 
     <div className="tabs-bar">

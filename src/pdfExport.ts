@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import { responseProvenanceForPayload } from './panelBuilderShared'
+import { responseProvenanceForPayload, responseProvenanceWarningForPayload } from './panelBuilderShared'
 import type { DetectorInfo, NumericRow, PanelPayload } from './panelBuilderShared'
 
 type PanelReportRow = {
@@ -44,6 +44,11 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
     payload.measurement_mode,
     payload.response_provenance,
   )
+  const responseProvenanceWarning = responseProvenanceWarningForPayload(
+    payload.cytometer,
+    payload.measurement_mode,
+    payload.response_provenance,
+  )
   const title = responseProvenance.class === 'synthetic_filter_proxy'
     ? 'Fluorophore Detector-Overlap Planning Proxy'
     : responseProvenance.class === 'measured_detector_response'
@@ -75,6 +80,11 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   document.setFont('helvetica', 'normal')
   document.setFontSize(7)
   document.text(responseProvenance.limitation, 12, 32, { maxWidth: width - 24 })
+  if (responseProvenanceWarning) {
+    document.setTextColor(180, 40, 30)
+    document.text(`Warning: ${responseProvenanceWarning}`, 12, 37, { maxWidth: width - 24 })
+    document.setTextColor(0)
+  }
 
   if (rows.length < 2) {
     document.text(
@@ -128,13 +138,18 @@ function addReportProvenanceNote(document: jsPDF, payload: PanelPayload): void {
     payload.measurement_mode,
     payload.response_provenance,
   )
+  const responseProvenanceWarning = responseProvenanceWarningForPayload(
+    payload.cytometer,
+    payload.measurement_mode,
+    payload.response_provenance,
+  )
   document.setFont('helvetica', 'bold')
   document.setFontSize(7)
   document.setTextColor(20, 30, 35)
   document.text(responseProvenance.label, 12, 9)
   document.setFont('helvetica', 'normal')
   document.text(
-    `${responseProvenance.method}. Source: ${responseProvenance.source}. ${responseProvenance.limitation}`,
+    `${responseProvenance.method}. Source: ${responseProvenance.source}. ${responseProvenance.limitation}${responseProvenanceWarning ? ` Warning: ${responseProvenanceWarning}` : ''}`,
     12,
     13,
     { maxWidth: width - 24 },
