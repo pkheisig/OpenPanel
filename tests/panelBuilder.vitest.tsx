@@ -276,6 +276,8 @@ describe('PanelBuilder', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Mock oversized marker' }))
     expect(screen.getByText('Marker names cannot exceed 8192 characters.')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    expect(screen.queryByText('Marker names cannot exceed 8192 characters.')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Mock clear marker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Mock similarity' }))
     const selectors = screen.getAllByPlaceholderText('Select fluorophore') as HTMLInputElement[]

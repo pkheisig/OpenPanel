@@ -1,6 +1,11 @@
 import { openDB } from 'idb'
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
-import { canonicalizeFluorophoreName, fluorophoreIdentity } from './fluorophoreNames'
+import {
+  canonicalizeFluorophoreName,
+  fluorophoreIdentity,
+  normalizeFluorophoreToken,
+  resolveBundledFluorophoreKey,
+} from './fluorophoreNames'
 import {
   responseMeasurementModeForCytometer,
   responseProvenanceForPayload,
@@ -437,13 +442,23 @@ export function alignWizardFluorophores(
   availableFluorophores = slots,
 ): WizardProjectState | null {
   if (!wizard) return null
-  const canonicalByIdentity = new Map(
-    availableFluorophores.filter(Boolean).map((fluorophore) => [projectSlotIdentity(fluorophore), fluorophore] as const),
-  )
+  const canonicalByToken = new Map<string, string>()
+  const canonicalByBundledKey = new Map<string, string>()
+  availableFluorophores.filter(Boolean).forEach((fluorophore) => {
+    const canonical = canonicalizeFluorophoreName(fluorophore).trim()
+    const token = normalizeFluorophoreToken(canonical)
+    if (token) canonicalByToken.set(token, fluorophore)
+    const bundledKey = resolveBundledFluorophoreKey(canonical)
+    if (bundledKey && !canonicalByBundledKey.has(bundledKey)) {
+      canonicalByBundledKey.set(bundledKey, fluorophore)
+    }
+  })
   return {
     ...wizard,
     markers: wizard.markers.map((marker) => {
-      const canonical = canonicalByIdentity.get(projectSlotIdentity(marker.currentFluorophore))
+      const requested = canonicalizeFluorophoreName(marker.currentFluorophore).trim()
+      const canonical = canonicalByToken.get(normalizeFluorophoreToken(requested))
+        ?? canonicalByBundledKey.get(resolveBundledFluorophoreKey(requested) ?? '')
       return canonical ? { ...marker, currentFluorophore: canonical } : marker
     }),
   }

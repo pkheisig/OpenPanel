@@ -950,11 +950,12 @@ const PanelBuilder = ({
     };
 
     const updateMarkerWithHistory = useCallback((slotIndex: number, value: string) => {
-        if ((markersRef.current[slotIndex] ?? '') === value) return;
         if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
             setError(`Marker names cannot exceed ${PROJECT_RESOURCE_LIMITS.maxStringLength} characters.`);
             return;
         }
+        setError('');
+        if ((markersRef.current[slotIndex] ?? '') === value) return;
         recordPanelEdit();
         const nextMarkers = { ...markersRef.current };
         if (value) nextMarkers[slotIndex] = value;

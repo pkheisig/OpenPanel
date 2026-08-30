@@ -4,6 +4,7 @@ import {
   PROJECT_FILE_VERSION,
   PROJECT_RESOURCE_LIMITS,
   ProjectResourceLimitError,
+  alignWizardFluorophores,
   parseProject,
   serializeProject,
 } from '../src/projectStore'
@@ -159,6 +160,23 @@ describe('OpenPanel project files', () => {
 
     expect(parseProject(JSON.stringify(imported)).wizard?.markers[0].currentFluorophore)
       .toBe('Alexa Fluor 488')
+  })
+
+  test('resolves conventional wizard GFP aliases against the active panel slots', () => {
+    const imported = {
+      ...project,
+      slots: ['GFP', '', ''],
+      wizard: {
+        ...wizard,
+        markers: [{ ...wizard.markers[0], currentFluorophore: 'EGFP' }],
+      },
+      cytometerPanels: undefined,
+    }
+
+    expect(parseProject(JSON.stringify(imported)).wizard?.markers[0].currentFluorophore)
+      .toBe('GFP')
+    expect(alignWizardFluorophores(imported.wizard, ['GFP', 'EGFP'], ['GFP', 'EGFP'])?.markers[0].currentFluorophore)
+      .toBe('EGFP')
   })
 
   test('migrates former frequency and cell-type marker settings to antigen density', () => {
