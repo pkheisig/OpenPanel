@@ -86,6 +86,14 @@ const CONVENTIONAL_CYTOMETER_KEYS = [
     'dxflex', 'facsaria',
 ];
 
+const RESPONSE_LIBRARY_SOURCES: Record<string, string> = {
+    aurora: 'aurora_spectra.csv',
+    discover: 'discover_spectra.csv',
+    id7000: 'id7000_spectra.csv',
+    xenith: 'xenith_spectra.csv',
+    symphony: 'symphony_spectra.csv',
+};
+
 const normalizedCytometerKey = (cytometer: string): string => (
     String(cytometer ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
 );
@@ -97,9 +105,15 @@ const responseMeasurementModeForCytometer = (cytometer: string): PanelMeasuremen
         : 'spectral';
 };
 
+const responseSourceForCytometer = (cytometer: string): string | undefined => {
+    const normalizedCytometer = normalizedCytometerKey(cytometer);
+    const sourceKey = Object.keys(RESPONSE_LIBRARY_SOURCES).find((name) => normalizedCytometer.includes(name));
+    return sourceKey ? RESPONSE_LIBRARY_SOURCES[sourceKey] : undefined;
+};
+
 const responseProvenanceForCytometer = (
     cytometer: string,
-    measurementMode: PanelMeasurementMode,
+    _measurementMode: PanelMeasurementMode,
     source?: string,
 ): ResponseMatrixProvenance => {
     const normalizedCytometer = normalizedCytometerKey(cytometer);
@@ -109,9 +123,7 @@ const responseProvenanceForCytometer = (
             ? 'measured_full_spectrum'
         : CONVENTIONAL_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
             ? 'synthetic_filter_proxy'
-        : measurementMode === 'conventional'
-            ? 'synthetic_filter_proxy'
-            : 'measured_full_spectrum';
+        : 'synthetic_filter_proxy';
     return responseMatrixProvenance(provenanceClass, source ? { source } : {});
 };
 
@@ -139,10 +151,18 @@ const responseProvenanceMatchesPayload = (
     measurementMode: PanelMeasurementMode,
     provided: unknown,
 ): provided is ResponseMatrixProvenance => {
-    const expected = responseProvenanceForCytometer(cytometer, measurementMode);
+    const expected = responseProvenanceForCytometer(
+        cytometer,
+        measurementMode,
+        responseSourceForCytometer(cytometer),
+    );
     return isResponseMatrixProvenance(provided)
         && provided.class === expected.class
-        && provided.version === expected.version;
+        && provided.label === expected.label
+        && provided.method === expected.method
+        && provided.version === expected.version
+        && provided.source === expected.source
+        && provided.limitation === expected.limitation;
 };
 
 const responseProvenanceForPayload = (
@@ -150,7 +170,11 @@ const responseProvenanceForPayload = (
     measurementMode: PanelMeasurementMode,
     provided?: unknown,
 ): ResponseMatrixProvenance => {
-    const expected = responseProvenanceForCytometer(cytometer, measurementMode);
+    const expected = responseProvenanceForCytometer(
+        cytometer,
+        measurementMode,
+        responseSourceForCytometer(cytometer),
+    );
     return responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
         ? provided
         : expected;
@@ -541,6 +565,7 @@ export {
     responseProvenanceForCytometer,
     responseProvenanceForMeasurementMode,
     responseMeasurementModeForCytometer,
+    responseProvenanceMatchesPayload,
     responseProvenanceForPayload,
     responseProvenanceWarningForPayload,
     RESPONSE_PROVENANCE_CONTRACT_VERSION,

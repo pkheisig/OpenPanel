@@ -104,6 +104,7 @@ export type WizardProjectState = {
   coexpressionVisited: boolean
   coexpressionCompleted: boolean
   inputsChanged?: boolean
+  resultsInvalidated?: boolean
   activeTab: WizardTab
   results: WizardResults | null
   resultMode: WizardResultMode
@@ -117,6 +118,8 @@ type PanelMetrics = {
   maxResponseSeparation: number
   spectralRisk: number
 }
+
+const SYNTHETIC_RESPONSE_PROVENANCE = responseMatrixProvenance('synthetic_filter_proxy')
 
 type Availability = {
   score: number
@@ -397,7 +400,7 @@ function panelMetrics(
   spectra: Map<string, number[]>,
   // Direct callers must opt into measured-response separation; the safe default
   // keeps an unspecified metric from claiming instrument-response evidence.
-  responseProvenance: ResponseMatrixProvenance = responseMatrixProvenance('synthetic_filter_proxy'),
+  responseProvenance: ResponseMatrixProvenance = SYNTHETIC_RESPONSE_PROVENANCE,
 ): PanelMetrics {
   const values = names.map((name) => spectra.get(name)).filter((value): value is number[] => value !== undefined)
   const complexity = calculatePanelComplexity(values) ?? Number.POSITIVE_INFINITY

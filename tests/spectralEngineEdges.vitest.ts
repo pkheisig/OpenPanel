@@ -21,6 +21,7 @@ import {
 
 describe('spectral engine defensive and reference helpers', () => {
   test('fails closed for malformed spectral library rows and headers', () => {
+    expect(() => parseLibrary([])).toThrow('no detector columns')
     expect(() => parseLibrary([], 'bundled spectral library', 'spectral')).toThrow('no detector columns')
     expect(() => parseLibrary([['fluorophore', 'B1-A']], 'bundled spectral library', 'spectral')).toThrow('contains no fluorophore rows')
     const valid = [
@@ -28,6 +29,9 @@ describe('spectral engine defensive and reference helpers', () => {
       ['FITC', '1', '0'],
     ]
     expect(parseLibrary(valid, 'fixture.csv', 'spectral')).toMatchObject({
+      detectors: ['B1-A', 'V1-A'], fluorophores: ['FITC'], values: [[1, 0]],
+    })
+    expect(parseLibrary(valid, 'fixture.csv')).toMatchObject({
       detectors: ['B1-A', 'V1-A'], fluorophores: ['FITC'], values: [[1, 0]],
     })
     const expectFailure = (rows: string[][], message: string) => {

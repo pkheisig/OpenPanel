@@ -52,6 +52,17 @@
   background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-card));
 }
 
+.wizard-results-invalidated {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, #f59e0b 12%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, var(--border-color));
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .wizard-header {
   min-height: 74px;
   padding: 14px 18px 14px 22px;

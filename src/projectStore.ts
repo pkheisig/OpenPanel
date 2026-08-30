@@ -2,10 +2,8 @@ import { openDB } from 'idb'
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import {
-  isResponseMatrixProvenance,
-  RESPONSE_PROVENANCE_CONTRACT_VERSION,
   responseMeasurementModeForCytometer,
-  responseProvenanceForCytometer,
+  responseProvenanceMatchesPayload,
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
@@ -136,16 +134,13 @@ export function normalizeWizardResults(
 ): WizardResults | null {
   if (!isRecord(value)) return null
   if (value.scoring_version !== WIZARD_SCORING_VERSION) return null
-  if (
-    !isResponseMatrixProvenance(value.response_provenance)
-    || value.response_provenance.version !== RESPONSE_PROVENANCE_CONTRACT_VERSION
-  ) return null
   const responseContext = value.response_context
   if (!isWizardResponseContext(responseContext)) return null
-  if (
-    value.response_provenance.class
-      !== responseProvenanceForCytometer(responseContext.cytometer, responseContext.measurement_mode).class
-  ) return null
+  if (!responseProvenanceMatchesPayload(
+    responseContext.cytometer,
+    responseContext.measurement_mode,
+    value.response_provenance,
+  )) return null
   if (expectedContext && (
     responseContext.cytometer !== expectedContext.cytometer
     || responseContext.configuration !== expectedContext.configuration
@@ -199,6 +194,7 @@ function normalizeWizardState(
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
   const rawResults = normalizeWizardResults(value.results, expectedContext)
+  const resultsInvalidated = isRecord(value.results) && rawResults === null
   if (import.meta.env.DEV && isRecord(value.results) && rawResults === null) {
     const rawProvenance = isRecord(value.results.response_provenance)
       ? value.results.response_provenance
@@ -226,6 +222,7 @@ function normalizeWizardState(
     coexpressionVisited: value.coexpressionVisited === true,
     coexpressionCompleted: value.coexpressionCompleted === true,
     ...(typeof value.inputsChanged === 'boolean' ? { inputsChanged: value.inputsChanged } : {}),
+    ...(resultsInvalidated ? { resultsInvalidated: true } : {}),
     activeTab,
     results: rawResults,
     resultMode,

@@ -425,6 +425,9 @@ export function PanelWizard({
   const [wizardInputsChanged, setWizardInputsChanged] = useState(
     () => Boolean(initialTemplate || initialState?.inputsChanged),
   )
+  const [resultsInvalidated, setResultsInvalidated] = useState(
+    () => Boolean(initialState?.resultsInvalidated),
+  )
   const [calculating, setCalculating] = useState(false)
   const [calculatingContext, setCalculatingContext] = useState<string | null>(null)
   const [results, setResults] = useState<WizardResults | null>(
@@ -535,6 +538,7 @@ export function PanelWizard({
       coexpressionVisited,
       coexpressionCompleted,
       inputsChanged: wizardInputsChanged,
+      resultsInvalidated,
       activeTab,
       results: resultContext === referenceContext ? results : null,
       resultMode,
@@ -553,6 +557,7 @@ export function PanelWizard({
     resultContext,
     resultSort,
     referenceContext,
+    resultsInvalidated,
     results,
     wizardInputsChanged,
   ])
@@ -693,6 +698,7 @@ export function PanelWizard({
     setError('')
     setResults(null)
     setResultContext(null)
+    setResultsInvalidated(false)
     await new Promise((resolve) => window.setTimeout(resolve, 30))
     try {
       const candidatePayload = await buildPanelPayload(
@@ -992,6 +998,11 @@ export function PanelWizard({
 
           {activeTab === 'recommendations' && (
             <div className="wizard-step recommendations-step">
+              {resultsInvalidated && !results && (
+                <div className="wizard-results-invalidated" role="status">
+                  Saved recommendations were discarded because the response or scoring contract changed. Recalculate to refresh them for this instrument.
+                </div>
+              )}
               {!results && (
                 <div className="calculation-gate">
                   <div

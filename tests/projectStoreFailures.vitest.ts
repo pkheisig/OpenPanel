@@ -55,7 +55,7 @@ describe('IndexedDB fallback error paths', () => {
         resultSort: 'spectral',
         results: {
           scoring_version: WIZARD_SCORING_VERSION,
-          response_provenance: responseMatrixProvenance('measured_full_spectrum'),
+          response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
           response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
           recommended: {
             kind: 'recommended',
@@ -80,7 +80,7 @@ describe('IndexedDB fallback error paths', () => {
     expect(normalizeWizardResults(undefined)).toBeNull()
     expect(normalizeWizardResults({
       scoring_version: WIZARD_SCORING_VERSION,
-      response_provenance: responseMatrixProvenance('measured_full_spectrum'),
+      response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
       response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
       recommended: { kind: 'recommended', rows: [], alternatives: [] },
       bestFit: { kind: 'best-fit', rows: [], alternatives: [] },

@@ -265,7 +265,10 @@ describe('OpenPanel project files', () => {
         }
         : null,
     }
-    expect(parseProject(serializeProject(stale)).wizard?.results).toBeNull()
+    expect(parseProject(serializeProject(stale)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
 
     const staleProvenance = {
       ...project,
@@ -281,7 +284,10 @@ describe('OpenPanel project files', () => {
         }
         : null,
     }
-    expect(parseProject(serializeProject(staleProvenance)).wizard?.results).toBeNull()
+    expect(parseProject(serializeProject(staleProvenance)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
 
     const mismatchedProvenance = {
       ...project,
@@ -297,7 +303,10 @@ describe('OpenPanel project files', () => {
         }
         : null,
     }
-    expect(parseProject(serializeProject(mismatchedProvenance)).wizard?.results).toBeNull()
+    expect(parseProject(serializeProject(mismatchedProvenance)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
   })
 
   test('invalidates wizard results from a different cytometer or configuration', () => {
@@ -318,7 +327,10 @@ describe('OpenPanel project files', () => {
         : null,
       cytometerPanels: {},
     }
-    expect(parseProject(serializeProject(mismatched)).wizard?.results).toBeNull()
+    expect(parseProject(serializeProject(mismatched)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
   })
 
   test('retains bound results for a configured non-active cytometer panel', () => {
@@ -371,7 +383,10 @@ describe('OpenPanel project files', () => {
         },
       },
     }
-    expect(parseProject(serializeProject(malformedPanel)).cytometerPanels.fortessa.wizard?.results).toBeNull()
+    expect(parseProject(serializeProject(malformedPanel)).cytometerPanels.fortessa.wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
   })
 
   test('uses defaults and legacy plot-height conversion for incomplete state', () => {

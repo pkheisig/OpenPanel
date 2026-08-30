@@ -20,6 +20,7 @@ import { generateWizardResults } from '../src/panelWizardEngine'
 import {
   responseMatrixProvenance,
   responseProvenanceForCytometer,
+  responseProvenanceForPayload,
   responseProvenanceWarningForPayload,
 } from '../src/panelBuilderShared'
 import { mockBundledData } from './helpers'
@@ -427,6 +428,12 @@ describe('browser spectral engine parity', () => {
     expect(responseProvenanceWarningForPayload('fortessa', 'conventional', tamperedPayload.response_provenance))
       .toContain('did not match the selected instrument')
     expect(responseProvenanceWarningForPayload('fortessa', 'conventional', payload.response_provenance)).toBeNull()
+    expect(responseProvenanceForPayload('unknown-lab-prototype', 'spectral')).toMatchObject({
+      class: 'synthetic_filter_proxy',
+    })
+    const forgedSource = { ...payload.response_provenance, source: 'aurora_spectra.csv' }
+    expect(responseProvenanceForPayload('fortessa', 'conventional', forgedSource).source)
+      .toBe('conventional_detector_dictionary.csv + fluorophore_dictionary.csv')
   })
 
   test('keeps the FACSymphony detector-response fallback distinct from synthetic proxies', () => {

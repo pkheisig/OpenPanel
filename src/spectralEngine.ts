@@ -1246,8 +1246,8 @@ function validateSpectralLibrary(
 
 export function parseLibrary(
   rows: string[][],
-  source: string,
-  measurementMode: PanelMeasurementMode,
+  source = 'bundled spectral library',
+  measurementMode?: PanelMeasurementMode,
   cytometer = '',
 ): SpectralLibrary {
   const domain = SPECTRAL_RESPONSE_DOMAINS[source] ?? DEFAULT_SPECTRAL_RESPONSE_DOMAIN
@@ -1260,9 +1260,11 @@ export function parseLibrary(
     fluorophores.push(canonicalizeFluorophoreName(row[0].trim()))
     values.push(row.slice(1).map((value) => Number(value.trim())))
   })
+  const inferredCytometer = cytometer || (source.toLowerCase().endsWith('symphony_spectra.csv') ? 'symphony' : '')
+  const inferredMeasurementMode = measurementMode ?? (inferredCytometer ? 'conventional' : 'spectral')
   const response_provenance = responseProvenanceForCytometer(
-    cytometer,
-    measurementMode,
+    inferredCytometer,
+    inferredMeasurementMode,
     source,
   )
   return { detectors, fluorophores, values, response_provenance }
@@ -1908,9 +1910,10 @@ function initializeLibrary(cytometer: CytometerId): Promise<void> {
       const filename = LIBRARY_FILES[cytometer]!
       const rows = await loadCsv(filename)
       validateSpectralDetectorMetadata(filename, rows)
+      const measurementMode = LIBRARIES.find((libraryInfo) => libraryInfo.id === cytometer)!.measurement_mode
       libraries.set(
         cytometer,
-        parseLibrary(rows, filename, cytometer === 'symphony' ? 'conventional' : 'spectral', cytometer),
+        parseLibrary(rows, filename, measurementMode, cytometer),
       )
     })
   libraryInitializations.set(cytometer, pending)
