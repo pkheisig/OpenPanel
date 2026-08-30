@@ -9,11 +9,11 @@ const LIVE_DEAD_NIR_ALIASES = new Set([
 ])
 
 function normalizeFluorophoreName(value: string): string {
-  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '')
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
 export function normalizeFluorophoreToken(value: unknown): string {
-  return String(value ?? '').trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, '')
+  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
 export function canonicalizeFluorophoreName(value: string): string {

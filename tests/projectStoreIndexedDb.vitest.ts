@@ -129,6 +129,21 @@ describe('IndexedDB project persistence', () => {
     await expect(duplicatePanelProject('unreadable')).resolves.toBeNull()
   })
 
+  test('surfaces an oversized active record as a recoverable panel', async () => {
+    const rawState = { ...state, slots: Array(257).fill('FITC') }
+    fakeDb.records.set('active', rawState)
+
+    await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')
+    await expect(loadLastPanelProject()).resolves.toMatchObject({
+      id: 'active',
+      loadError: 'project.slots contains 257 items; maximum is 256.',
+      state: { slots: Array(18).fill('') },
+    })
+    expect(fakeDb.records.get('active')).toEqual(rawState)
+    await deletePanelProject('active')
+    expect(fakeDb.records.has('active')).toBe(false)
+  })
+
   test('keeps active project selection and ignores non-panel records', async () => {
     const panel = await createPanelProject('Active', state)
     fakeDb.records.set('other', { id: 'other', state })

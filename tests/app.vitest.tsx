@@ -45,6 +45,7 @@ vi.mock('../src/PanelBuilder', () => ({
 
 vi.mock('../src/spectralEngine', () => ({
   PanelSelectionValidationError: class PanelSelectionValidationError extends Error {},
+  buildPanelPayload: vi.fn(async () => ({ max_panel_size: 18 })),
   validateRequestedFluorophores: vi.fn(async () => ({ accepted: [], diagnostics: [] })),
 }))
 
@@ -133,6 +134,7 @@ describe('App surface restoration and handoff', () => {
 
   test('canonicalizes accepted aliases before creating an imported panel', async () => {
     fixtures.surface = 'landing'
+    const originalState = fixtures.project.state
     fixtures.project.state = { ...fixtures.project.state, slots: ['Alias', ''], markers: { 0: 'CD3' } }
     vi.mocked(validateRequestedFluorophores).mockResolvedValueOnce({ accepted: ['Canonical'], diagnostics: [] })
     render(<App />)
@@ -142,6 +144,7 @@ describe('App surface restoration and handoff', () => {
       expect.any(String),
       expect.objectContaining({ slots: ['Canonical', ''], markers: { 0: 'CD3' } }),
     ))
+    fixtures.project.state = originalState
   })
 
   test('passes configured slots and handles callbacks for the active landing panel', async () => {

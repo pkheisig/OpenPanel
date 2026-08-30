@@ -180,6 +180,20 @@ describe('IndexedDB fallback error paths', () => {
     await expect(duplicatePanelProject('unreadable')).resolves.toBeNull()
   })
 
+  test('surfaces an oversized legacy active record as a recoverable panel', async () => {
+    const rawState = { ...state, slots: Array(257).fill('FITC') }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')
+    await expect(loadLastPanelProject()).resolves.toMatchObject({
+      id: 'active',
+      loadError: 'project.slots contains 257 items; maximum is 256.',
+      state: { slots: Array(18).fill('') },
+    })
+    await deletePanelProject('active')
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toBeNull()
+  })
+
   test('recovers a populated legacy state only when the library is empty', async () => {
     localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify({ ...state, slots: [''] }))
     expect(await loadLastPanelProject()).toBeNull()

@@ -3,7 +3,7 @@ import { LandingPage } from './LandingPage'
 import type { PanelLaunchSelection } from './LandingPage'
 import PanelBuilder from './PanelBuilder'
 import { projectJsonFilename, projectNameFromFilename, readTextFileWithinLimit, saveBlob } from './browserFiles'
-import { PanelSelectionValidationError, validateRequestedFluorophores } from './spectralEngine'
+import { PanelSelectionValidationError, buildPanelPayload, validateRequestedFluorophores } from './spectralEngine'
 import { readLocalStorage, writeLocalStorage } from './browserStorage'
 import {
   DEFAULT_PLOT_SCALE,
@@ -72,8 +72,11 @@ export default function App() {
       const restored = await loadLastPanelProject()
       const storedPanels = await listPanelProjects()
       if (cancelled) return
+      const visiblePanels = restored?.loadError && !storedPanels.some((panel) => panel.id === restored.id)
+        ? [restored, ...storedPanels]
+        : storedPanels
       setActivePanel(restored)
-      setPanels(storedPanels)
+      setPanels(visiblePanels)
       const landing = storedSurface() === 'landing' || restored === null || Boolean(restored?.loadError)
       setShowLanding(landing)
       rememberSurface(landing ? 'landing' : 'editor')
@@ -110,6 +113,15 @@ export default function App() {
           const validation = await validateRequestedFluorophores(state.cytometer, state.configuration, state.slots)
           if (validation.diagnostics.length > 0) {
             throw new PanelSelectionValidationError(validation.diagnostics)
+          }
+          const payload = await buildPanelPayload(
+            state.cytometer,
+            state.configuration,
+            state.slots.filter(Boolean),
+            true,
+          )
+          if (validation.accepted.length > payload.max_panel_size) {
+            throw new Error(`This panel has ${validation.accepted.length} colors, but the selected configuration has only ${payload.max_panel_size} detectors.`)
           }
           let acceptedIndex = 0
           const canonicalSlots = state.slots.map((slot) => (

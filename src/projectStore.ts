@@ -560,13 +560,15 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
       }
       return normalized
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError) throw error
     // IndexedDB can be unavailable in hardened/private contexts; migrate from localStorage below.
   }
   try {
     const legacy = readLocalStorage(LEGACY_STORAGE_KEY)
     return legacy ? parseProjectText(legacy, false) : null
-  } catch {
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError) throw error
     return null
   }
 }
@@ -752,7 +754,20 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
   // Legacy single-state recovery must never resurrect an explicitly archived panel.
   if (panels.length > 0) return null
 
-  const legacy = await loadActiveProject()
+  let legacy: ProjectState | null
+  try {
+    legacy = await loadActiveProject()
+  } catch (error) {
+    if (!(error instanceof ProjectResourceLimitError)) return null
+    return {
+      id: ACTIVE_PROJECT_KEY,
+      name: 'Recovered panel',
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      state: safeStoredProjectState({}),
+      loadError: error.message,
+    }
+  }
   if (!legacy || !legacy.slots.some(Boolean)) return null
   return createPanelProject('Recovered panel', legacy)
 }
@@ -830,6 +845,16 @@ export async function restorePanelProject(
 }
 
 export async function deletePanelProject(id: string): Promise<void> {
+  if (id === ACTIVE_PROJECT_KEY) {
+    try {
+      await (await database()).delete(PROJECT_STORE, ACTIVE_PROJECT_KEY)
+    } catch {
+      // Continue below so deletion clears both storage backends.
+    }
+    removeLocalStorage(LEGACY_STORAGE_KEY)
+    removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
+    return
+  }
   try {
     await (await database()).delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
   } catch {
