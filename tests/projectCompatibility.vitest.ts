@@ -332,6 +332,30 @@ describe('OpenPanel project files', () => {
     )
   })
 
+  test('invalidates results when a panel has no configuration context', () => {
+    const fortessaWizard: WizardProjectState = {
+      ...wizard,
+      results: wizard.results
+        ? {
+          ...wizard.results,
+          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l' },
+        }
+        : null,
+    }
+    const malformedPanel = {
+      ...project,
+      cytometerPanels: {
+        fortessa: {
+          configuration: '',
+          slots: [],
+          markers: {},
+          wizard: fortessaWizard,
+        },
+      },
+    }
+    expect(parseProject(serializeProject(malformedPanel)).cytometerPanels.fortessa.wizard?.results).toBeNull()
+  })
+
   test('uses defaults and legacy plot-height conversion for incomplete state', () => {
     const parsed = parseProject(JSON.stringify({
       cytometer: 42,

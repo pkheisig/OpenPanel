@@ -3,14 +3,18 @@ import { calculatePanelComplexity, calculateSimilarityMatrix } from './spectralE
 import {
   fluorophoreBrightnessKey,
 } from './panelWizardReferences'
-import { responseMatrixProvenance, responseProvenanceForCytometer } from './panelBuilderShared'
+import {
+  responseMatrixProvenance,
+  responseProvenanceForCytometer,
+  WIZARD_SCORING_VERSION,
+} from './panelBuilderShared'
 import type { NumericRow, PanelPayload, ResponseMatrixProvenance } from './panelBuilderShared'
 import type { WizardReferenceData } from './panelWizardReferences'
 
 export type CoexpressionLevel = 0 | 1 | 2 | 3 | 4
 export type AntigenDensity = 'low' | 'medium' | 'high'
 
-export const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v1'
+export { WIZARD_SCORING_VERSION }
 
 export const ANTIGEN_DENSITY_SCORES: Record<AntigenDensity, number> = {
   low: 20,

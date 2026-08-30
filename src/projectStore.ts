@@ -4,9 +4,9 @@ import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import {
   isResponseMatrixProvenance,
   RESPONSE_PROVENANCE_CONTRACT_VERSION,
+  WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
-import { WIZARD_SCORING_VERSION } from './panelWizardEngine'
 import type {
   AntigenDensity,
   WizardPanelResult,
@@ -239,9 +239,7 @@ function normalizeCytometerPanel(
   const effectiveConfiguration = typeof configuration === 'string' && configuration
     ? configuration
     : fallbackConfiguration
-  const expectedContext = effectiveConfiguration
-    ? { cytometer, configuration: effectiveConfiguration }
-    : undefined
+  const expectedContext = { cytometer, configuration: effectiveConfiguration }
   return {
     configuration: effectiveConfiguration,
     slots: normalizeSlots(value.slots),

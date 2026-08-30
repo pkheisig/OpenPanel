@@ -45,6 +45,7 @@ type ResponseMatrixProvenance = {
 };
 
 const RESPONSE_PROVENANCE_CONTRACT_VERSION = 'response-provenance-v1';
+const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v1';
 
 const responseProvenanceDefaults: Record<ResponseMatrixProvenanceClass, Omit<ResponseMatrixProvenance, 'class'>> = {
     measured_full_spectrum: {
@@ -84,7 +85,7 @@ const responseProvenanceForCytometer = (
     measurementMode: PanelMeasurementMode,
     source?: string,
 ): ResponseMatrixProvenance => {
-    const normalizedCytometer = cytometer.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const normalizedCytometer = String(cytometer ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
     const provenanceClass: ResponseMatrixProvenanceClass = normalizedCytometer.includes('facsymphony')
         || normalizedCytometer === 'symphony'
         ? 'measured_detector_response'
@@ -488,6 +489,7 @@ export {
     responseProvenanceForCytometer,
     responseProvenanceForMeasurementMode,
     RESPONSE_PROVENANCE_CONTRACT_VERSION,
+    WIZARD_SCORING_VERSION,
 };
 export type {
     ConfigurationInfo,
