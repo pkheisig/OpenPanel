@@ -224,6 +224,12 @@ describe('panel rendering helpers', () => {
     expect(() => assertPanelMarkersWithinCapacity({ 18: 'CD4' }, 18)).toThrow('marker slot 19')
   })
 
+  test('rejects malformed marker slot keys instead of silently dropping them', () => {
+    expect(() => assertPanelMarkersWithinCapacity({ '-1': 'CD3' }, 18)).toThrow('invalid marker slot "-1"')
+    expect(() => assertPanelMarkersWithinCapacity({ '1.5': 'CD4' }, 18)).toThrow('invalid marker slot "1.5"')
+    expect(() => assertPanelMarkersWithinCapacity({ invalid: 'CD8' }, 18)).toThrow('invalid marker slot "invalid"')
+  })
+
   test('uses the bundled alias when detecting duplicate project fluorophores', () => {
     expect(validatePanelFluorophores(
       ['AF488', 'Alexa Fluor 488'],

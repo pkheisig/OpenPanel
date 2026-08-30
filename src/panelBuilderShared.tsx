@@ -324,9 +324,16 @@ const assertPanelSlotsWithinCapacity = (slots: string[], maxPanelSize: number): 
 };
 
 const assertPanelMarkersWithinCapacity = (markers: Record<number, string>, maxPanelSize: number): void => {
+    const invalidKey = Object.keys(markers)
+        .find(key => key.trim() === '' || !Number.isInteger(Number(key)) || Number(key) < 0);
+    if (invalidKey !== undefined) {
+        throw new Error(
+            `The imported panel contains invalid marker slot ${JSON.stringify(invalidKey)}. Marker slots must be nonnegative integers.`,
+        );
+    }
     const overflowIndex = Object.keys(markers)
         .map(Number)
-        .find(index => Number.isInteger(index) && index >= maxPanelSize);
+        .find(index => index >= maxPanelSize);
     if (overflowIndex !== undefined) {
         throw new Error(
             `The imported panel uses marker slot ${overflowIndex + 1}, but the selected configuration supports only ${maxPanelSize} detectors.`,
