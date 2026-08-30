@@ -111,7 +111,7 @@ function isAntigenDensity(value: unknown): value is AntigenDensity {
 }
 
 function utf8ByteLength(text: string): number {
-  return typeof TextEncoder === 'undefined' ? text.length : new TextEncoder().encode(text).byteLength
+  return typeof TextEncoder === 'undefined' ? new Blob([text]).size : new TextEncoder().encode(text).byteLength
 }
 
 export function assertProjectTextWithinLimit(text: string): void {
@@ -170,7 +170,7 @@ function assertRecordLimit(value: unknown, limit: number, label: string): void {
   }
 }
 
-function assertWizardResourceLimits(value: unknown, path: string): void {
+function assertWizardResourceLimits(value: unknown, path: string, rejectOversizedResults = true): void {
   if (!isRecord(value)) return
   assertArrayLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxWizardMarkers, `${path}.markers`)
   assertRecordLimit(value.coexpression, PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries, `${path}.coexpression`)
@@ -180,7 +180,7 @@ function assertWizardResourceLimits(value: unknown, path: string): void {
       `${path}.desiredSize exceeds the maximum of ${PROJECT_RESOURCE_LIMITS.maxSlots}.`,
     )
   }
-  if (!isRecord(value.results)) return
+  if (!rejectOversizedResults || !isRecord(value.results)) return
   for (const [resultName, result] of [['recommended', value.results.recommended], ['bestFit', value.results.bestFit]] as const) {
     if (!isRecord(result)) continue
     assertArrayLimit(result.rows, PROJECT_RESOURCE_LIMITS.maxWizardResultRows, `${path}.results.${resultName}.rows`)
@@ -188,22 +188,22 @@ function assertWizardResourceLimits(value: unknown, path: string): void {
   }
 }
 
-function assertPanelStateResourceLimits(value: unknown, path: string): void {
+function assertPanelStateResourceLimits(value: unknown, path: string, rejectOversizedResults = true): void {
   if (!isRecord(value)) return
   assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, `${path}.slots`)
   assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, `${path}.markers`)
-  assertWizardResourceLimits(value.wizard, `${path}.wizard`)
+  assertWizardResourceLimits(value.wizard, `${path}.wizard`, rejectOversizedResults)
 }
 
-function assertProjectResourceLimits(value: unknown): void {
+function assertProjectResourceLimits(value: unknown, rejectOversizedWizardResults = true): void {
   assertProjectResourceTree(value)
   if (!isRecord(value)) return
   assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, 'project.slots')
   assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, 'project.markers')
   assertRecordLimit(value.cytometerPanels, PROJECT_RESOURCE_LIMITS.maxCytometerPanels, 'project.cytometerPanels')
-  assertWizardResourceLimits(value.wizard, 'project.wizard')
+  assertWizardResourceLimits(value.wizard, 'project.wizard', rejectOversizedWizardResults)
   if (isRecord(value.cytometerPanels)) {
-    Object.entries(value.cytometerPanels).forEach(([key, panel]) => assertPanelStateResourceLimits(panel, `project.cytometerPanels.${key}`))
+    Object.entries(value.cytometerPanels).forEach(([key, panel]) => assertPanelStateResourceLimits(panel, `project.cytometerPanels.${key}`, rejectOversizedWizardResults))
   }
 }
 
@@ -211,8 +211,13 @@ export function normalizeWizardPanelResult(value: unknown): WizardPanelResult | 
   if (!isRecord(value)) return null
   if (value.kind !== 'recommended' && value.kind !== 'best-fit') return null
   if (!Array.isArray(value.rows) || !Array.isArray(value.alternatives)) return null
-  assertArrayLimit(value.rows, PROJECT_RESOURCE_LIMITS.maxWizardResultRows, 'wizard result rows')
-  assertArrayLimit(value.alternatives, PROJECT_RESOURCE_LIMITS.maxWizardAlternatives, 'wizard result alternatives')
+  try {
+    assertArrayLimit(value.rows, PROJECT_RESOURCE_LIMITS.maxWizardResultRows, 'wizard result rows')
+    assertArrayLimit(value.alternatives, PROJECT_RESOURCE_LIMITS.maxWizardAlternatives, 'wizard result alternatives')
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError) return null
+    throw error
+  }
   const validRows = value.rows.every((row) => (
     isRecord(row)
     && typeof row.markerId === 'string'
@@ -402,7 +407,7 @@ export function serializeProject(state: ProjectState): string {
 }
 
 function normalizeState(value: Record<string, unknown>): ProjectState {
-  assertProjectResourceLimits(value)
+  assertProjectResourceLimits(value, false)
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
   const theme = scalar(value.theme) === 'dark' ? 'dark' : 'light'
@@ -470,7 +475,7 @@ export function parseProject(text: string): ProjectState {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('This project file does not contain an OpenPanel project.')
   }
-  assertProjectResourceLimits(value)
+  assertProjectResourceLimits(value, false)
   const record = value as Record<string, unknown>
   if (record.kind !== undefined && record.kind !== PROJECT_FILE_KIND) {
     throw new Error('This JSON file belongs to a different application.')

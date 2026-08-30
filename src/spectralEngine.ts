@@ -2646,13 +2646,16 @@ export async function buildPanelPayload(
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
   const uniqueRequested = Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean)))
+  const payloadCacheKey = `${id}:${config}:${uniqueRequested.join('\u0000')}`
+  const cachedPayload = panelPayloadCache.get(payloadCacheKey)
+  if (cachedPayload && !rejectInvalidRequested) {
+    return cachedPayload
+  }
   const base = configurationBase(id, config, library)
   const validation = validateRequestedFromBase(uniqueRequested, library, base)
   if (rejectInvalidRequested && validation.diagnostics.length > 0) {
     throw new PanelSelectionValidationError(validation.diagnostics)
   }
-  const payloadCacheKey = `${id}:${config}:${uniqueRequested.join('\u0000')}`
-  const cachedPayload = panelPayloadCache.get(payloadCacheKey)
   if (cachedPayload) {
     panelPayloadCache.delete(payloadCacheKey)
     panelPayloadCache.set(payloadCacheKey, cachedPayload)

@@ -217,6 +217,26 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject(oversizedText)).toThrow(ProjectResourceLimitError)
   })
 
+  test('drops oversized wizard results while preserving the panel project', () => {
+    const oversizedResults = JSON.stringify({
+      ...project,
+      wizard: {
+        ...wizard,
+        results: {
+          ...wizard.results,
+          recommended: {
+            ...wizard.results!.recommended,
+            rows: Array.from({ length: PROJECT_RESOURCE_LIMITS.maxWizardResultRows + 1 }, () => ({})),
+          },
+        },
+      },
+    })
+    const parsed = parseProject(oversizedResults)
+    expect(parsed.slots).toEqual(project.slots)
+    expect(parsed.wizard?.results).toBeNull()
+    expect(parsed.wizard?.resultsInvalidated).toBe(true)
+  })
+
   test('drops malformed wizard and cytometer-panel records while preserving valid defaults', () => {
     const malformed = {
       cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', slots: [], markers: {},

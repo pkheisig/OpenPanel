@@ -1032,7 +1032,7 @@ const PanelBuilder = ({
             const nextPayload = await fetchPanel(cytometer, configuration, nextFluorophores, false, true);
             if (!nextPayload) return;
             recordPanelEdit();
-            const nextSlots = nextFluorophores;
+            const nextSlots = [...nextFluorophores];
             while (nextSlots.length < emptySlots) nextSlots.push('');
             const nextMarkers: Record<number, string> = {};
             imported.rows.forEach((row, index) => {

@@ -6,7 +6,7 @@ export type SaveFileOptions = {
 }
 
 function utf8ByteLength(text: string): number {
-  return typeof TextEncoder === 'undefined' ? text.length : new TextEncoder().encode(text).byteLength
+  return typeof TextEncoder === 'undefined' ? new Blob([text]).size : new TextEncoder().encode(text).byteLength
 }
 
 export async function readTextFileWithinLimit(
