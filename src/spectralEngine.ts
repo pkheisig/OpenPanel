@@ -1,5 +1,5 @@
 import { Matrix, SingularValueDecomposition } from 'ml-matrix'
-import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import { canonicalizeFluorophoreName, resolveBundledFluorophoreKey } from './fluorophoreNames'
 import {
   PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
   PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS,
@@ -22,6 +22,8 @@ import type {
   ResponseMatrixProvenance,
 } from './panelBuilderShared'
 import { responseProvenanceForCytometer } from './panelBuilderShared'
+
+export { resolveBundledFluorophoreKey } from './fluorophoreNames'
 
 type CytometerId =
   | 'aurora'
@@ -1963,10 +1965,6 @@ function normalizeToken(value: unknown): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
-export function resolveBundledFluorophoreKey(value: string): string | undefined {
-  return PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL[normalizeToken(canonicalizeFluorophoreName(value))]
-}
-
 function runtimeCytometerScope(value: unknown): string {
   const key = normalizeToken(value)
   return CYTOMETER_ALIASES[key] ?? key
@@ -2474,7 +2472,11 @@ function configurationDetectorIndices(library: SpectralLibrary, cytometer: Cytom
 
 function fluorophoreLookup(library: SpectralLibrary): Map<string, number> {
   const lookup = new Map<string, number>()
-  library.fluorophores.forEach((fluorophore, index) => lookup.set(normalizeToken(fluorophore), index))
+  library.fluorophores.forEach((fluorophore, index) => {
+    lookup.set(normalizeToken(fluorophore), index)
+    const bundledKey = resolveBundledFluorophoreKey(fluorophore)
+    if (bundledKey && !lookup.has(bundledKey)) lookup.set(bundledKey, index)
+  })
   fluorophoreDictionary.forEach((row) => {
     const canonicalIndex = lookup.get(normalizeToken(row.fluorophore))
     if (canonicalIndex === undefined) return
@@ -2485,6 +2487,12 @@ function fluorophoreLookup(library: SpectralLibrary): Map<string, number> {
     })
   })
   return lookup
+}
+
+function requestedLibraryIndex(requested: string, base: PanelConfigurationBase): number | undefined {
+  const directKey = normalizeToken(requested)
+  const bundledKey = resolveBundledFluorophoreKey(requested)
+  return base.lookup.get(directKey) ?? (bundledKey ? base.lookup.get(bundledKey) : undefined)
 }
 
 export function calculateSimilarityMatrix(values: number[][]): number[][] {
@@ -2578,7 +2586,7 @@ function validateRequestedFromBase(
   const diagnostics: RequestedFluorophoreDiagnostic[] = []
   const seen = new Map<string, string>()
   requestedFluorophores.forEach((requested) => {
-    const libraryIndex = base.lookup.get(normalizeToken(requested))
+    const libraryIndex = requestedLibraryIndex(requested, base)
     if (libraryIndex === undefined) {
       diagnostics.push({
         requested,
@@ -2656,8 +2664,10 @@ export async function buildPanelPayload(
   const config = resolveConfiguration(id, configuration)
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
-  const uniqueRequested = Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean)))
-  const payloadCacheKey = `${id}:${config}:${uniqueRequested.join('\u0000')}`
+  const normalizedRequested = requestedFluorophores.map((value) => value.trim()).filter(Boolean)
+  const uniqueRequested = Array.from(new Set(normalizedRequested))
+  const cacheRequested = rejectInvalidRequested ? normalizedRequested : uniqueRequested
+  const payloadCacheKey = `${id}:${config}:${cacheRequested.join('\u0000')}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
   if (cachedPayload && !rejectInvalidRequested) {
     return cachedPayload
@@ -2665,7 +2675,7 @@ export async function buildPanelPayload(
   const base = configurationBase(id, config, library)
   if (rejectInvalidRequested) {
     const validation = validateRequestedFromBase(
-      requestedFluorophores.map((value) => value.trim()).filter(Boolean),
+      normalizedRequested,
       library,
       base,
     )
@@ -2682,7 +2692,7 @@ export async function buildPanelPayload(
   const selectedLabels: string[] = []
   const selectedValues: number[][] = []
   uniqueRequested.forEach((requested) => {
-    const libraryIndex = base.lookup.get(normalizeToken(requested))
+    const libraryIndex = requestedLibraryIndex(requested, base)
     if (libraryIndex === undefined || base.retainedSignal[libraryIndex] < 0.02) return
     const values = base.normalizedRowsByLibraryIndex.get(libraryIndex)!
     selectedLabels.push(library.fluorophores[libraryIndex])

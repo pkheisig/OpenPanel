@@ -235,6 +235,31 @@ describe('OpenPanel project files', () => {
     expect(parsed.slots).toEqual(project.slots)
     expect(parsed.wizard?.results).toBeNull()
     expect(parsed.wizard?.resultsInvalidated).toBe(true)
+    expect(() => serializeProject(parsed)).not.toThrow()
+    expect(JSON.parse(serializeProject(parsed)).wizard.results).toBeNull()
+  })
+
+  test('rejects duplicate fluorophores on import and heals them for persistence', () => {
+    const duplicate = JSON.stringify({
+      ...project,
+      slots: ['Alexa Fluor 488', 'Alexa Fluor 488', ''],
+      cytometerPanels: {
+        aurora: { ...project.cytometerPanels.aurora, slots: ['Alexa Fluor 488', 'Alexa Fluor 488', ''] },
+      },
+    })
+    expect(() => parseProject(duplicate)).toThrow('duplicate fluorophore')
+
+    const healed = JSON.parse(serializeProject({
+      ...project,
+      slots: ['Alexa Fluor 488', 'Alexa Fluor 488', ''],
+      cytometerPanels: {
+        aurora: { ...project.cytometerPanels.aurora, slots: ['Alexa Fluor 488', 'Alexa Fluor 488', ''] },
+      },
+    })) as ProjectState
+    expect(healed.slots).toEqual(['Alexa Fluor 488', '', ''])
+    expect((healed.cytometerPanels.aurora as ProjectState['cytometerPanels']['aurora']).slots).toEqual([
+      'Alexa Fluor 488', '', '',
+    ])
   })
 
   test('drops malformed wizard and cytometer-panel records while preserving valid defaults', () => {

@@ -127,6 +127,7 @@ describe('panel rendering helpers', () => {
       { marker: '', fluor: 'Alexa Fluor 488' },
       { marker: '', fluor: 'PE (R-phycoerythrin)' },
     ])
+    expect(matchImportedFluor('AF488', buildFluorLookup(fluorophores))).toBe('Alexa Fluor 488')
     expect(detectImportedPanelRows('\uFEFFTarget\tColor\r\nCD3\tAlexa Fluor 488\r\nCD4\tLIVE/DEAD Fixable Near-IR', fluorophores).rows).toEqual([
       { marker: 'CD3', fluor: 'Alexa Fluor 488' },
       { marker: 'CD4', fluor: 'LIVE DEAD NIR' },
@@ -193,6 +194,21 @@ describe('panel rendering helpers', () => {
         canonicalFluorophore: null,
         status: 'unrecognized',
         reason: 'The fluorophore is not available for the selected cytometer configuration.',
+      }],
+    })
+  })
+
+  test('uses the bundled alias when detecting duplicate project fluorophores', () => {
+    expect(validatePanelFluorophores(
+      ['AF488', 'Alexa Fluor 488'],
+      fluorophores,
+    )).toEqual({
+      accepted: ['Alexa Fluor 488'],
+      diagnostics: [{
+        requested: 'Alexa Fluor 488',
+        canonicalFluorophore: 'Alexa Fluor 488',
+        status: 'duplicate',
+        reason: 'This fluorophore duplicates "AF488".',
       }],
     })
   })

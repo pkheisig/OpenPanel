@@ -86,6 +86,13 @@ describe('IndexedDB project persistence', () => {
     expect(await renamePanelProject('missing', 'Nope')).toBeNull()
   })
 
+  test('heals duplicate active slots when restoring persisted state', async () => {
+    fakeDb.records.set('active', { ...state, slots: ['FITC', 'FITC', ''] })
+
+    await expect(loadActiveProject()).resolves.toMatchObject({ slots: ['FITC', '', ''] })
+    expect((fakeDb.records.get('active') as ProjectState).slots).toEqual(['FITC', '', ''])
+  })
+
   test('keeps active project selection and ignores non-panel records', async () => {
     const panel = await createPanelProject('Active', state)
     fakeDb.records.set('other', { id: 'other', state })

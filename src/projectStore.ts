@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
-import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import { canonicalizeFluorophoreName, normalizeFluorophoreToken, resolveBundledFluorophoreKey } from './fluorophoreNames'
 import {
   responseMeasurementModeForCytometer,
   responseProvenanceMatchesPayload,
@@ -320,7 +320,7 @@ function normalizeWizardState(
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
   const rawResults = normalizeWizardResults(value.results, expectedContext)
-  const resultsInvalidated = isRecord(value.results) && rawResults === null
+  const resultsInvalidated = value.resultsInvalidated === true || (isRecord(value.results) && rawResults === null)
   if (import.meta.env.DEV && isRecord(value.results) && rawResults === null) {
     const rawProvenance = isRecord(value.results.response_provenance)
       ? value.results.response_provenance
@@ -356,10 +356,50 @@ function normalizeWizardState(
   }
 }
 
+function normalizeProjectSlot(value: unknown): string {
+  return canonicalizeFluorophoreName(String(scalar(value) ?? '')).trim()
+}
+
+function projectSlotIdentity(value: string): string {
+  return resolveBundledFluorophoreKey(value) ?? normalizeFluorophoreToken(value)
+}
+
+function assertNoDuplicateSlots(value: Record<string, unknown>): void {
+  const check = (slots: unknown, path: string) => {
+    if (!Array.isArray(slots)) return
+    const firstIndexByFluorophore = new Map<string, number>()
+    slots.forEach((slot, index) => {
+      const fluorophore = normalizeProjectSlot(slot)
+      if (!fluorophore) return
+      const identity = projectSlotIdentity(fluorophore)
+      const firstIndex = firstIndexByFluorophore.get(identity)
+      if (firstIndex !== undefined) {
+        throw new Error(
+          `OpenPanel project contains duplicate fluorophore ${JSON.stringify(fluorophore)} at ${path}[${index}] (first used at ${path}[${firstIndex}]).`,
+        )
+      }
+      firstIndexByFluorophore.set(identity, index)
+    })
+  }
+
+  check(value.slots, 'project.slots')
+  if (isRecord(value.cytometerPanels)) {
+    Object.entries(value.cytometerPanels).forEach(([key, panel]) => {
+      if (isRecord(panel)) check(panel.slots, `project.cytometerPanels.${key}.slots`)
+    })
+  }
+}
+
 function normalizeSlots(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.map((slot) => canonicalizeFluorophoreName(String(scalar(slot) ?? '')))
-    : Array(18).fill('')
+  if (!Array.isArray(value)) return Array(18).fill('')
+  const seen = new Set<string>()
+  return value.map((slot) => {
+    const fluorophore = normalizeProjectSlot(slot)
+    const identity = projectSlotIdentity(fluorophore)
+    if (!fluorophore || seen.has(identity)) return ''
+    seen.add(identity)
+    return fluorophore
+  })
 }
 
 function normalizeMarkers(value: unknown): Record<number, string> {
@@ -393,13 +433,14 @@ function normalizeCytometerPanel(
 }
 
 export function serializeProject(state: ProjectState): string {
-  assertProjectResourceLimits(state)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  assertProjectResourceLimits(normalizedState)
   const project: OpenPanelProject = {
     kind: PROJECT_FILE_KIND,
     version: PROJECT_FILE_VERSION,
     savedAt: new Date().toISOString(),
-    ...state,
-    markers: Object.fromEntries(Object.entries(state.markers).map(([key, value]) => [Number(key), String(value)])),
+    ...normalizedState,
+    markers: Object.fromEntries(Object.entries(normalizedState.markers).map(([key, value]) => [Number(key), String(value)])),
   }
   const serialized = `${JSON.stringify(project, null, 2)}\n`
   assertProjectTextWithinLimit(serialized)
@@ -464,7 +505,7 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
   }
 }
 
-export function parseProject(text: string): ProjectState {
+function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectState {
   assertProjectTextWithinLimit(text)
   let value: unknown
   try {
@@ -486,19 +527,35 @@ export function parseProject(text: string): ProjectState {
   const legacyConfig = record.config && typeof record.config === 'object' && !Array.isArray(record.config)
     ? record.config as Record<string, unknown>
     : record
+  if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
   return normalizeState(legacyConfig)
+}
+
+export function parseProject(text: string): ProjectState {
+  return parseProjectText(text, true)
 }
 
 export async function loadActiveProject(): Promise<ProjectState | null> {
   try {
-    const stored = await (await database()).get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
-    if (stored) return normalizeState(stored as unknown as Record<string, unknown>)
+    const db = await database()
+    const stored = await db.get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
+    if (stored) {
+      const normalized = normalizeState(stored as unknown as Record<string, unknown>)
+      try {
+        if (JSON.stringify(stored) !== JSON.stringify(normalized)) {
+          await db.put(PROJECT_STORE, normalized, ACTIVE_PROJECT_KEY)
+        }
+      } catch {
+        // A read remains usable even when a best-effort healing write fails.
+      }
+      return normalized
+    }
   } catch {
     // IndexedDB can be unavailable in hardened/private contexts; migrate from localStorage below.
   }
   try {
     const legacy = readLocalStorage(LEGACY_STORAGE_KEY)
-    return legacy ? parseProject(legacy) : null
+    return legacy ? parseProjectText(legacy, false) : null
   } catch {
     return null
   }
