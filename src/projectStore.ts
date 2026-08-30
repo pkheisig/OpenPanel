@@ -809,7 +809,30 @@ function recoveryClearedValues(
 
 function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: string): string[] {
   const discarded: string[] = []
-  if (isRecord(value.wizard)) discarded.push('wizard state')
+  const recordWizardDrops = (candidate: unknown, label: string): void => {
+    if (!isRecord(candidate)) return
+    if (!Array.isArray(candidate.markers) || candidate.markers.length === 0) {
+      discarded.push(`${label} discarded`)
+    } else if (candidate.markers.length > PROJECT_RESOURCE_LIMITS.maxWizardMarkers) {
+      const summary = recoveryDiscardSummary(
+        `${label} marker entries`,
+        Array.from(
+          { length: candidate.markers.length - PROJECT_RESOURCE_LIMITS.maxWizardMarkers },
+          (_, index) => String(index + PROJECT_RESOURCE_LIMITS.maxWizardMarkers),
+        ),
+      )
+      if (summary) discarded.push(summary)
+    }
+    if (isRecord(candidate.coexpression) && Object.keys(candidate.coexpression).length > PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries) {
+      const summary = recoveryDiscardSummary(
+        `${label} coexpression entries`,
+        Object.keys(candidate.coexpression).slice(PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries),
+      )
+      if (summary) discarded.push(summary)
+    }
+    if (isRecord(candidate.results)) discarded.push(`${label} results`)
+  }
+  recordWizardDrops(value.wizard, 'wizard')
   if (Array.isArray(value.slots)) {
     const cleared = value.slots
       .map((slot, index) => (typeof slot !== 'string' || slot.length > PROJECT_RESOURCE_LIMITS.maxStringLength ? String(index) : null))
@@ -849,7 +872,7 @@ function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: s
         if (summary) discarded.push(summary)
       }
       if (isRecord(panel.markers)) recoveryClearedValues(panel.markers, 'marker values cleared', `${panelKey}.markers`, discarded)
-      if (isRecord(panel.wizard)) discarded.push(`wizard state for '${panelKey}'`)
+      recordWizardDrops(panel.wizard, `wizard state for '${panelKey}'`)
     })
   }
   return discarded
@@ -878,11 +901,44 @@ function recoverStoredProjectState(value: Record<string, unknown>): RecoveredPro
       Object.entries(candidate)
         .filter(([key]) => /^(0|[1-9]\d*)$/.test(key) && Number.isSafeInteger(Number(key)))
         .slice(0, PROJECT_RESOURCE_LIMITS.maxMarkers)
-        .map(([key, marker]) => [
+      .map(([key, marker]) => [
           key,
           typeof marker === 'string' && marker.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? marker : '',
         ]),
     )
+  }
+  const safeWizard = (candidate: unknown): Record<string, unknown> | null => {
+    if (!isRecord(candidate) || !Array.isArray(candidate.markers)) return null
+    const markers = candidate.markers
+      .slice(0, PROJECT_RESOURCE_LIMITS.maxWizardMarkers)
+      .filter(isRecord)
+      .map((marker, index) => ({
+        id: safeString(scalar(marker.id), `marker-${index}`),
+        slotIndex: Number.isFinite(Number(scalar(marker.slotIndex))) ? Number(scalar(marker.slotIndex)) : index,
+        name: safeString(scalar(marker.name), ''),
+        antigenDensity: isAntigenDensity(marker.antigenDensity)
+          ? marker.antigenDensity
+          : isAntigenDensity(marker.frequency) ? marker.frequency : 'medium',
+        currentFluorophore: safeString(scalar(marker.currentFluorophore), ''),
+      }))
+    if (markers.length === 0) return null
+    const coexpression = isRecord(candidate.coexpression)
+      ? Object.fromEntries(Object.entries(candidate.coexpression).slice(0, PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries))
+      : {}
+    return {
+      desiredSize: candidate.desiredSize,
+      markers,
+      coexpression,
+      coexpressionScale: candidate.coexpressionScale === 5 ? 5 : undefined,
+      coexpressionVisited: candidate.coexpressionVisited === true,
+      coexpressionCompleted: candidate.coexpressionCompleted === true,
+      inputsChanged: candidate.inputsChanged === true,
+      activeTab: candidate.activeTab,
+      results: null,
+      resultsInvalidated: isRecord(candidate.results),
+      resultMode: candidate.resultMode,
+      resultSort: candidate.resultSort,
+    }
   }
   const safeCytometer = safeString(value.cytometer, 'aurora')
   const safeCytometerPanels: Record<string, Record<string, unknown>> = {}
@@ -896,7 +952,7 @@ function recoverStoredProjectState(value: Record<string, unknown>): RecoveredPro
         configuration: safeString(panel.configuration, ''),
         slots: safeSlots(panel.slots),
         markers: safeMarkers(panel.markers),
-        wizard: null,
+        wizard: safeWizard(panel.wizard),
       }
       })
   }
@@ -912,7 +968,7 @@ function recoverStoredProjectState(value: Record<string, unknown>): RecoveredPro
       sidebarCollapsed: false,
       plotScale: DEFAULT_PLOT_SCALE,
       plotScaleMode: 'fit-width',
-      wizard: null,
+      wizard: safeWizard(value.wizard),
       cytometerPanels: safeCytometerPanels,
     }, true, false, false),
     discarded: recoveryDiscardedItems(value, safeCytometer),

@@ -74,6 +74,12 @@ describe('bundled spectral data', () => {
       .toThrow('pinned complete conventional detector bundle')
   })
 
+  test('rejects a partial conventional dictionary that looks like a full bundle', () => {
+    const rows = parseCsv(readFileSync(conventionalDetectorPath, 'utf8')).slice(0, 101)
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', rows))
+      .toThrow('pinned complete conventional detector bundle')
+  })
+
   test('rejects partial or substituted complete-reference assets', () => {
     const conventionalRows = parseCsv(readFileSync(conventionalDetectorPath, 'utf8'))
     expect(() => validateBundledDataRows(
