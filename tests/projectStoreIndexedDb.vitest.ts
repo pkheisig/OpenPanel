@@ -93,6 +93,22 @@ describe('IndexedDB project persistence', () => {
     expect(fakeDb.put).not.toHaveBeenCalled()
   })
 
+  test('rejects malformed marker keys before database persistence', async () => {
+    const malformedState = { ...state, markers: { '-1': 'CD3' } }
+
+    await expect(createPanelProject('Malformed', malformedState)).rejects.toThrow('invalid marker slot "-1"')
+    expect(fakeDb.records).toEqual(new Map())
+
+    fakeDb.records.set('active', malformedState)
+    await expect(loadActiveProject()).rejects.toThrow('invalid marker slot "-1"')
+    await expect(loadLastPanelProject()).resolves.toMatchObject({
+      id: 'active',
+      state: { markers: { '-1': 'CD3' } },
+      loadError: 'project.markers contains invalid marker slot "-1". Marker slots must be nonnegative integers.',
+    })
+    expect(fakeDb.records.get('active')).toEqual(malformedState)
+  })
+
   test('rejects duplicate fluorophore aliases before database persistence', async () => {
     const duplicateState = { ...state, slots: ['FITC', 'fit-c'] }
 

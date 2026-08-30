@@ -207,6 +207,17 @@ function assertRecordLimit(value: unknown, limit: number, label: string): void {
   }
 }
 
+function assertMarkerKeys(value: unknown, path: string): void {
+  if (!isRecord(value)) return
+  const invalidKey = Object.keys(value)
+    .find((key) => key.trim() === '' || !Number.isInteger(Number(key)) || Number(key) < 0)
+  if (invalidKey !== undefined) {
+    throw new ProjectValidationError(
+      `${path} contains invalid marker slot ${JSON.stringify(invalidKey)}. Marker slots must be nonnegative integers.`,
+    )
+  }
+}
+
 function assertWizardResourceLimits(value: unknown, path: string, rejectOversizedResults = true): void {
   if (!isRecord(value)) return
   assertArrayLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxWizardMarkers, `${path}.markers`)
@@ -225,10 +236,16 @@ function assertWizardResourceLimits(value: unknown, path: string, rejectOversize
   }
 }
 
-function assertPanelStateResourceLimits(value: unknown, path: string, rejectOversizedResults = true): void {
+function assertPanelStateResourceLimits(
+  value: unknown,
+  path: string,
+  rejectOversizedResults = true,
+  validateMarkerKeys = true,
+): void {
   if (!isRecord(value)) return
   assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, `${path}.slots`)
   assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, `${path}.markers`)
+  if (validateMarkerKeys) assertMarkerKeys(value.markers, `${path}.markers`)
   assertWizardResourceLimits(value.wizard, `${path}.wizard`, rejectOversizedResults)
 }
 
@@ -236,15 +253,22 @@ function assertProjectResourceLimits(
   value: unknown,
   rejectOversizedWizardResults = true,
   traverseResourceTree = true,
+  validateMarkerKeys = true,
 ): void {
   if (traverseResourceTree) assertProjectResourceTree(value)
   if (!isRecord(value)) return
   assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, 'project.slots')
   assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, 'project.markers')
+  if (validateMarkerKeys) assertMarkerKeys(value.markers, 'project.markers')
   assertRecordLimit(value.cytometerPanels, PROJECT_RESOURCE_LIMITS.maxCytometerPanels, 'project.cytometerPanels')
   assertWizardResourceLimits(value.wizard, 'project.wizard', rejectOversizedWizardResults)
   if (isRecord(value.cytometerPanels)) {
-    Object.entries(value.cytometerPanels).forEach(([key, panel]) => assertPanelStateResourceLimits(panel, `project.cytometerPanels.${key}`, rejectOversizedWizardResults))
+    Object.entries(value.cytometerPanels).forEach(([key, panel]) => assertPanelStateResourceLimits(
+      panel,
+      `project.cytometerPanels.${key}`,
+      rejectOversizedWizardResults,
+      validateMarkerKeys,
+    ))
   }
 }
 
@@ -520,8 +544,9 @@ function normalizeState(
   value: Record<string, unknown>,
   traverseResourceTree = true,
   dedupeSlots = true,
+  validateMarkerKeys = true,
 ): ProjectState {
-  assertProjectResourceLimits(value, false, traverseResourceTree)
+  assertProjectResourceLimits(value, false, traverseResourceTree, validateMarkerKeys)
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
   const theme = scalar(value.theme) === 'dark' ? 'dark' : 'light'
@@ -730,7 +755,7 @@ function recoverStoredProjectState(value: Record<string, unknown>): ProjectState
     plotScaleMode: 'fit-width',
     wizard: null,
     cytometerPanels: safeCytometerPanels,
-  }, true, false)
+  }, true, false, false)
 }
 
 function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
