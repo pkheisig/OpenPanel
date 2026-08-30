@@ -45,6 +45,7 @@ vi.mock('../src/PanelBuilder', () => ({
 
 vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
+  PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024 },
   archivePanelProject: vi.fn(async (panel) => { fixtures.calls.push('archive'); return panel }),
   createPanelProject: vi.fn(async (name, state) => ({ ...fixtures.project, name, state })),
   deletePanelProject: vi.fn(async () => { fixtures.calls.push('delete') }),
@@ -61,6 +62,7 @@ vi.mock('../src/projectStore', () => ({
 vi.mock('../src/browserFiles', () => ({
   projectJsonFilename: vi.fn(() => 'panel.json'),
   projectNameFromFilename: vi.fn(() => 'Imported'),
+  readTextFileWithinLimit: vi.fn(async (file: File) => file.text()),
   saveBlob: vi.fn(async () => undefined),
 }))
 
@@ -73,6 +75,7 @@ vi.mock('../src/themePreference', () => ({ readThemePreference: vi.fn(() => 'lig
 
 import App from '../src/App'
 import { loadLastPanelProject } from '../src/projectStore'
+import { readTextFileWithinLimit } from '../src/browserFiles'
 
 afterEach(() => {
   cleanup()
@@ -110,6 +113,11 @@ describe('App surface restoration and handoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'archive other' }))
     fireEvent.click(screen.getByRole('button', { name: 'delete other' }))
     await waitFor(() => expect(fixtures.calls).toContain('archive'))
+    expect(vi.mocked(readTextFileWithinLimit)).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'import.json' }),
+      5 * 1024 * 1024,
+      'OpenPanel project',
+    )
   })
 
   test('passes configured slots and handles callbacks for the active landing panel', async () => {

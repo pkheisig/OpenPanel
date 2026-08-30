@@ -396,7 +396,9 @@ export function serializeProject(state: ProjectState): string {
     ...state,
     markers: Object.fromEntries(Object.entries(state.markers).map(([key, value]) => [Number(key), String(value)])),
   }
-  return `${JSON.stringify(project, null, 2)}\n`
+  const serialized = `${JSON.stringify(project, null, 2)}\n`
+  assertProjectTextWithinLimit(serialized)
+  return serialized
 }
 
 function normalizeState(value: Record<string, unknown>): ProjectState {

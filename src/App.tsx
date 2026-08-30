@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { LandingPage } from './LandingPage'
 import type { PanelLaunchSelection } from './LandingPage'
 import PanelBuilder from './PanelBuilder'
-import { projectJsonFilename, projectNameFromFilename, saveBlob } from './browserFiles'
+import { projectJsonFilename, projectNameFromFilename, readTextFileWithinLimit, saveBlob } from './browserFiles'
 import { readLocalStorage, writeLocalStorage } from './browserStorage'
 import {
   DEFAULT_PLOT_SCALE,
+  PROJECT_RESOURCE_LIMITS,
   archivePanelProject,
   createPanelProject,
   deletePanelProject,
@@ -102,7 +103,11 @@ export default function App() {
         onImport={async (file) => {
           const panel = await createPanelProject(
             projectNameFromFilename(file.name),
-            parseProject(await file.text()),
+            parseProject(await readTextFileWithinLimit(
+              file,
+              PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
+              'OpenPanel project',
+            )),
           )
           await refreshPanels()
           setActivePanel(panel)

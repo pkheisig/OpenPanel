@@ -884,7 +884,7 @@ export class PanelSelectionValidationError extends Error {
 
   constructor(diagnostics: RequestedFluorophoreDiagnostic[]) {
     const details = diagnostics.map((diagnostic) => (
-      `"${diagnostic.requested}": ${diagnostic.reason}`
+      `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
     )).join('; ')
     super(`Panel selection rejected ${diagnostics.length} fluorophore(s): ${details}`)
     this.name = 'PanelSelectionValidationError'

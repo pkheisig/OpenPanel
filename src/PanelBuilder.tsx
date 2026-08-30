@@ -461,7 +461,9 @@ const PanelBuilder = ({
     useEffect(() => {
         if (!guiStateLoaded) return;
         const timer = window.setTimeout(() => {
-            void persistProjectState().catch(() => null);
+            void persistProjectState().catch((persistError) => {
+                setError(panelErrorMessage(persistError, 'Could not save this panel.'));
+            });
         }, 500);
         return () => window.clearTimeout(timer);
     }, [guiStateLoaded, persistProjectState]);
@@ -1107,7 +1109,6 @@ const PanelBuilder = ({
             const nextMarkers = Object.fromEntries(
                 Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
             ) as Record<number, string>;
-            clearPanelHistory();
             slotsRef.current = nextSlots;
             markersRef.current = nextMarkers;
             wizardStateRef.current = state.wizard;
@@ -1136,6 +1137,7 @@ const PanelBuilder = ({
                 markers: nextMarkers,
                 cytometerPanels: nextCytometerPanels,
             });
+            clearPanelHistory();
         } catch (err) {
             setError(panelErrorMessage(err, 'Could not import this OpenPanel project.'));
         } finally {

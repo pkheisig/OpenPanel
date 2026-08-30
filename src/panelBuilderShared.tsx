@@ -600,9 +600,10 @@ const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]): Impor
 
     const result = { rows: imported, diagnostics };
     const rejected = diagnostics.filter(diagnostic => diagnostic.status !== 'accepted');
-    const details = rejected.map(diagnostic => (
-        `row ${diagnostic.sourceRow} "${diagnostic.rawFluorophore || '(blank)'}": ${diagnostic.reason}`
-    )).join('; ');
+    const details = rejected.slice(0, 20).map(diagnostic => (
+        `row ${diagnostic.sourceRow} ${JSON.stringify(diagnostic.rawFluorophore || '(blank)')}: ${diagnostic.reason}`
+    )).join('; ')
+        + (rejected.length > 20 ? `; ${rejected.length - 20} additional row(s) omitted.` : '');
     if (imported.length === 0 && rejected.length > 0) {
         throw new PanelImportValidationError(
             `No known fluorophores were recognized in the imported CSV for the selected cytometer. ${details}`,
