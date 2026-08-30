@@ -22,6 +22,7 @@ import {
   responseProvenanceForCytometer,
   responseProvenanceForMeasurementMode,
   responseProvenanceForPayload,
+  responseProvenanceMatchesPayload,
   responseProvenanceWarningForPayload,
   responseMeasurementModeForCytometer,
 } from '../src/panelBuilderShared'
@@ -433,13 +434,25 @@ describe('browser spectral engine parity', () => {
     expect(responseProvenanceForPayload('unknown-lab-prototype', 'spectral')).toMatchObject({
       class: 'synthetic_filter_proxy',
     })
-    expect(responseMeasurementModeForCytometer('unknown-lab-prototype')).toBe('conventional')
+    expect(responseMeasurementModeForCytometer('unknown-lab-prototype')).toBe('spectral')
     expect(responseProvenanceForMeasurementMode('spectral')).toMatchObject({
       class: 'measured_full_spectrum',
     })
     expect(responseProvenanceForMeasurementMode('conventional')).toMatchObject({
       class: 'synthetic_filter_proxy',
     })
+    expect(responseProvenanceWarningForPayload('unknown-lab-prototype', 'spectral')).toContain('not recognized')
+    for (const conventionalCytometer of ['accuri_c6_plus', 'facscalibur', 'cytoflex_lx', 'facsaria_fusion']) {
+      expect(responseMeasurementModeForCytometer(conventionalCytometer)).toBe('conventional')
+      expect(responseProvenanceWarningForPayload(conventionalCytometer, 'conventional')).toBeNull()
+    }
+    const editorialChange = {
+      ...payload.response_provenance,
+      label: 'Edited display label',
+      method: 'Edited display method',
+      limitation: 'Edited display limitation',
+    }
+    expect(responseProvenanceMatchesPayload('fortessa', 'conventional', editorialChange)).toBe(true)
     const forgedSource = { ...payload.response_provenance, source: 'aurora_spectra.csv' }
     expect(responseProvenanceForPayload('fortessa', 'conventional', forgedSource).source)
       .toBe('conventional_detector_dictionary.csv + fluorophore_dictionary.csv')
