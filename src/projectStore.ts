@@ -42,7 +42,7 @@ export const PROJECT_RESOURCE_LIMITS = {
   maxWizardAlternatives: 512,
 } as const
 
-const MAX_PROJECT_NESTING_DEPTH = 2048
+const MAX_PROJECT_NESTING_DEPTH = 256
 
 export class ProjectResourceLimitError extends Error {
   rawValue?: Record<string, unknown>
@@ -742,15 +742,39 @@ function recoveryDiscardSummary(label: string, items: string[]): string | undefi
   return `${label} ${items.length} item(s) [${preview}${suffix}]`
 }
 
+function recoveryClearedValues(
+  value: Record<string, unknown>,
+  label: string,
+  path: string,
+  discarded: string[],
+): void {
+  const summary = recoveryDiscardSummary(
+    label,
+    Object.entries(value)
+      .filter(([, item]) => typeof item !== 'string' || item.length > PROJECT_RESOURCE_LIMITS.maxStringLength)
+      .map(([key]) => `${path}.${key}`),
+  )
+  if (summary) discarded.push(summary)
+}
+
 function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: string): string[] {
   const discarded: string[] = []
-  if (Array.isArray(value.slots) && value.slots.length > PROJECT_RESOURCE_LIMITS.maxSlots) {
-    discarded.push(recoveryDiscardSummary(
-      'slots at indices',
-      Array.from({ length: value.slots.length - PROJECT_RESOURCE_LIMITS.maxSlots }, (_, index) => String(index + PROJECT_RESOURCE_LIMITS.maxSlots)),
-    ) as string)
+  if (Array.isArray(value.slots)) {
+    const cleared = value.slots
+      .map((slot, index) => (typeof slot !== 'string' || slot.length > PROJECT_RESOURCE_LIMITS.maxStringLength ? String(index) : null))
+      .filter((entry): entry is string => entry !== null)
+    const clearedSummary = recoveryDiscardSummary('slot values cleared at indices', cleared)
+    if (clearedSummary) discarded.push(clearedSummary)
+    if (value.slots.length > PROJECT_RESOURCE_LIMITS.maxSlots) {
+      const summary = recoveryDiscardSummary(
+        'slots at indices',
+        Array.from({ length: value.slots.length - PROJECT_RESOURCE_LIMITS.maxSlots }, (_, index) => String(index + PROJECT_RESOURCE_LIMITS.maxSlots)),
+      )
+      if (summary) discarded.push(summary)
+    }
   }
   if (isRecord(value.markers)) {
+    recoveryClearedValues(value.markers, 'marker values cleared', 'project.markers', discarded)
     const validKeys = Object.keys(value.markers)
       .filter((key) => /^(0|[1-9]\d*)$/.test(key) && Number.isSafeInteger(Number(key)))
     if (validKeys.length > PROJECT_RESOURCE_LIMITS.maxMarkers) {
@@ -761,8 +785,20 @@ function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: s
     const panelKeys = Object.keys(value.cytometerPanels).filter((key) => key !== safeCytometer)
     const retainedPanelLimit = PROJECT_RESOURCE_LIMITS.maxCytometerPanels - 1
     if (panelKeys.length > retainedPanelLimit) {
-      discarded.push(recoveryDiscardSummary('cytometer panels', panelKeys.slice(retainedPanelLimit)) as string)
+      const summary = recoveryDiscardSummary('cytometer panels', panelKeys.slice(retainedPanelLimit))
+      if (summary) discarded.push(summary)
     }
+    Object.entries(value.cytometerPanels).forEach(([panelKey, panel]) => {
+      if (!isRecord(panel)) return
+      if (Array.isArray(panel.slots)) {
+        const cleared = panel.slots
+          .map((slot, index) => (typeof slot !== 'string' || slot.length > PROJECT_RESOURCE_LIMITS.maxStringLength ? `${panelKey}.slots[${index}]` : null))
+          .filter((entry): entry is string => entry !== null)
+        const summary = recoveryDiscardSummary('slot values cleared', cleared)
+        if (summary) discarded.push(summary)
+      }
+      if (isRecord(panel.markers)) recoveryClearedValues(panel.markers, 'marker values cleared', `${panelKey}.markers`, discarded)
+    })
   }
   return discarded
 }

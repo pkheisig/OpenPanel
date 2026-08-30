@@ -265,6 +265,16 @@ describe('IndexedDB fallback error paths', () => {
     expect(() => parseProject(JSON.stringify(nested))).toThrow('maximum nesting depth')
   })
 
+  test('reports cleared oversized values in bounded recovery', async () => {
+    const rawState = { ...state, slots: ['x'.repeat(8193)], markers: { 0: 'y'.repeat(8193) } }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    const recovered = await loadLastPanelProject()
+    expect(recovered?.loadError).toContain('slot values cleared at indices 1 item(s) ["0"]')
+    expect(recovered?.loadError).toContain('marker values cleared 1 item(s) ["project.markers.0"]')
+    expect(recovered?.state).toMatchObject({ slots: [''], markers: { 0: '' } })
+  })
+
   test('keeps a bounded subset of oversized cytometer panels during recovery', async () => {
     const rawPanel = {
       id: 'many-panels',
