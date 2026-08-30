@@ -76,7 +76,7 @@ export function shouldSkipSlotUpdate(currentSlots: string[], index: number, fluo
     return Boolean(fluor && currentSlots.some((existing, slotIndex) => (
         slotIndex !== index && fluorophoreIdentity(existing) === requestedIdentity
     )))
-        || currentSlots[index] === fluor;
+        || fluorophoreIdentity(currentSlots[index]) === requestedIdentity;
 }
 
 export function panelErrorMessage(error: unknown, fallback: string): string {

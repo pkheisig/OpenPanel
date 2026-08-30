@@ -537,7 +537,10 @@ const detectImportedPanelRows = (
 
     const lookup = buildFluorLookup(fluorophores);
     const firstRow = rows[0].values;
-    const hasHeader = rowHasHeaderWords(firstRow);
+    const firstRowHasFluor = firstRow.some(value => !!matchImportedFluor(value, lookup));
+    const looksLikeGenericHeader = firstRow.every(value => value.trim().length > 0 && !/\d/.test(value));
+    const hasHeader = rowHasHeaderWords(firstRow)
+        || (!firstRowHasFluor && rows.length > 1 && looksLikeGenericHeader);
     const headers = hasHeader ? firstRow.map(normalizeImportToken) : [];
     const dataRows = hasHeader ? rows.slice(1) : rows;
     const maxCols = Math.max(...rows.map(row => row.values.length));
