@@ -62,6 +62,7 @@ interface PanelVisualizationsProps {
     error: string;
     plotScale: number;
     onPlotScaleChange: (scale: number) => void;
+    readOnly?: boolean;
 }
 
 type SpectrumResizeEdge = 'left' | 'right';
@@ -120,6 +121,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     error,
     plotScale,
     onPlotScaleChange,
+    readOnly = false,
 }: PanelVisualizationsProps) {
     const tabContentRef = useRef<HTMLElement>(null);
     const spectrumContainerRef = useRef<HTMLDivElement>(null);
@@ -518,6 +520,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                                                         className="matrix-marker-input"
                                                         value={entry.marker}
                                                         placeholder="Marker"
+                                                        disabled={readOnly}
                                                         onChange={event => {
                                                             const val = event.target.value;
                                                             onMarkerChange(entry.slotIndex, val);

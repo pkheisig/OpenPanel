@@ -547,7 +547,7 @@ const rowHasHeaderWords = (row: string[]) => {
     const keys = row.map(normalizeImportToken);
     const strongCount = keys.filter(key => strongHeaderWords.has(key)).length;
     const genericCount = keys.filter(key => genericHeaderWords.has(key)).length;
-    return strongCount >= 2
+    return strongCount >= 1
         || genericCount >= 2
         || (strongCount >= 1 && genericCount >= 1)
         || (row.length > 1 && keys.some(key => unambiguousGenericHeaderWords.has(key)))
@@ -602,9 +602,8 @@ const detectImportedPanelRows = (
     const singleFluorHeaderIndex = firstRow.findIndex(value => fluorophoreHeaderWords.has(normalizeImportToken(value)));
     const hasKnownFluorBelowSingleHeader = singleFluorHeaderIndex >= 0
         && rows.slice(1).some(row => !!matchImportedFluor(row.values[singleFluorHeaderIndex] || '', lookup));
-    const hasHeader = !firstRowHasKnownFluor && (
-        rowHasHeaderWords(firstRow) || hasKnownFluorBelowSingleHeader
-    );
+    const hasHeader = (!firstRowHasKnownFluor || rows.length > 1)
+        && (rowHasHeaderWords(firstRow) || hasKnownFluorBelowSingleHeader);
     const headers = hasHeader ? firstRow.map(normalizeImportToken) : [];
     const dataRows = hasHeader ? rows.slice(1) : rows;
     const maxCols = Math.max(...rows.map(row => row.values.length));

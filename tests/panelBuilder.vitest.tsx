@@ -54,18 +54,20 @@ vi.mock('../src/PanelVisualizations', () => ({
     setTab,
     onMarkerChange,
     error,
+    readOnly,
   }: {
     setTab: (tab: 'panel' | 'similarity' | 'signatures') => void
     onMarkerChange: (slot: number, value: string) => void
     error: string
+    readOnly?: boolean
   }) => (
     <div data-testid="mock-visualizations">
       <button type="button" onClick={() => setTab('similarity')}>Mock similarity</button>
       <button type="button" onClick={() => setTab('signatures')}>Mock signatures</button>
-      <button type="button" onClick={() => onMarkerChange(0, 'CD4')}>Mock marker</button>
-      <button type="button" onClick={() => onMarkerChange(0, 'x'.repeat(8193))}>Mock oversized marker</button>
-      <button type="button" onClick={() => onMarkerChange(0, '')}>Mock clear marker</button>
-      <button type="button" onClick={() => onMarkerChange(0, `CD${++uniqueMarkerCounter}`)}>Mock unique marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, 'CD4')}>Mock marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, 'x'.repeat(8193))}>Mock oversized marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, '')}>Mock clear marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, `CD${++uniqueMarkerCounter}`)}>Mock unique marker</button>
       <span>{error}</span>
     </div>
   ),
@@ -251,8 +253,8 @@ describe('PanelBuilder', () => {
     expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Export overview PDF' }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Mock oversized marker' }))
-    expect(document.body.textContent).toContain('Marker names cannot exceed 8192 characters.')
+    expect((screen.getByRole('button', { name: 'Mock marker' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getAllByPlaceholderText('Select fluorophore')[0] as HTMLInputElement).disabled).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open panel library' }))
     await waitFor(() => expect(onRequestExit).toHaveBeenCalled())

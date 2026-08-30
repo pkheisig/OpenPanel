@@ -493,20 +493,22 @@ const PanelBuilder = ({
     const [wizardSyncRevision, setWizardSyncRevision] = useState(0);
     const wizardStateRef = useRef(wizardState);
     const handleWizardStateChange = useCallback((state: WizardProjectState) => {
+        if (recoveryMode) return;
         wizardStateRef.current = state;
         setWizardState(state);
-    }, []);
+    }, [recoveryMode]);
     const syncWizardColorsWithPanel = useCallback((
         nextSlots: string[],
         removedSlotIndex?: number,
         invalidateResults = true,
     ) => {
+        if (recoveryMode) return;
         const nextState = synchronizeWizardPanelState(wizardStateRef.current, nextSlots, removedSlotIndex, invalidateResults);
         if (!nextState) return;
         wizardStateRef.current = nextState;
         setWizardState(nextState);
         setWizardSyncRevision((revision) => revision + 1);
-    }, []);
+    }, [recoveryMode]);
     const panelHistoryRef = useRef<{ past: PanelEditSnapshot[]; future: PanelEditSnapshot[] }>({
         past: [],
         future: [],
@@ -767,6 +769,7 @@ const PanelBuilder = ({
     };
 
     const restorePanelEdit = async (snapshot: PanelEditSnapshot) => {
+        if (recoveryMode) return;
         slotsRef.current = [...snapshot.slots];
         markersRef.current = { ...snapshot.markers };
         wizardStateRef.current = snapshot.wizard;
@@ -783,6 +786,7 @@ const PanelBuilder = ({
     };
 
     const undoPanelEdit = async () => {
+        if (recoveryMode) return;
         await runHistoryAction(historyBusy, panelHistoryRef.current.past, async (previous) => {
             panelHistoryRef.current.future.push(capturePanelEdit());
             syncHistoryAvailability();
@@ -796,6 +800,7 @@ const PanelBuilder = ({
     };
 
     const redoPanelEdit = async () => {
+        if (recoveryMode) return;
         await runHistoryAction(historyBusy, panelHistoryRef.current.future, async (next) => {
             panelHistoryRef.current.past.push(capturePanelEdit());
             syncHistoryAvailability();
@@ -897,6 +902,7 @@ const PanelBuilder = ({
     }, [activeSlot, clearingPanel, exitToPanelLibrary, fileMenu, onRequestExit, showClearConfirmation, showPanelWizard, showPdfConfirm]);
 
     const updateSlot = async (index: number, fluor: string) => {
+        if (recoveryMode) return;
         const currentSlots = slotsRef.current;
         if (shouldSkipSlotUpdate(currentSlots, index, fluor)) return;
         recordPanelEdit();
@@ -913,6 +919,7 @@ const PanelBuilder = ({
     };
 
     const removeSlot = async (index: number) => {
+        if (recoveryMode) return;
         recordPanelEdit();
         const nextSlots = slotsRef.current.filter((_, slotIndex) => slotIndex !== index);
         const nextMarkers = Object.fromEntries(
@@ -942,6 +949,7 @@ const PanelBuilder = ({
     };
 
     const addSlot = () => {
+        if (recoveryMode) return;
         appendPanelSlot(payload, slotsRef.current, setError, (nextSlots) => {
             recordPanelEdit();
             slotsRef.current = nextSlots;
@@ -952,6 +960,7 @@ const PanelBuilder = ({
     };
 
     const updateMarkerWithHistory = useCallback((slotIndex: number, value: string) => {
+        if (recoveryMode) return;
         if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
             setError(`Marker names cannot exceed ${PROJECT_RESOURCE_LIMITS.maxStringLength} characters.`);
             return;
@@ -965,9 +974,10 @@ const PanelBuilder = ({
         markersRef.current = nextMarkers;
         setMarkers(nextMarkers);
         writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
-    }, [recordPanelEdit]);
+    }, [recordPanelEdit, recoveryMode]);
 
     const clearPanelContent = async () => {
+        if (recoveryMode) return;
         const hasContent = slotsRef.current.some(Boolean)
             || Object.keys(markersRef.current).length > 0
             || wizardStateRef.current !== null;
@@ -1020,6 +1030,7 @@ const PanelBuilder = ({
         recommendations,
         desiredSize,
     }: WizardApplication) => {
+        if (recoveryMode) return;
         if (payload && desiredSize > payload.max_panel_size) {
             throw new Error(`The panel cannot exceed ${payload.max_panel_size} colors for this detector configuration.`);
         }
@@ -1100,6 +1111,7 @@ const PanelBuilder = ({
     };
 
     const beginSidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (recoveryMode) return;
         withSidebarResizeTarget(sidebarCollapsed, sidebarRef.current, (sidebar) => {
             event.preventDefault();
             sidebarResizeCleanupRef.current?.();
@@ -1161,6 +1173,7 @@ const PanelBuilder = ({
     };
 
     const resizeSidebarByKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (recoveryMode) return;
         const direction = event.key === 'ArrowLeft'
             ? -SIDEBAR_KEYBOARD_STEP
             : event.key === 'ArrowRight'
@@ -1397,6 +1410,7 @@ const PanelBuilder = ({
                                         if (!panelName.trim()) setPanelName('Untitled panel');
                                     }}
                                     aria-label="Panel name"
+                                    disabled={recoveryMode}
                                     spellCheck={false}
                                 />
                             )}
@@ -1424,7 +1438,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => void undoPanelEdit()}
-                            disabled={!historyAvailability.canUndo || historyBusy}
+                            disabled={recoveryMode || !historyAvailability.canUndo || historyBusy}
                             aria-label="Undo last edit"
                             title="Undo"
                         >
@@ -1434,7 +1448,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => void redoPanelEdit()}
-                            disabled={!historyAvailability.canRedo || historyBusy}
+                            disabled={recoveryMode || !historyAvailability.canRedo || historyBusy}
                             aria-label="Redo last edit"
                             title="Redo"
                         >
@@ -1446,7 +1460,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => setPlotScale((current) => Math.max(MIN_PLOT_SCALE, current - 10))}
-                            disabled={plotScale <= MIN_PLOT_SCALE}
+                            disabled={recoveryMode || plotScale <= MIN_PLOT_SCALE}
                             aria-label="Decrease plot size"
                             title="Decrease plot size"
                         >
@@ -1456,7 +1470,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => setPlotScale((current) => Math.min(MAX_PLOT_SCALE, current + 10))}
-                            disabled={plotScale >= MAX_PLOT_SCALE}
+                            disabled={recoveryMode || plotScale >= MAX_PLOT_SCALE}
                             aria-label="Increase plot size"
                             title="Increase plot size"
                         >
@@ -1467,7 +1481,7 @@ const PanelBuilder = ({
                         type="button"
                         className="export-button icon-only panel-clear-button"
                         onClick={() => setShowClearConfirmation(true)}
-                        disabled={!panelHasContent || clearingPanel}
+                        disabled={recoveryMode || !panelHasContent || clearingPanel}
                         aria-label="Clear project panel"
                         title="Clear panel"
                     >
@@ -1477,6 +1491,7 @@ const PanelBuilder = ({
                         type="button"
                         className="export-button"
                         onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+                        disabled={recoveryMode}
                         aria-label="Toggle theme"
                         style={{ padding: '0 10px', width: '40px' }}
                     >
@@ -1594,6 +1609,7 @@ const PanelBuilder = ({
                         type="button"
                         className="panel-sidebar-toggle"
                         onClick={() => setSidebarCollapsed(previous => !previous)}
+                        disabled={recoveryMode}
                         aria-label={sidebarCollapsed ? 'Show fluorophore sidebar' : 'Hide fluorophore sidebar'}
                         title={sidebarCollapsed ? 'Show fluorophore sidebar' : 'Hide fluorophore sidebar'}
                     >
@@ -1614,10 +1630,11 @@ const PanelBuilder = ({
                                 >
                                     <div className="selector-swatch" style={{ background: color }} />
                                     <div>
-                                        <input
+                                    <input
                                             className="selector-input"
                                             value={display}
                                             placeholder="Select fluorophore"
+                                            disabled={recoveryMode}
                                             onFocus={() => {
                                                 setActiveSlot(index);
                                                 setQueries(prev => ({ ...prev, [index]: fluor }));
@@ -1657,7 +1674,7 @@ const PanelBuilder = ({
                                             </div>
                                         )}
                                     </div>
-                                    <button className="clear-slot" type="button" onClick={() => void removeSlot(index)} aria-label="Remove fluorophore row">
+                                    <button className="clear-slot" type="button" onClick={() => void removeSlot(index)} aria-label="Remove fluorophore row" disabled={recoveryMode}>
                                         <X size={13} />
                                     </button>
                                 </div>
@@ -1667,7 +1684,7 @@ const PanelBuilder = ({
                             type="button"
                             className="fluor-option"
                             onClick={addSlot}
-                            disabled={slots.length >= payload.max_panel_size}
+                            disabled={recoveryMode || slots.length >= payload.max_panel_size}
                             title={slots.length >= payload.max_panel_size ? `Maximum panel size: ${payload.max_panel_size} detectors` : 'Add fluorophore row'}
                         >
                             <span><Plus size={16} /> Add fluorophore row</span>
@@ -1687,7 +1704,8 @@ const PanelBuilder = ({
                         aria-valuemin={MIN_SIDEBAR_WIDTH}
                         aria-valuemax={MAX_SIDEBAR_WIDTH}
                         aria-valuenow={Math.round(sidebarWidth)}
-                        tabIndex={0}
+                        tabIndex={recoveryMode ? -1 : 0}
+                        aria-disabled={recoveryMode}
                         onPointerDown={beginSidebarResize}
                         onKeyDown={resizeSidebarByKeyboard}
                     />
@@ -1708,6 +1726,7 @@ const PanelBuilder = ({
                     hoveredFluor={hoveredFluor}
                     theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
                     error={[recoveryMode ? initialError : '', error, persistenceError].filter(Boolean).join('\n')}
+                    readOnly={recoveryMode}
                     plotScale={plotScale}
                     onPlotScaleChange={setPlotScale}
                 />
