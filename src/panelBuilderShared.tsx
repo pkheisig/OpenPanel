@@ -79,10 +79,23 @@ const responseMatrixProvenance = (
     ...overrides,
 });
 
+const responseProvenanceForCytometer = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    source?: string,
+): ResponseMatrixProvenance => {
+    const normalizedCytometer = cytometer.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const provenanceClass: ResponseMatrixProvenanceClass = normalizedCytometer.includes('facsymphony')
+        || normalizedCytometer === 'symphony'
+        ? 'measured_detector_response'
+        : measurementMode === 'conventional'
+            ? 'synthetic_filter_proxy'
+            : 'measured_full_spectrum';
+    return responseMatrixProvenance(provenanceClass, source ? { source } : {});
+};
+
 const responseProvenanceForMeasurementMode = (measurementMode: PanelMeasurementMode): ResponseMatrixProvenance => (
-    measurementMode === 'conventional'
-        ? responseMatrixProvenance('synthetic_filter_proxy')
-        : responseMatrixProvenance('measured_full_spectrum')
+    responseProvenanceForCytometer('', measurementMode)
 );
 
 const isResponseMatrixProvenance = (value: unknown): value is ResponseMatrixProvenance => {
@@ -472,6 +485,7 @@ export {
     wavelengthToColor,
     isResponseMatrixProvenance,
     responseMatrixProvenance,
+    responseProvenanceForCytometer,
     responseProvenanceForMeasurementMode,
     RESPONSE_PROVENANCE_CONTRACT_VERSION,
 };

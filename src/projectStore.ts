@@ -239,11 +239,14 @@ function normalizeCytometerPanel(
   const effectiveConfiguration = typeof configuration === 'string' && configuration
     ? configuration
     : fallbackConfiguration
+  const expectedContext = effectiveConfiguration
+    ? { cytometer, configuration: effectiveConfiguration }
+    : undefined
   return {
     configuration: effectiveConfiguration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard, { cytometer, configuration: effectiveConfiguration }),
+    wizard: normalizeWizardState(value.wizard, expectedContext),
   }
 }
 

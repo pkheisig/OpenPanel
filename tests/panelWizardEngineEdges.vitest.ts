@@ -13,6 +13,7 @@ import {
 } from '../src/panelWizardEngine'
 import type { WizardMarker } from '../src/panelWizardEngine'
 import type { WizardReferenceData } from '../src/panelWizardReferences'
+import { responseMatrixProvenance } from '../src/panelBuilderShared'
 
 function payload() {
   const names = ['FITC', 'PE', 'APC', 'Zombie Aqua', 'mFluor Vio610', 'Another Dye']
@@ -94,7 +95,10 @@ describe('wizard engine edge paths', () => {
   test('exercises deterministic engine fallbacks directly', () => {
     const spectra = new Map<string, number[]>([['FITC', [1, 0]]])
     expect(spectrumVector({ D1: 'not-a-number', D2: 2 } as never, ['D1', 'D2'])).toEqual([0, 2])
-    expect(panelMetrics([], spectra).spectralRisk).toBe(1000)
+    expect(panelMetrics([], spectra, responseMatrixProvenance('measured_full_spectrum')).spectralRisk).toBe(1000)
+    expect(panelMetrics(['FITC', 'PE'], new Map([
+      ['FITC', [1, 0]], ['PE', [0.8, 0.2]],
+    ]), responseMatrixProvenance('synthetic_filter_proxy')).maxResponseSeparation).toBe(1)
     expect(closestPair('missing', ['missing'], spectra)).toEqual({ name: '', similarity: 0 })
     expect(markerPriority(marker('m0', 'CD3'), [marker('m0', 'CD3')], {})).toBe(90 * 0.45)
     expect(optimizeBestFit(

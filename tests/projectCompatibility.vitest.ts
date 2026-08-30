@@ -305,6 +305,33 @@ describe('OpenPanel project files', () => {
     expect(parseProject(serializeProject(mismatched)).wizard?.results).toBeNull()
   })
 
+  test('retains bound results for a configured non-active cytometer panel', () => {
+    const fortessaWizard: WizardProjectState = {
+      ...wizard,
+      results: wizard.results
+        ? {
+          ...wizard.results,
+          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l' },
+        }
+        : null,
+    }
+    const multiPanel = {
+      ...project,
+      cytometerPanels: {
+        ...project.cytometerPanels,
+        fortessa: {
+          configuration: 'fortessa_3l',
+          slots: ['FITC'],
+          markers: { 0: 'CD3' },
+          wizard: fortessaWizard,
+        },
+      },
+    }
+    expect(parseProject(serializeProject(multiPanel)).cytometerPanels.fortessa.wizard?.results).toEqual(
+      fortessaWizard.results,
+    )
+  })
+
   test('uses defaults and legacy plot-height conversion for incomplete state', () => {
     const parsed = parseProject(JSON.stringify({
       cytometer: 42,

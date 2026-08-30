@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import { responseProvenanceForMeasurementMode } from './panelBuilderShared'
+import { responseProvenanceForCytometer } from './panelBuilderShared'
 import type { DetectorInfo, NumericRow, PanelPayload } from './panelBuilderShared'
 
 type PanelReportRow = {
@@ -40,7 +40,7 @@ function reportLabel(row: PanelReportRow, used: Map<string, number>): string {
 function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelReportRow[]): void {
   const width = document.internal.pageSize.getWidth()
   const responseProvenance = payload.response_provenance
-    ?? responseProvenanceForMeasurementMode(payload.measurement_mode)
+    ?? responseProvenanceForCytometer(payload.cytometer, payload.measurement_mode)
   const title = responseProvenance.class === 'synthetic_filter_proxy'
     ? 'Fluorophore Detector-Overlap Planning Proxy'
     : responseProvenance.class === 'measured_detector_response'
@@ -121,7 +121,7 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
 function addReportProvenanceNote(document: jsPDF, payload: PanelPayload): void {
   const width = document.internal.pageSize.getWidth()
   const responseProvenance = payload.response_provenance
-    ?? responseProvenanceForMeasurementMode(payload.measurement_mode)
+    ?? responseProvenanceForCytometer(payload.cytometer, payload.measurement_mode)
   document.setFont('helvetica', 'bold')
   document.setFontSize(7)
   document.setTextColor(20, 30, 35)

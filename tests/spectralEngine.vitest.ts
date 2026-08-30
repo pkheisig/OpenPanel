@@ -17,6 +17,7 @@ import {
   validateBundledDataRows,
 } from '../src/spectralEngine'
 import { generateWizardResults } from '../src/panelWizardEngine'
+import { responseProvenanceForCytometer } from '../src/panelBuilderShared'
 import { mockBundledData } from './helpers'
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
@@ -410,6 +411,25 @@ describe('browser spectral engine parity', () => {
     expect(results.scoring_version).toBe('wizard-response-provenance-v1')
     expect(results.response_provenance).toMatchObject({ class: 'synthetic_filter_proxy' })
     expect(results.response_context).toEqual({ cytometer: 'fortessa', configuration: 'fortessa_3l' })
+  })
+
+  test('keeps the FACSymphony detector-response fallback distinct from synthetic proxies', () => {
+    expect(responseProvenanceForCytometer('BD FACSymphony A5 SE', 'conventional')).toMatchObject({
+      class: 'measured_detector_response',
+      source: 'symphony_spectra.csv',
+    })
+  })
+
+  test('restores the FACSymphony provenance fallback for legacy payloads', async () => {
+    const payload = await buildPanelPayload('symphony', 'symphony_a5se', ['BUV395', 'PE'])
+    const legacyPayload = { ...payload } as Record<string, unknown>
+    delete legacyPayload.response_provenance
+    const results = generateWizardResults(legacyPayload as never, [], {}, 0)
+
+    expect(results.response_provenance).toMatchObject({
+      class: 'measured_detector_response',
+      source: 'symphony_spectra.csv',
+    })
   })
 
   test('maps public-data conventional fluorophore estimates on compatible detectors', async () => {

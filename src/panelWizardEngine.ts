@@ -3,7 +3,7 @@ import { calculatePanelComplexity, calculateSimilarityMatrix } from './spectralE
 import {
   fluorophoreBrightnessKey,
 } from './panelWizardReferences'
-import { responseProvenanceForMeasurementMode } from './panelBuilderShared'
+import { responseMatrixProvenance, responseProvenanceForCytometer } from './panelBuilderShared'
 import type { NumericRow, PanelPayload, ResponseMatrixProvenance } from './panelBuilderShared'
 import type { WizardReferenceData } from './panelWizardReferences'
 
@@ -385,7 +385,9 @@ function spectrumVector(row: NumericRow, detectors: string[]): number[] {
 function panelMetrics(
   names: string[],
   spectra: Map<string, number[]>,
-  responseProvenance: ResponseMatrixProvenance = responseProvenanceForMeasurementMode('spectral'),
+  // Direct callers must opt into measured-response separation; the safe default
+  // keeps an unspecified metric from claiming instrument-response evidence.
+  responseProvenance: ResponseMatrixProvenance = responseMatrixProvenance('synthetic_filter_proxy'),
 ): PanelMetrics {
   const values = names.map((name) => spectra.get(name)).filter((value): value is number[] => value !== undefined)
   const complexity = calculatePanelComplexity(values) ?? Number.POSITIVE_INFINITY
@@ -441,6 +443,8 @@ function panelSimilarityRisk(
   names: string[],
   spectra: Map<string, number[]>,
 ): number {
+  // This is only a cheap pairwise-similarity prefilter; final ranking uses the
+  // provenance-aware panelMetrics path above.
   const values = names.map((name) => spectra.get(name)).filter((value): value is number[] => value !== undefined)
   const similarities = calculateSimilarityMatrix(values)
   const pairs: number[] = []
@@ -895,7 +899,7 @@ export function generateWizardResults(
   references?: WizardReferenceData,
 ): WizardResults {
   const responseProvenance = payload.response_provenance
-    ?? responseProvenanceForMeasurementMode(payload.measurement_mode)
+    ?? responseProvenanceForCytometer(payload.cytometer, payload.measurement_mode)
   const detectorNames = payload.detectors.map((detector) => detector.detector)
   const spectra = new Map(payload.spectra.map((row) => [
     row.fluorophore,
