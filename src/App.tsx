@@ -52,12 +52,12 @@ function includeRecoveryPanel(
 
 function preserveMarkersWithinSlots(
   markers: Record<number, string>,
-  slots: string[],
+  maxPanelSize: number,
 ): Record<number, string> {
   return Object.fromEntries(
     Object.entries(markers).filter(([index]) => {
       const slotIndex = Number(index)
-      return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < slots.length
+      return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < maxPanelSize
     }),
   ) as Record<number, string>
 }
@@ -250,11 +250,11 @@ export default function App() {
               ...panelState,
               configuration: panelPayload.configuration || panelConfiguration,
               slots: panelSlots,
-              markers: preserveMarkersWithinSlots(panelState.markers, panelSlots),
+              markers: preserveMarkersWithinSlots(panelState.markers, panelPayload.max_panel_size),
               wizard: panelWizard,
             }
           }
-          const canonicalMarkers = preserveMarkersWithinSlots(state.markers, canonicalSlots)
+          const canonicalMarkers = preserveMarkersWithinSlots(state.markers, payload.max_panel_size)
           const activeCytometerPanel = state.cytometerPanels[state.cytometer]
           canonicalCytometerPanels[canonicalCytometer] = {
             ...(activeCytometerPanel ?? { configuration: canonicalConfiguration, wizard: canonicalWizard }),

@@ -350,12 +350,12 @@ function canonicalizeSlotsForPayload(slots: string[], payload: PanelPayload): st
 
 function preserveMarkersWithinSlots(
     markers: Record<number, string>,
-    slots: string[],
+    maxPanelSize: number,
 ): Record<number, string> {
     return Object.fromEntries(
         Object.entries(markers).filter(([index]) => {
             const slotIndex = Number(index);
-            return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < slots.length;
+            return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < maxPanelSize;
         }),
     ) as Record<number, string>;
 }
@@ -428,7 +428,7 @@ async function canonicalizeImportedInactivePanels(
             ...panelState,
             configuration: panelPayload.configuration,
             slots: panelSlots,
-            markers: preserveMarkersWithinSlots(panelState.markers, panelSlots),
+            markers: preserveMarkersWithinSlots(panelState.markers, panelPayload.max_panel_size),
             wizard: panelWizard,
         };
     }
@@ -1295,7 +1295,7 @@ const PanelBuilder = ({
             }
             assertPanelSlotsWithinCapacity(nextSlots, nextPayload.max_panel_size);
             assertPanelMarkersWithinCapacity(state.markers, nextPayload.max_panel_size);
-            const nextMarkers = preserveMarkersWithinSlots(state.markers, nextSlots);
+            const nextMarkers = preserveMarkersWithinSlots(state.markers, nextPayload.max_panel_size);
             const nextCytometer = getCytometerName(nextPayload.cytometer);
             const nextConfiguration = getCytometerName(nextPayload.configuration);
             const nextCytometerPanels = await canonicalizeImportedInactivePanels(state, nextCytometer);
@@ -1307,6 +1307,15 @@ const PanelBuilder = ({
                 markers: nextMarkers,
                 wizard: nextWizard,
             };
+            await persistProjectState({
+                ...state,
+                cytometer: nextCytometer,
+                configuration: nextConfiguration,
+                slots: nextSlots,
+                markers: nextMarkers,
+                wizard: nextWizard,
+                cytometerPanels: nextCytometerPanels,
+            });
             setPayload(nextPayload);
             setCytometer(nextCytometer);
             setConfiguration(nextConfiguration);
@@ -1322,15 +1331,6 @@ const PanelBuilder = ({
             setPlotScale(state.plotScale);
             setWizardState(nextWizard);
             setCytometerPanels(nextCytometerPanels);
-            await persistProjectState({
-                ...state,
-                cytometer: nextCytometer,
-                configuration: nextConfiguration,
-                slots: nextSlots,
-                markers: nextMarkers,
-                wizard: nextWizard,
-                cytometerPanels: nextCytometerPanels,
-            });
             clearPanelHistory();
         } catch (err) {
             setError(panelErrorMessage(err, 'Could not import this OpenPanel project.'));

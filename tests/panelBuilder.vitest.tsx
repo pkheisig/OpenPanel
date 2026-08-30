@@ -478,6 +478,32 @@ describe('PanelBuilder', () => {
     expect(document.body.textContent).toContain('1 color')
   })
 
+  test('preserves capacity-valid markers beyond a short imported slots array', async () => {
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['A'], markers: { 2: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={{ ...project, slots: ['A'] }} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    mocks.saveActiveProject.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(mocks.saveActiveProject).toHaveBeenLastCalledWith(
+      expect.objectContaining({ slots: ['A'], markers: { 2: 'CD4' } }),
+    ))
+  })
+
+  test('does not replace editor state when imported project persistence fails', async () => {
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['B', ''], markers: { 0: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={{ ...project, slots: ['A', ''] }} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    mocks.saveActiveProject.mockClear()
+    mocks.saveActiveProject.mockRejectedValueOnce(new Error('import persistence failed'))
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText('import persistence failed')).not.toBeNull())
+    expect((screen.getAllByPlaceholderText('Select fluorophore')[0] as HTMLInputElement).value).toBe('A')
+  })
+
   test('rejects a project with an occupied slot beyond detector capacity', async () => {
     mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['', '', '', 'A'], markers: { 3: 'CD4' } })
     mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
