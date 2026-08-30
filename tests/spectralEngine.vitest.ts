@@ -416,7 +416,7 @@ describe('browser spectral engine parity', () => {
       { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'medium', currentFluorophore: '' },
     ], {}, 2)
 
-    expect(results.scoring_version).toBe('wizard-response-provenance-v1')
+    expect(results.scoring_version).toBe('wizard-response-provenance-v2')
     expect(results.response_provenance).toMatchObject({ class: 'synthetic_filter_proxy' })
     expect(results.response_context).toEqual({
       cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional',
@@ -446,6 +446,10 @@ describe('browser spectral engine parity', () => {
       expect(responseMeasurementModeForCytometer(conventionalCytometer)).toBe('conventional')
       expect(responseProvenanceWarningForPayload(conventionalCytometer, 'conventional')).toBeNull()
     }
+    for (const conventionalAlias of ['Thermo Scientific Attune NxT', 'Attune', 'BD Accuri C6 Plus', 'BD FACSCalibur']) {
+      expect(responseMeasurementModeForCytometer(conventionalAlias)).toBe('conventional')
+      expect(responseProvenanceWarningForPayload(conventionalAlias, 'conventional')).toBeNull()
+    }
     const editorialChange = {
       ...payload.response_provenance,
       label: 'Edited display label',
@@ -453,6 +457,11 @@ describe('browser spectral engine parity', () => {
       limitation: 'Edited display limitation',
     }
     expect(responseProvenanceMatchesPayload('fortessa', 'conventional', editorialChange)).toBe(true)
+    expect(responseProvenanceForPayload('fortessa', 'conventional', editorialChange)).toMatchObject({
+      label: payload.response_provenance.label,
+      method: payload.response_provenance.method,
+      limitation: payload.response_provenance.limitation,
+    })
     const forgedSource = { ...payload.response_provenance, source: 'aurora_spectra.csv' }
     expect(responseProvenanceForPayload('fortessa', 'conventional', forgedSource).source)
       .toBe('conventional_detector_dictionary.csv + fluorophore_dictionary.csv')

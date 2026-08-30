@@ -45,7 +45,7 @@ type ResponseMatrixProvenance = {
 };
 
 const RESPONSE_PROVENANCE_CONTRACT_VERSION = 'response-provenance-v1';
-const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v1';
+const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v2';
 const responseProvenanceDefaults: Record<ResponseMatrixProvenanceClass, Omit<ResponseMatrixProvenance, 'class'>> = {
     measured_full_spectrum: {
         label: 'Measured/full-spectrum response',
@@ -97,32 +97,69 @@ const RESPONSE_LIBRARY_SOURCES: Record<string, string> = {
 const RESPONSE_CYTOMETER_ALIASES: Record<string, string> = {
     cytekaurora: 'aurora',
     bdfacsdiscover: 'discover',
+    discovers8: 'discover',
+    discovera8: 'discover',
     sonyid7000: 'id7000',
+    thermofisherxenith: 'xenith',
     attunexenith: 'xenith',
     thermofisherattunexenith: 'xenith',
+    thermoscientificxenith: 'xenith',
+    thermoscientificattunexenith: 'xenith',
     facsymphony: 'symphony',
     facssymphony: 'symphony',
     bdfacsymphony: 'symphony',
+    a5se: 'symphony',
     bdfacsymphonya5se: 'symphony',
+    bdfacssymphonya5se: 'symphony',
     bdlsrfortessa: 'fortessa',
+    lsrfortessa: 'fortessa',
     bdfacscelesta: 'celesta',
-    thermofisherattunenxt: 'attune_nxt',
+    facscelesta: 'celesta',
+    bdcelesta: 'celesta',
+    attune: 'attunenxt',
+    thermoscientificattunenxt: 'attunenxt',
+    thermofisherattunenxt: 'attunenxt',
+    accuric6: 'accuri',
     accuric6plus: 'accuri',
     bdaccuric6plus: 'accuri',
     facscalibur: 'calibur',
     bdfacscalibur: 'calibur',
+    facscanto: 'canto',
+    facscanto2: 'canto',
+    facscantoii: 'canto',
+    bdfacscanto: 'canto',
+    bdfacscanto2: 'canto',
     bdfacscantoii: 'canto',
+    facslyric: 'lyric',
     bdfacslyric: 'lyric',
     bioradze5: 'ze5',
+    bioradze5cellanalyzer: 'ze5',
+    attunecytpix: 'cytpix',
     thermofisherattunecytpix: 'cytpix',
+    thermoscientificattunecytpix: 'cytpix',
+    novocytequanteon: 'quanteon',
     agilentnovocytequanteon: 'quanteon',
     miltenyimacsquant: 'macsquant',
+    macsquantanalyzer: 'macsquant',
+    macsquantanalyzer10: 'macsquant',
+    macsquantanalyzer16: 'macsquant',
+    macsquantvyb: 'macsquant',
+    miltenyimacsquantanalyzer10: 'macsquant',
+    miltenyimacsquantanalyzer16: 'macsquant',
+    miltenyimacsquantvyb: 'macsquant',
     bdfacsverse: 'facsverse',
+    lsr2: 'lsrii',
+    bdlsr2: 'lsrii',
     bdlsrii: 'lsrii',
+    cytoflex: 'cytoflex',
     beckmancoultercytoflexlx: 'cytoflex',
     cytoflexlx: 'cytoflex',
+    naviosex: 'navios',
+    beckmannavios: 'navios',
     beckmancoulternavios: 'navios',
+    dxf: 'dxflex',
     beckmancoulterdxflex: 'dxflex',
+    ariafusion: 'facsaria',
     facsariafusion: 'facsaria',
     bdfacsariafusion: 'facsaria',
 };
@@ -220,15 +257,16 @@ const responseProvenanceMatchesPayload = (
 const responseProvenanceForPayload = (
     cytometer: string,
     measurementMode: PanelMeasurementMode,
-    provided?: unknown,
+    _provided?: unknown,
 ): ResponseMatrixProvenance => {
     const expected = responseProvenanceForCytometer(
         cytometer,
         measurementMode,
         responseSourceForCytometer(cytometer),
     );
-    return responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
-        ? provided
+    // Display copy is not identity; always render the canonical contract.
+    return responseProvenanceMatchesPayload(cytometer, measurementMode, _provided)
+        ? { ...expected }
         : expected;
 };
 

@@ -72,7 +72,7 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   document.setFont('helvetica', 'bold')
   document.setFontSize(8)
   const provenanceWidth = width - 24
-  const lineHeight = () => document.getFontSize() * document.getLineHeightFactor() / document.internal.scaleFactor
+  const lineHeight = () => document.getLineHeight() / document.internal.scaleFactor
   const sourceLines = document.splitTextToSize(
     `${responseProvenance.label} · ${responseProvenance.method} · Source: ${responseProvenance.source}`,
     provenanceWidth,

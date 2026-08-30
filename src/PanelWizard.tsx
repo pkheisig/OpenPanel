@@ -569,6 +569,7 @@ export function PanelWizard({
     setCalculatingContext(null)
     setResults(null)
     setResultContext(null)
+    setResultsInvalidated(false)
     setError('')
   }
 

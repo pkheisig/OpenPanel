@@ -3,6 +3,7 @@ import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './brows
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import {
   responseMeasurementModeForCytometer,
+  responseProvenanceForPayload,
   responseProvenanceMatchesPayload,
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
@@ -151,7 +152,11 @@ export function normalizeWizardResults(
   return recommended && bestFit
     ? {
       scoring_version: WIZARD_SCORING_VERSION,
-      response_provenance: value.response_provenance,
+      response_provenance: responseProvenanceForPayload(
+        responseContext.cytometer,
+        responseContext.measurement_mode,
+        value.response_provenance,
+      ),
       response_context: responseContext,
       recommended,
       bestFit,
