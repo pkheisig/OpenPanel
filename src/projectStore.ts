@@ -608,6 +608,55 @@ function safeStoredProjectState(value: Record<string, unknown>): ProjectState {
   }
 }
 
+function recoverStoredProjectState(value: Record<string, unknown>): ProjectState {
+  const safeString = (candidate: unknown, fallback: string): string => (
+    typeof candidate === 'string' && candidate.length <= PROJECT_RESOURCE_LIMITS.maxStringLength
+      ? candidate
+      : fallback
+  )
+  const safeSlots = (candidate: unknown): string[] => (
+    Array.isArray(candidate) && candidate.length <= PROJECT_RESOURCE_LIMITS.maxSlots
+      ? candidate.map((slot) => typeof slot === 'string' && slot.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? slot : '')
+      : Array(18).fill('')
+  )
+  const safeMarkers = (candidate: unknown): Record<string, string> => {
+    if (!isRecord(candidate) || Object.keys(candidate).length > PROJECT_RESOURCE_LIMITS.maxMarkers) return {}
+    return Object.fromEntries(
+      Object.entries(candidate).map(([key, marker]) => [
+        key,
+        typeof marker === 'string' && marker.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? marker : '',
+      ]),
+    )
+  }
+  const safeCytometerPanels: Record<string, Record<string, unknown>> = {}
+  if (isRecord(value.cytometerPanels)
+    && Object.keys(value.cytometerPanels).length <= PROJECT_RESOURCE_LIMITS.maxCytometerPanels) {
+    Object.entries(value.cytometerPanels).forEach(([key, panel]) => {
+      if (!isRecord(panel)) return
+      safeCytometerPanels[key] = {
+        configuration: safeString(panel.configuration, ''),
+        slots: safeSlots(panel.slots),
+        markers: safeMarkers(panel.markers),
+        wizard: null,
+      }
+    })
+  }
+  return normalizeState({
+    cytometer: safeString(value.cytometer, 'aurora'),
+    configuration: safeString(value.configuration, '5l_uv_v_b_yg_r'),
+    slots: safeSlots(value.slots),
+    markers: safeMarkers(value.markers),
+    tab: safeString(value.tab, 'panel'),
+    theme: safeString(value.theme, 'light'),
+    sidebarWidth: 214,
+    sidebarCollapsed: false,
+    plotScale: DEFAULT_PLOT_SCALE,
+    plotScaleMode: 'fit-width',
+    wizard: null,
+    cytometerPanels: safeCytometerPanels,
+  })
+}
+
 function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
@@ -620,7 +669,11 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   try {
     state = normalizeState(record.state as Record<string, unknown>)
   } catch (error) {
-    state = safeStoredProjectState(record.state as Record<string, unknown>)
+    try {
+      state = recoverStoredProjectState(record.state as Record<string, unknown>)
+    } catch {
+      state = safeStoredProjectState(record.state as Record<string, unknown>)
+    }
     loadError = error instanceof Error ? error.message : 'Saved panel state could not be restored.'
   }
   return {
@@ -687,6 +740,7 @@ export async function createPanelProject(
   name: string,
   state: ProjectState,
 ): Promise<StoredPanelProject> {
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
   const panel: StoredPanelProject = {
     id: createPanelId(),
@@ -714,6 +768,7 @@ export async function savePanelProject(
 ): Promise<StoredPanelProject> {
   const existing = await loadPanelProject(id)
   if (existing?.loadError) return existing
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
   const panel: StoredPanelProject = {
     id,

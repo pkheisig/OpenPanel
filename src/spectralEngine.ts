@@ -2654,6 +2654,14 @@ function rememberPanelPayload(key: string, payload: PanelPayload): PanelPayload 
   return payload
 }
 
+/**
+ * Build a payload for interactive editing or an import.
+ *
+ * Import callers must pass `rejectInvalidRequested: true` so unresolved,
+ * unavailable, and duplicate requested fluorophores fail before a payload is
+ * returned. The default is intentionally lenient for interactive recalculation
+ * while a user changes cytometer or configuration.
+ */
 export async function buildPanelPayload(
   cytometer: unknown = 'aurora',
   configuration?: unknown,

@@ -137,6 +137,22 @@ describe('IndexedDB fallback error paths', () => {
     expect(await savePanelProject('new-id', 'New panel', state)).toMatchObject({ id: 'new-id', name: 'New panel' })
   })
 
+  test('rejects duplicate fluorophore aliases before fallback persistence', async () => {
+    const duplicateState = { ...state, slots: ['FITC', 'fit-c'] }
+
+    await expect(createPanelProject('Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(localStorage.getItem('openpanel.panel-library.v1')).toBeNull()
+
+    const panel = await createPanelProject('Valid', state)
+    const storedBefore = localStorage.getItem('openpanel.panel-library.v1')
+    await expect(savePanelProject(panel.id, 'Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(localStorage.getItem('openpanel.panel-library.v1')).toBe(storedBefore)
+  })
+
   test('normalizes fallback records and respects active and archived selection', async () => {
     localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([
       null,
@@ -192,6 +208,25 @@ describe('IndexedDB fallback error paths', () => {
     })
     await deletePanelProject('active')
     expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toBeNull()
+  })
+
+  test('preserves valid slots and markers when a saved wizard subtree is oversized', async () => {
+    const rawPanel = {
+      id: 'wizard-overflow',
+      name: 'Wizard overflow',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: {
+        ...state,
+        wizard: { markers: Array.from({ length: 257 }, (_, index) => ({ id: `m${index}` })) },
+      },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    await expect(loadPanelProject(rawPanel.id)).resolves.toMatchObject({
+      loadError: 'project.wizard.markers contains 257 items; maximum is 256.',
+      state: { slots: ['FITC'], markers: { 0: 'CD3' }, wizard: null },
+    })
   })
 
   test('recovers a populated legacy state only when the library is empty', async () => {

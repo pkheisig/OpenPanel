@@ -86,6 +86,22 @@ describe('IndexedDB project persistence', () => {
     expect(await renamePanelProject('missing', 'Nope')).toBeNull()
   })
 
+  test('rejects duplicate fluorophore aliases before database persistence', async () => {
+    const duplicateState = { ...state, slots: ['FITC', 'fit-c'] }
+
+    await expect(createPanelProject('Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(fakeDb.records).toEqual(new Map())
+
+    const panel = await createPanelProject('Valid', state)
+    const recordsBefore = new Map(fakeDb.records)
+    await expect(savePanelProject(panel.id, 'Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(fakeDb.records).toEqual(recordsBefore)
+  })
+
   test('heals duplicate active slots when restoring persisted state', async () => {
     fakeDb.records.set('active', { ...state, slots: ['FITC', 'FITC', ''] })
 
