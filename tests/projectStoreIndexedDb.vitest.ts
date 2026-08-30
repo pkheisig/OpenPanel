@@ -103,7 +103,7 @@ describe('IndexedDB project persistence', () => {
     await expect(loadActiveProject()).rejects.toThrow('invalid marker slot "-1"')
     await expect(loadLastPanelProject()).resolves.toMatchObject({
       id: 'active',
-      state: { markers: { '-1': 'CD3' } },
+      state: { markers: {} },
       loadError: 'project.markers contains invalid marker slot "-1". Marker slots must be nonnegative integers.',
     })
     expect(fakeDb.records.get('active')).toEqual(malformedState)
