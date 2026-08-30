@@ -735,6 +735,7 @@ describe('PanelBuilder', () => {
     expect(shouldSkipSlotUpdate(['A', 'B'], 0, 'B')).toBe(true)
     expect(shouldSkipSlotUpdate(['A', 'B'], 0, 'A')).toBe(true)
     expect(shouldSkipSlotUpdate(['A', 'B'], 0, 'C')).toBe(false)
+    expect(shouldSkipSlotUpdate(['Alexa Fluor 488', ''], 1, 'AF488')).toBe(true)
     expect(panelErrorMessage(new Error('message'), 'fallback')).toBe('message')
     expect(panelErrorMessage('unknown', 'fallback')).toBe('fallback')
     const history = [1]

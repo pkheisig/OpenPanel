@@ -11,6 +11,7 @@ import { rankUiSelectOptions } from './uiSelectSearch';
 import { openTextFile, projectJsonFilename, readTextFileWithinLimit, saveBlob } from './browserFiles';
 import { writeLocalStorage } from './browserStorage';
 import { buildPanelPayload } from './spectralEngine';
+import { fluorophoreIdentity } from './fluorophoreNames';
 import {
     parseProject,
     DEFAULT_PLOT_SCALE,
@@ -67,7 +68,10 @@ const panelCapacityMessage = (colorCount: number, detectorCount: number) => (
 );
 
 export function shouldSkipSlotUpdate(currentSlots: string[], index: number, fluor: string): boolean {
-    return Boolean(fluor && currentSlots.some((existing, slotIndex) => slotIndex !== index && existing === fluor))
+    const requestedIdentity = fluorophoreIdentity(fluor);
+    return Boolean(fluor && currentSlots.some((existing, slotIndex) => (
+        slotIndex !== index && fluorophoreIdentity(existing) === requestedIdentity
+    )))
         || currentSlots[index] === fluor;
 }
 
@@ -82,8 +86,13 @@ export function filterPanelOptions(
     currentSlot: string,
 ): FluorInfo[] {
     if (!payload) return [];
+    const selectedIdentities = new Set(Array.from(selected, fluorophoreIdentity));
+    const currentIdentity = fluorophoreIdentity(currentSlot);
     const baseOptions = payload.fluorophores
-        .filter((fluorophore) => !selected.has(fluorophore.fluorophore) || currentSlot === fluorophore.fluorophore);
+        .filter((fluorophore) => {
+            const identity = fluorophoreIdentity(fluorophore.fluorophore);
+            return !selectedIdentities.has(identity) || currentIdentity === identity;
+        });
     return rankUiSelectOptions(
         baseOptions.map((option) => ({ value: option.fluorophore, label: option.fluorophore, option })),
         query,
@@ -141,7 +150,7 @@ export function trimInitialPanel(
     markers: Record<number, string>,
     maxPanelSize: number,
 ): { slots: string[]; markers: Record<number, string> } | null {
-    const colorCount = new Set(slots.filter(Boolean)).size;
+    const colorCount = new Set(slots.filter(Boolean).map(fluorophoreIdentity)).size;
     if (colorCount > maxPanelSize || slots.length <= maxPanelSize) return null;
     const nextSlots = slots.slice(0, maxPanelSize);
     const nextMarkers = Object.fromEntries(
@@ -337,6 +346,7 @@ const PanelBuilder = ({
     const [tab, setTab] = useState<TabId>(initialProject?.tab ?? 'panel');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [persistenceError, setPersistenceError] = useState('');
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
@@ -446,11 +456,17 @@ const PanelBuilder = ({
     }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
-        if (projectId) {
-            await savePanelProject(projectId, panelName, state);
-            return;
+        try {
+            if (projectId) {
+                await savePanelProject(projectId, panelName, state);
+            } else {
+                await saveActiveProject(state);
+            }
+            setPersistenceError('');
+        } catch (persistError) {
+            setPersistenceError(panelErrorMessage(persistError, 'Could not save this panel.'));
+            throw persistError;
         }
-        await saveActiveProject(state);
     }, [panelName, projectId, projectState]);
 
     const exitToPanelLibrary = useCallback(async () => {
@@ -469,14 +485,14 @@ const PanelBuilder = ({
     }, [guiStateLoaded, persistProjectState]);
 
     const selected = useMemo(() => slots.filter(Boolean), [slots]);
-    const selectedColorCount = useMemo(() => new Set(selected).size, [selected]);
+    const selectedColorCount = useMemo(() => new Set(selected.map(fluorophoreIdentity)).size, [selected]);
     const panelExceedsDetectorLimit = Boolean(payload && selectedColorCount > payload.max_panel_size);
 
     useEffect(() => {
         slotsRef.current = slots;
     }, [slots]);
 
-    const selectedSet = useMemo(() => new Set(selected), [selected]);
+    const selectedSet = useMemo(() => new Set(selected.map(fluorophoreIdentity)), [selected]);
     const panelHasContent = selected.length > 0 || Object.keys(markers).length > 0 || wizardState !== null;
 
     const colorByFluor = useMemo(() => {
@@ -608,7 +624,7 @@ const PanelBuilder = ({
             setPayload(nextPayload);
             setCytometer(getCytometerName(nextPayload.cytometer));
             setConfiguration(getCytometerName(nextPayload.configuration));
-            const nextColorCount = new Set(nextSelected.filter(Boolean)).size;
+            const nextColorCount = new Set(nextSelected.filter(Boolean).map(fluorophoreIdentity)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
                 setError(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
             }
@@ -676,7 +692,7 @@ const PanelBuilder = ({
                 setPayload(initial);
                 setCytometer(getCytometerName(initial.cytometer));
                 setConfiguration(getCytometerName(initial.configuration));
-                const initialColorCount = new Set(slotsRef.current.filter(Boolean)).size;
+                const initialColorCount = new Set(slotsRef.current.filter(Boolean).map(fluorophoreIdentity)).size;
                 const trimmed = trimInitialPanel(slotsRef.current, markersRef.current, initial.max_panel_size);
                 if (trimmed) {
                     slotsRef.current = trimmed.slots;
@@ -1105,7 +1121,7 @@ const PanelBuilder = ({
             const nextSlots = state.slots.map((slot) => (
                 slot.trim() ? fluorophoreValidation.accepted[acceptedIndex++] : ''
             ));
-            const nextColorCount = new Set(nextSlots.filter(Boolean)).size;
+            const nextColorCount = new Set(nextSlots.filter(Boolean).map(fluorophoreIdentity)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
             }
@@ -1510,7 +1526,7 @@ const PanelBuilder = ({
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
                     theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
-                    error={error}
+                    error={error || persistenceError}
                     plotScale={plotScale}
                     onPlotScaleChange={setPlotScale}
                 />

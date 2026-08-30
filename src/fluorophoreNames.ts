@@ -25,3 +25,8 @@ export function canonicalizeFluorophoreName(value: string): string {
 export function resolveBundledFluorophoreKey(value: string): string | undefined {
   return PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL[normalizeFluorophoreToken(canonicalizeFluorophoreName(value))]
 }
+
+export function fluorophoreIdentity(value: unknown): string {
+  const canonical = canonicalizeFluorophoreName(String(value ?? '')).trim()
+  return resolveBundledFluorophoreKey(canonical) ?? normalizeFluorophoreToken(canonical)
+}

@@ -29,9 +29,12 @@ describe('browser file helpers', () => {
     const declaredTooLarge = { size: 11, text: vi.fn(async () => 'small') } as unknown as File
     await expect(readTextFileWithinLimit(declaredTooLarge, 10, 'OpenPanel project')).rejects.toThrow('too large')
 
-    const actualTooLarge = { size: 0, text: vi.fn(async () => '0123456789a') } as unknown as File
+    const actualTooLarge = {
+      size: 0,
+      slice: vi.fn(() => ({ arrayBuffer: vi.fn(async () => new Uint8Array(11).buffer) })),
+    } as unknown as File
     await expect(readTextFileWithinLimit(actualTooLarge, 10, 'OpenPanel project')).rejects.toThrow('too large')
-    expect(actualTooLarge.text).toHaveBeenCalledTimes(1)
+    expect(actualTooLarge.slice).toHaveBeenCalledWith(0, 11)
   })
 
   test('sanitizes project filenames and recovers project names', () => {

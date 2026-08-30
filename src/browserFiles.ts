@@ -18,7 +18,11 @@ export async function readTextFileWithinLimit(
   if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
     throw new Error(`${description} is too large. Maximum size is ${Math.floor(maxBytes / (1024 * 1024))} MB.`)
   }
-  const text = await file.text()
+  const bytes = await file.slice(0, maxBytes + 1).arrayBuffer()
+  if (bytes.byteLength > maxBytes) {
+    throw new Error(`${description} is too large. Maximum size is ${Math.floor(maxBytes / (1024 * 1024))} MB.`)
+  }
+  const text = new TextDecoder().decode(bytes)
   if (utf8ByteLength(text) > maxBytes) {
     throw new Error(`${description} is too large. Maximum size is ${Math.floor(maxBytes / (1024 * 1024))} MB.`)
   }

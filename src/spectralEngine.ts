@@ -1,5 +1,5 @@
 import { Matrix, SingularValueDecomposition } from 'ml-matrix'
-import { canonicalizeFluorophoreName, resolveBundledFluorophoreKey } from './fluorophoreNames'
+import { canonicalizeFluorophoreName, fluorophoreIdentity, resolveBundledFluorophoreKey } from './fluorophoreNames'
 import {
   PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
   PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS,
@@ -2665,9 +2665,11 @@ export async function buildPanelPayload(
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
   const normalizedRequested = requestedFluorophores.map((value) => value.trim()).filter(Boolean)
-  const uniqueRequested = Array.from(new Set(normalizedRequested))
+  const uniqueRequested = Array.from(new Map(
+    normalizedRequested.map((requested) => [fluorophoreIdentity(requested), requested] as const),
+  ).values())
   const cacheRequested = rejectInvalidRequested ? normalizedRequested : uniqueRequested
-  const payloadCacheKey = `${id}:${config}:${cacheRequested.join('\u0000')}`
+  const payloadCacheKey = `${id}:${config}:${JSON.stringify(cacheRequested)}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
   if (cachedPayload && !rejectInvalidRequested) {
     return cachedPayload

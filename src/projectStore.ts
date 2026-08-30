@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
-import { canonicalizeFluorophoreName, normalizeFluorophoreToken, resolveBundledFluorophoreKey } from './fluorophoreNames'
+import { canonicalizeFluorophoreName, fluorophoreIdentity } from './fluorophoreNames'
 import {
   responseMeasurementModeForCytometer,
   responseProvenanceMatchesPayload,
@@ -195,8 +195,12 @@ function assertPanelStateResourceLimits(value: unknown, path: string, rejectOver
   assertWizardResourceLimits(value.wizard, `${path}.wizard`, rejectOversizedResults)
 }
 
-function assertProjectResourceLimits(value: unknown, rejectOversizedWizardResults = true): void {
-  assertProjectResourceTree(value)
+function assertProjectResourceLimits(
+  value: unknown,
+  rejectOversizedWizardResults = true,
+  traverseResourceTree = true,
+): void {
+  if (traverseResourceTree) assertProjectResourceTree(value)
   if (!isRecord(value)) return
   assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, 'project.slots')
   assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, 'project.markers')
@@ -360,9 +364,7 @@ function normalizeProjectSlot(value: unknown): string {
   return canonicalizeFluorophoreName(String(scalar(value) ?? '')).trim()
 }
 
-function projectSlotIdentity(value: string): string {
-  return resolveBundledFluorophoreKey(value) ?? normalizeFluorophoreToken(value)
-}
+function projectSlotIdentity(value: string): string { return fluorophoreIdentity(value) }
 
 function assertNoDuplicateSlots(value: Record<string, unknown>): void {
   const check = (slots: unknown, path: string) => {
@@ -447,8 +449,8 @@ export function serializeProject(state: ProjectState): string {
   return serialized
 }
 
-function normalizeState(value: Record<string, unknown>): ProjectState {
-  assertProjectResourceLimits(value, false)
+function normalizeState(value: Record<string, unknown>, traverseResourceTree = true): ProjectState {
+  assertProjectResourceLimits(value, false, traverseResourceTree)
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
   const theme = scalar(value.theme) === 'dark' ? 'dark' : 'light'
@@ -528,7 +530,7 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
     ? record.config as Record<string, unknown>
     : record
   if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
-  return normalizeState(legacyConfig)
+  return normalizeState(legacyConfig, false)
 }
 
 export function parseProject(text: string): ProjectState {
@@ -562,7 +564,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
 }
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, false)
   try {
     await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
   } catch {
@@ -656,7 +658,7 @@ export async function createPanelProject(
     name: normalizePanelName(name),
     createdAt: now,
     updatedAt: now,
-    state: normalizeState(state as unknown as Record<string, unknown>),
+    state: normalizeState(state as unknown as Record<string, unknown>, false),
   }
   try {
     const db = await database()
@@ -683,7 +685,7 @@ export async function savePanelProject(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     archivedAt: existing?.archivedAt,
-    state: normalizeState(state as unknown as Record<string, unknown>),
+    state: normalizeState(state as unknown as Record<string, unknown>, false),
   }
   try {
     const db = await database()
