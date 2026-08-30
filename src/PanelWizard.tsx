@@ -18,6 +18,7 @@ import { ClearPanelConfirmation } from './ClearPanelConfirmation'
 import { UiSelect } from './UiSelect'
 import { buildPanelPayload } from './spectralEngine'
 import { loadPanelWizardReferences } from './panelWizardReferences'
+import { PROJECT_RESOURCE_LIMITS } from './projectStore'
 import {
   DEFAULT_COEXPRESSION_CONTEXT,
   inferCoexpression,
@@ -591,6 +592,10 @@ export function PanelWizard({
   }
 
   const updateMarker = (id: string, patch: Partial<WizardMarker>) => {
+    if (patch.name !== undefined && patch.name.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
+      setError(`Marker names cannot exceed ${PROJECT_RESOURCE_LIMITS.maxStringLength} characters.`)
+      return
+    }
     setMarkers((current) => current.map((marker) => {
       if (marker.id !== id) return marker
       const next = { ...marker, ...patch }

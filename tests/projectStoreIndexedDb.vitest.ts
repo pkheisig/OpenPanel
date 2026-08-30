@@ -102,6 +102,26 @@ describe('IndexedDB project persistence', () => {
     expect(fakeDb.records).toEqual(recordsBefore)
   })
 
+  test('rejects oversized aggregate state before database persistence', async () => {
+    const oversizedState = {
+      ...state,
+      cytometerPanels: Object.fromEntries(
+        Array.from({ length: 63 }, (_, panelIndex) => [
+          `panel-${panelIndex}`,
+          {
+            configuration: state.configuration,
+            slots: Array(18).fill(''),
+            markers: Object.fromEntries(Array.from({ length: 256 }, (_, markerIndex) => [markerIndex, 'x'.repeat(512)])),
+            wizard: null,
+          },
+        ]),
+      ),
+    }
+
+    await expect(saveActiveProject(oversizedState)).rejects.toThrow('OpenPanel project is too large')
+    expect(fakeDb.records).toEqual(new Map())
+  })
+
   test('heals duplicate active slots when restoring persisted state', async () => {
     fakeDb.records.set('active', { ...state, slots: ['FITC', 'FITC', ''] })
 

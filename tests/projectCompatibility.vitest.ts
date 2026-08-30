@@ -217,6 +217,14 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject(oversizedText)).toThrow(ProjectResourceLimitError)
   })
 
+  test('allows coexpression maps up to their dedicated resource limit', () => {
+    const coexpression = Object.fromEntries(
+      Array.from({ length: PROJECT_RESOURCE_LIMITS.maxObjectEntries + 1 }, (_, index) => [`pair-${index}`, 2]),
+    )
+    const parsed = parseProject(JSON.stringify({ ...project, wizard: { ...wizard, coexpression } }))
+    expect(Object.keys(parsed.wizard?.coexpression ?? {})).toHaveLength(PROJECT_RESOURCE_LIMITS.maxObjectEntries + 1)
+  })
+
   test('drops oversized wizard results while preserving the panel project', () => {
     const oversizedResults = JSON.stringify({
       ...project,

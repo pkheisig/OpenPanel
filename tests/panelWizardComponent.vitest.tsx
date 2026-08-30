@@ -133,6 +133,17 @@ function renderWizard(overrides: Partial<React.ComponentProps<typeof PanelWizard
 }
 
 describe('PanelWizard component', () => {
+  test('rejects oversized custom marker names before updating wizard state', () => {
+    renderWizard()
+    fireEvent.click(screen.getByRole('combobox', { name: 'Marker 1 name' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search or enter marker' }), {
+      target: { value: 'x'.repeat(8193) },
+    })
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search or enter marker' }), { key: 'Enter' })
+
+    expect(screen.getByText('Marker names cannot exceed 8192 characters.')).not.toBeNull()
+  })
+
   test('walks marker setup, co-expression, recommendations, sorting, and applying', async () => {
     const { onApply, onClose } = renderWizard()
     await waitFor(() => expect(mocks.loadReferences).toHaveBeenCalled())

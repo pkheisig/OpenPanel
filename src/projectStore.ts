@@ -153,7 +153,10 @@ function assertProjectResourceTree(
   }
   const record = value as Record<string, unknown>
   const entries = Object.entries(record)
-  if (entries.length > PROJECT_RESOURCE_LIMITS.maxObjectEntries) {
+  const objectLimit = path.endsWith('.coexpression')
+    ? PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries
+    : PROJECT_RESOURCE_LIMITS.maxObjectEntries
+  if (entries.length > objectLimit) {
     throw new ProjectResourceLimitError(`${path} contains too many entries.`)
   }
   entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, seen, traversal))
@@ -551,6 +554,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
     const stored = await db.get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
     if (stored) {
       const normalized = normalizeState(stored as unknown as Record<string, unknown>)
+      assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
       try {
         if (JSON.stringify(stored) !== JSON.stringify(normalized)) {
           await db.put(PROJECT_STORE, normalized, ACTIVE_PROJECT_KEY)
@@ -575,10 +579,11 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
   const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const serializedState = serializeProject(normalizedState)
   try {
     await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
   } catch {
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(normalizedState))
+    writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)
   }
 }
 
@@ -668,6 +673,7 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   let loadError: string | undefined
   try {
     state = normalizeState(record.state as Record<string, unknown>)
+    assertProjectTextWithinLimit(serializeNormalizedProject(state))
   } catch (error) {
     try {
       state = recoverStoredProjectState(record.state as Record<string, unknown>)
@@ -742,12 +748,14 @@ export async function createPanelProject(
 ): Promise<StoredPanelProject> {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id: createPanelId(),
     name: normalizePanelName(name),
     createdAt: now,
     updatedAt: now,
-    state: normalizeState(state as unknown as Record<string, unknown>),
+    state: normalizedState,
   }
   try {
     const db = await database()
@@ -755,7 +763,7 @@ export async function createPanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== panel.id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
+    writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)
   }
   setActivePanelProject(panel.id)
   return panel
@@ -770,13 +778,15 @@ export async function savePanelProject(
   if (existing?.loadError) return existing
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id,
     name: normalizePanelName(name),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     archivedAt: existing?.archivedAt,
-    state: normalizeState(state as unknown as Record<string, unknown>),
+    state: normalizedState,
   }
   try {
     const db = await database()
@@ -784,7 +794,7 @@ export async function savePanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
+    writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)
   }
   setActivePanelProject(id)
   return panel
