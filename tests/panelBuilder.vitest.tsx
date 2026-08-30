@@ -244,7 +244,8 @@ describe('PanelBuilder', () => {
       />,
     )
     await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
-    expect(screen.getByText('Saved panel needs attention.')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Mock oversized marker' }))
+    expect(document.body.textContent).toContain('Marker names cannot exceed 8192 characters.')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open panel library' }))
     await waitFor(() => expect(onRequestExit).toHaveBeenCalled())

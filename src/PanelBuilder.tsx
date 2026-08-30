@@ -1544,7 +1544,7 @@ const PanelBuilder = ({
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
                     theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
-                    error={(recoveryMode ? initialError : error) || error || persistenceError}
+                    error={[recoveryMode ? initialError : '', error, persistenceError].filter(Boolean).join('\n')}
                     plotScale={plotScale}
                     onPlotScaleChange={setPlotScale}
                 />
