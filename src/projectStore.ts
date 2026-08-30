@@ -981,6 +981,7 @@ export async function deletePanelProject(id: string): Promise<void> {
   }
   try {
     await (await database()).delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
+    fallbackRawRecords.delete(id)
   } catch {
     writeFallbackLibrary(fallbackLibrary().filter((panel) => panel.id !== id))
     fallbackRawRecords.delete(id)
