@@ -223,7 +223,7 @@ describe('IndexedDB fallback error paths', () => {
     const recovered = await loadLastPanelProject()
     expect(recovered).toMatchObject({
       id: 'active',
-      loadError: 'project.slots contains 257 items; maximum is 256.',
+      loadError: 'project.slots contains 257 items; maximum is 256. Recovery retained a bounded view and discarded slots at indices 1 item(s) ["256"].',
       state: { markers: { 0: 'CD3' } },
     })
     expect(recovered?.state.slots).toHaveLength(256)
@@ -284,7 +284,7 @@ describe('IndexedDB fallback error paths', () => {
     const recovered = await loadPanelProject(rawPanel.id)
     expect(recovered).toMatchObject({
       id: rawPanel.id,
-      loadError: 'project.cytometerPanels contains 65 entries; maximum is 64.',
+      loadError: 'project.cytometerPanels contains 65 entries; maximum is 64. Recovery retained a bounded view and discarded cytometer panels 2 item(s) ["panel-63", "panel-64"].',
     })
     expect(Object.keys(recovered?.state.cytometerPanels ?? {})).toHaveLength(64)
     expect(recovered?.state.cytometerPanels['panel-0']).toBeDefined()

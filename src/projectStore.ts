@@ -730,7 +730,50 @@ function safeStoredProjectState(value: Record<string, unknown>): ProjectState {
   }
 }
 
-function recoverStoredProjectState(value: Record<string, unknown>): ProjectState {
+type RecoveredProjectState = {
+  state: ProjectState
+  discarded: string[]
+}
+
+function recoveryDiscardSummary(label: string, items: string[]): string | undefined {
+  if (items.length === 0) return undefined
+  const preview = items.slice(0, 5).map((item) => JSON.stringify(item)).join(', ')
+  const suffix = items.length > 5 ? ', ...' : ''
+  return `${label} ${items.length} item(s) [${preview}${suffix}]`
+}
+
+function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: string): string[] {
+  const discarded: string[] = []
+  if (Array.isArray(value.slots) && value.slots.length > PROJECT_RESOURCE_LIMITS.maxSlots) {
+    discarded.push(recoveryDiscardSummary(
+      'slots at indices',
+      Array.from({ length: value.slots.length - PROJECT_RESOURCE_LIMITS.maxSlots }, (_, index) => String(index + PROJECT_RESOURCE_LIMITS.maxSlots)),
+    ) as string)
+  }
+  if (isRecord(value.markers)) {
+    const validKeys = Object.keys(value.markers)
+      .filter((key) => /^(0|[1-9]\d*)$/.test(key) && Number.isSafeInteger(Number(key)))
+    if (validKeys.length > PROJECT_RESOURCE_LIMITS.maxMarkers) {
+      discarded.push(recoveryDiscardSummary('marker slots', validKeys.slice(PROJECT_RESOURCE_LIMITS.maxMarkers)) as string)
+    }
+  }
+  if (isRecord(value.cytometerPanels)) {
+    const panelKeys = Object.keys(value.cytometerPanels).filter((key) => key !== safeCytometer)
+    const retainedPanelLimit = PROJECT_RESOURCE_LIMITS.maxCytometerPanels - 1
+    if (panelKeys.length > retainedPanelLimit) {
+      discarded.push(recoveryDiscardSummary('cytometer panels', panelKeys.slice(retainedPanelLimit)) as string)
+    }
+  }
+  return discarded
+}
+
+function recoveryLoadError(message: string, discarded: string[]): string {
+  return discarded.length > 0
+    ? `${message} Recovery retained a bounded view and discarded ${discarded.join('; ')}.`
+    : message
+}
+
+function recoverStoredProjectState(value: Record<string, unknown>): RecoveredProjectState {
   const safeString = (candidate: unknown, fallback: string): string => (
     typeof candidate === 'string' && candidate.length <= PROJECT_RESOURCE_LIMITS.maxStringLength
       ? candidate
@@ -769,20 +812,23 @@ function recoverStoredProjectState(value: Record<string, unknown>): ProjectState
       }
       })
   }
-  return normalizeState({
-    cytometer: safeCytometer,
-    configuration: safeString(value.configuration, '5l_uv_v_b_yg_r'),
-    slots: safeSlots(value.slots),
-    markers: safeMarkers(value.markers),
-    tab: safeString(value.tab, 'panel'),
-    theme: safeString(value.theme, 'light'),
-    sidebarWidth: 214,
-    sidebarCollapsed: false,
-    plotScale: DEFAULT_PLOT_SCALE,
-    plotScaleMode: 'fit-width',
-    wizard: null,
-    cytometerPanels: safeCytometerPanels,
-  }, true, false, false)
+  return {
+    state: normalizeState({
+      cytometer: safeCytometer,
+      configuration: safeString(value.configuration, '5l_uv_v_b_yg_r'),
+      slots: safeSlots(value.slots),
+      markers: safeMarkers(value.markers),
+      tab: safeString(value.tab, 'panel'),
+      theme: safeString(value.theme, 'light'),
+      sidebarWidth: 214,
+      sidebarCollapsed: false,
+      plotScale: DEFAULT_PLOT_SCALE,
+      plotScaleMode: 'fit-width',
+      wizard: null,
+      cytometerPanels: safeCytometerPanels,
+    }, true, false, false),
+    discarded: recoveryDiscardedItems(value, safeCytometer),
+  }
 }
 
 function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
@@ -800,11 +846,13 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
     assertProjectTextWithinLimit(serializeNormalizedProject(state))
   } catch (error) {
     try {
-      state = recoverStoredProjectState(record.state as Record<string, unknown>)
+      const recovered = recoverStoredProjectState(record.state as Record<string, unknown>)
+      state = recovered.state
+      loadError = recoveryLoadError(error instanceof Error ? error.message : 'Saved panel state could not be restored.', recovered.discarded)
     } catch {
       state = safeStoredProjectState(record.state as Record<string, unknown>)
     }
-    loadError = error instanceof Error ? error.message : 'Saved panel state could not be restored.'
+    if (!loadError) loadError = error instanceof Error ? error.message : 'Saved panel state could not be restored.'
   }
   const panel: StoredPanelProject = {
     id: record.id,
@@ -966,14 +1014,16 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
     legacy = await loadActiveProject()
   } catch (error) {
     if (!(error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError)) return null
-    const recoveredState = error.rawValue ? recoverStoredProjectState(error.rawValue) : safeStoredProjectState({})
+    const recovered = error.rawValue
+      ? recoverStoredProjectState(error.rawValue)
+      : { state: safeStoredProjectState({}), discarded: [] }
     return {
       id: ACTIVE_PROJECT_KEY,
       name: 'Recovered panel',
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
-      state: recoveredState,
-      loadError: error.message,
+      state: recovered.state,
+      loadError: recoveryLoadError(error.message, recovered.discarded),
     }
   }
   if (!legacy || !legacy.slots.some(Boolean)) return null

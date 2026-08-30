@@ -194,7 +194,7 @@ describe('IndexedDB project persistence', () => {
     expect(panels).toHaveLength(1)
     expect(panels[0]).toMatchObject({
       id: 'oversized',
-      loadError: 'project.slots contains 257 items; maximum is 256.',
+      loadError: 'project.slots contains 257 items; maximum is 256. Recovery retained a bounded view and discarded slots at indices 1 item(s) ["256"].',
     })
     expect(panels[0].state.slots).toHaveLength(256)
     expect(panels[0].state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
@@ -226,7 +226,7 @@ describe('IndexedDB project persistence', () => {
     const recovered = await loadLastPanelProject()
     expect(recovered).toMatchObject({
       id: 'active',
-      loadError: 'project.slots contains 257 items; maximum is 256.',
+      loadError: 'project.slots contains 257 items; maximum is 256. Recovery retained a bounded view and discarded slots at indices 1 item(s) ["256"].',
     })
     expect(recovered?.state.slots).toHaveLength(256)
     expect(recovered?.state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
