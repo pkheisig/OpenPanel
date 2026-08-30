@@ -238,6 +238,31 @@ afterEach(() => {
 })
 
 describe('PanelBuilder', () => {
+  test('blocks restore when payload canonicalization would merge distinct slots', async () => {
+    const conventional = {
+      ...basePayload,
+      cytometer: 'fortessa',
+      configuration: 'fortessa_3l',
+      measurement_mode: 'conventional' as const,
+      fluorophores: [{ ...basePayload.fluorophores[0], fluorophore: 'GFP' }],
+    }
+    mocks.buildPanelPayload.mockImplementationOnce(async () => conventional)
+    render(
+      <PanelBuilder
+        initialProject={{
+          ...project,
+          cytometer: 'fortessa',
+          configuration: 'fortessa_3l',
+          slots: ['GFP', 'EGFP'],
+        }}
+        projectId="panel-1"
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByText(/restore would merge/)).not.toBeNull())
+    expect(mocks.savePanelProject).not.toHaveBeenCalled()
+  })
+
   test('does not autosave a recovered panel copy', async () => {
     const onRequestExit = vi.fn()
     render(

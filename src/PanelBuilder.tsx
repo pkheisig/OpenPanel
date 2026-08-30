@@ -342,10 +342,23 @@ type PanelEditSnapshot = {
 
 function canonicalizeSlotsForPayload(slots: string[], payload: PanelPayload): string[] {
     const lookup = buildFluorLookup(payload.fluorophores);
-    return slots.map((slot) => {
+    const canonicalSlots = slots.map((slot) => {
         const trimmed = slot.trim();
         return trimmed ? (matchImportedFluor(trimmed, lookup) || trimmed) : '';
     });
+    const firstIndexByIdentity = new Map<string, number>();
+    canonicalSlots.forEach((slot, index) => {
+        if (!slot) return;
+        const identity = fluorophoreIdentity(slot);
+        const firstIndex = firstIndexByIdentity.get(identity);
+        if (firstIndex !== undefined) {
+            throw new Error(
+                `OpenPanel project restore would merge fluorophore ${JSON.stringify(slots[index])} at detector slot ${index + 1} into ${JSON.stringify(slot)} already used by ${JSON.stringify(slots[firstIndex])} at detector slot ${firstIndex + 1}. Remove one slot before restoring this project.`,
+            );
+        }
+        firstIndexByIdentity.set(identity, index);
+    });
+    return canonicalSlots;
 }
 
 function preserveMarkersWithinSlots(
