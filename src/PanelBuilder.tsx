@@ -361,6 +361,7 @@ async function canonicalizeImportedInactivePanels(
     activeCytometer: string,
 ): Promise<Record<string, CytometerPanelState>> {
     const canonicalPanels: Record<string, CytometerPanelState> = {};
+    const seenPanelCytometers = new Map<string, string>();
     for (const [panelCytometer, panelState] of Object.entries(state.cytometerPanels)) {
         const panelConfiguration = resolveKnownConfiguration(panelCytometer, panelState.configuration);
         if (!panelConfiguration) {
@@ -396,8 +397,14 @@ async function canonicalizeImportedInactivePanels(
             panelSlots,
             panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
         );
-        if (panelPayload.cytometer === activeCytometer) continue;
-        canonicalPanels[panelPayload.cytometer] = {
+        const canonicalPanelCytometer = panelPayload.cytometer;
+        const previousPanelCytometer = seenPanelCytometers.get(canonicalPanelCytometer);
+        if (previousPanelCytometer) {
+            throw new Error(`OpenPanel project contains cytometer panels '${previousPanelCytometer}' and '${panelCytometer}' that both resolve to '${canonicalPanelCytometer}'.`);
+        }
+        seenPanelCytometers.set(canonicalPanelCytometer, panelCytometer);
+        if (canonicalPanelCytometer === activeCytometer) continue;
+        canonicalPanels[canonicalPanelCytometer] = {
             ...panelState,
             configuration: panelPayload.configuration,
             slots: panelSlots,
