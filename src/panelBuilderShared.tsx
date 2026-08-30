@@ -100,9 +100,10 @@ const normalizedCytometerKey = (cytometer: string): string => (
 
 const responseMeasurementModeForCytometer = (cytometer: string): PanelMeasurementMode => {
     const normalizedCytometer = normalizedCytometerKey(cytometer);
-    return CONVENTIONAL_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
-        ? 'conventional'
-        : 'spectral';
+    if (!normalizedCytometer) return 'spectral';
+    return FULL_SPECTRUM_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+        ? 'spectral'
+        : 'conventional';
 };
 
 const responseSourceForCytometer = (cytometer: string): string | undefined => {
@@ -113,10 +114,16 @@ const responseSourceForCytometer = (cytometer: string): string | undefined => {
 
 const responseProvenanceForCytometer = (
     cytometer: string,
-    _measurementMode: PanelMeasurementMode,
+    measurementMode: PanelMeasurementMode,
     source?: string,
 ): ResponseMatrixProvenance => {
     const normalizedCytometer = normalizedCytometerKey(cytometer);
+    if (!normalizedCytometer) {
+        return responseMatrixProvenance(
+            measurementMode === 'spectral' ? 'measured_full_spectrum' : 'synthetic_filter_proxy',
+            source ? { source } : {},
+        );
+    }
     const provenanceClass: ResponseMatrixProvenanceClass = normalizedCytometer.includes('symphony')
         ? 'measured_detector_response'
         : FULL_SPECTRUM_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
@@ -128,7 +135,9 @@ const responseProvenanceForCytometer = (
 };
 
 const responseProvenanceForMeasurementMode = (measurementMode: PanelMeasurementMode): ResponseMatrixProvenance => (
-    responseProvenanceForCytometer('', measurementMode)
+    responseMatrixProvenance(
+        measurementMode === 'spectral' ? 'measured_full_spectrum' : 'synthetic_filter_proxy',
+    )
 );
 
 const isResponseMatrixProvenance = (value: unknown): value is ResponseMatrixProvenance => {

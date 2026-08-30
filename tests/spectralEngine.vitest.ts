@@ -20,8 +20,10 @@ import { generateWizardResults } from '../src/panelWizardEngine'
 import {
   responseMatrixProvenance,
   responseProvenanceForCytometer,
+  responseProvenanceForMeasurementMode,
   responseProvenanceForPayload,
   responseProvenanceWarningForPayload,
+  responseMeasurementModeForCytometer,
 } from '../src/panelBuilderShared'
 import { mockBundledData } from './helpers'
 
@@ -429,6 +431,13 @@ describe('browser spectral engine parity', () => {
       .toContain('did not match the selected instrument')
     expect(responseProvenanceWarningForPayload('fortessa', 'conventional', payload.response_provenance)).toBeNull()
     expect(responseProvenanceForPayload('unknown-lab-prototype', 'spectral')).toMatchObject({
+      class: 'synthetic_filter_proxy',
+    })
+    expect(responseMeasurementModeForCytometer('unknown-lab-prototype')).toBe('conventional')
+    expect(responseProvenanceForMeasurementMode('spectral')).toMatchObject({
+      class: 'measured_full_spectrum',
+    })
+    expect(responseProvenanceForMeasurementMode('conventional')).toMatchObject({
       class: 'synthetic_filter_proxy',
     })
     const forgedSource = { ...payload.response_provenance, source: 'aurora_spectra.csv' }
