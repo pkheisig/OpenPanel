@@ -22,21 +22,29 @@ import {
 describe('spectral engine defensive and reference helpers', () => {
   test('fails closed for malformed spectral library rows and headers', () => {
     expect(() => parseLibrary([])).toThrow('no detector columns')
-    expect(() => parseLibrary([['fluorophore', 'B1-A']])).toThrow('contains no fluorophore rows')
+    expect(() => parseLibrary([], 'bundled spectral library', 'spectral')).toThrow('no detector columns')
+    expect(() => parseLibrary([['fluorophore', 'B1-A']], 'bundled spectral library', 'spectral')).toThrow('contains no fluorophore rows')
     const valid = [
       ['fluorophore', 'B1-A', 'V1-A'],
       ['FITC', '1', '0'],
     ]
+    expect(parseLibrary(valid, 'fixture.csv', 'spectral')).toMatchObject({
+      detectors: ['B1-A', 'V1-A'], fluorophores: ['FITC'], values: [[1, 0]],
+      response_provenance: { class: 'measured_full_spectrum', source: 'fixture.csv' },
+    })
     expect(parseLibrary(valid, 'fixture.csv')).toMatchObject({
       detectors: ['B1-A', 'V1-A'], fluorophores: ['FITC'], values: [[1, 0]],
     })
+    expect(parseLibrary(valid, 'fixture.csv', 'conventional')).toMatchObject({
+      response_provenance: { class: 'synthetic_filter_proxy', source: 'fixture.csv' },
+    })
     const expectFailure = (rows: string[][], message: string) => {
-      expect(() => parseLibrary(rows, 'fixture.csv')).toThrow(message)
+      expect(() => parseLibrary(rows, 'fixture.csv', 'spectral')).toThrow(message)
     }
     expect(() => parseLibrary([
       ['fluorophore', 'B1-A', 'V1-A'],
       ['FITC', '1', 'not-a-number'],
-    ], 'fixture.csv')).toThrow("fixture.csv: row 2 column 'V1-A' for fluorophore 'FITC' has non-finite value 'not-a-number'.")
+    ], 'fixture.csv', 'spectral')).toThrow("fixture.csv: row 2 column 'V1-A' for fluorophore 'FITC' has non-finite value 'not-a-number'.")
     expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', 'NaN', '1']], "column 'B1-A'")
     expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', 'Infinity', '1']], "column 'B1-A'")
     expectFailure([['fluorophore', 'B1-A', 'V1-A'], ['FITC', '', '1']], "column 'B1-A'")

@@ -16,6 +16,15 @@ import {
   resolveCytometer,
   validateBundledDataRows,
 } from '../src/spectralEngine'
+import { generateWizardResults } from '../src/panelWizardEngine'
+import {
+  responseMatrixProvenance,
+  responseProvenanceForCytometer,
+  responseProvenanceForMeasurementMode,
+  responseProvenanceForPayload,
+  responseProvenanceWarningForPayload,
+  responseMeasurementModeForCytometer,
+} from '../src/panelBuilderShared'
 import { mockBundledData } from './helpers'
 
 const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
@@ -86,6 +95,10 @@ describe('browser spectral engine parity', () => {
     expect(payload.cytometer).toBe(fixture.cytometer)
     expect(payload.configuration).toBe(fixture.configuration)
     expect(payload.measurement_mode).toBe('spectral')
+    expect(payload.response_provenance).toMatchObject({
+      class: 'measured_full_spectrum',
+      source: `${fixture.cytometer}_spectra.csv`,
+    })
     expect(payload.max_panel_size).toBe(fixture.detectorCount)
     expect(payload.detectors).toHaveLength(fixture.detectorCount)
     expect(payload.fluorophores).toHaveLength(fixture.fluorophoreCount)
@@ -367,6 +380,10 @@ describe('browser spectral engine parity', () => {
     const payload = await buildPanelPayload('symphony', 'symphony_a5se', ['BUV395', 'PE'])
 
     expect(payload.measurement_mode).toBe('conventional')
+    expect(payload.response_provenance).toMatchObject({
+      class: 'measured_detector_response',
+      source: 'symphony_spectra.csv',
+    })
     expect(payload.max_panel_size).toBe(48)
     expect(payload.detectors).toHaveLength(48)
     expect(payload.fluorophores).toHaveLength(24)
@@ -379,6 +396,7 @@ describe('browser spectral engine parity', () => {
     const fourLaser = await buildPanelPayload('BD LSRFortessa', '4L', ['FITC', 'PE', 'APC'])
 
     expect(threeLaser.measurement_mode).toBe('conventional')
+    expect(threeLaser.response_provenance.class).toBe('synthetic_filter_proxy')
     expect(threeLaser.max_panel_size).toBe(14)
     expect(threeLaser.detectors).toHaveLength(14)
     expect(threeLaser.detectors.some((detector) => detector.detector.startsWith('488/10'))).toBe(false)
@@ -388,6 +406,62 @@ describe('browser spectral engine parity', () => {
     expect(fourLaser.max_panel_size).toBe(16)
     expect(fourLaser.detectors).toHaveLength(16)
     expect(fourLaser.peak_detectors).toEqual(['529/24-B-A', '582/15-YG-A', '670/30-R-A'])
+  })
+
+  test('binds Wizard scoring to the response provenance contract', async () => {
+    const payload = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'PE'])
+    const results = generateWizardResults(payload, [
+      { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'high', currentFluorophore: '' },
+      { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'medium', currentFluorophore: '' },
+    ], {}, 2)
+
+    expect(results.scoring_version).toBe('wizard-response-provenance-v1')
+    expect(results.response_provenance).toMatchObject({ class: 'synthetic_filter_proxy' })
+    expect(results.response_context).toEqual({
+      cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional',
+    })
+
+    const tamperedPayload = {
+      ...payload,
+      response_provenance: responseMatrixProvenance('measured_full_spectrum'),
+    }
+    const tamperedResults = generateWizardResults(tamperedPayload, [], {}, 0)
+    expect(tamperedResults.response_provenance).toMatchObject({ class: 'synthetic_filter_proxy' })
+    expect(responseProvenanceWarningForPayload('fortessa', 'conventional', tamperedPayload.response_provenance))
+      .toContain('did not match the selected instrument')
+    expect(responseProvenanceWarningForPayload('fortessa', 'conventional', payload.response_provenance)).toBeNull()
+    expect(responseProvenanceForPayload('unknown-lab-prototype', 'spectral')).toMatchObject({
+      class: 'synthetic_filter_proxy',
+    })
+    expect(responseMeasurementModeForCytometer('unknown-lab-prototype')).toBe('conventional')
+    expect(responseProvenanceForMeasurementMode('spectral')).toMatchObject({
+      class: 'measured_full_spectrum',
+    })
+    expect(responseProvenanceForMeasurementMode('conventional')).toMatchObject({
+      class: 'synthetic_filter_proxy',
+    })
+    const forgedSource = { ...payload.response_provenance, source: 'aurora_spectra.csv' }
+    expect(responseProvenanceForPayload('fortessa', 'conventional', forgedSource).source)
+      .toBe('conventional_detector_dictionary.csv + fluorophore_dictionary.csv')
+  })
+
+  test('keeps the FACSymphony detector-response fallback distinct from synthetic proxies', () => {
+    expect(responseProvenanceForCytometer('BD FACSymphony A5 SE', 'conventional')).toMatchObject({
+      class: 'measured_detector_response',
+      source: 'symphony_spectra.csv',
+    })
+  })
+
+  test('restores the FACSymphony provenance fallback for legacy payloads', async () => {
+    const payload = await buildPanelPayload('symphony', 'symphony_a5se', ['BUV395', 'PE'])
+    const legacyPayload = { ...payload } as Record<string, unknown>
+    delete legacyPayload.response_provenance
+    const results = generateWizardResults(legacyPayload as never, [], {}, 0)
+
+    expect(results.response_provenance).toMatchObject({
+      class: 'measured_detector_response',
+      source: 'symphony_spectra.csv',
+    })
   })
 
   test('maps public-data conventional fluorophore estimates on compatible detectors', async () => {

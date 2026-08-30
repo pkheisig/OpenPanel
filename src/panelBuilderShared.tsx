@@ -30,10 +30,180 @@ const PdfIcon = ({ size = 20 }: { size?: number }) => (
 
 type PanelMeasurementMode = 'spectral' | 'conventional';
 
+type ResponseMatrixProvenanceClass =
+    | 'measured_full_spectrum'
+    | 'measured_detector_response'
+    | 'synthetic_filter_proxy';
+
+type ResponseMatrixProvenance = {
+    class: ResponseMatrixProvenanceClass;
+    label: string;
+    method: string;
+    version: string;
+    source: string;
+    limitation: string;
+};
+
+const RESPONSE_PROVENANCE_CONTRACT_VERSION = 'response-provenance-v1';
+const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v1';
+const responseProvenanceDefaults: Record<ResponseMatrixProvenanceClass, Omit<ResponseMatrixProvenance, 'class'>> = {
+    measured_full_spectrum: {
+        label: 'Measured/full-spectrum response',
+        method: 'Bundled full-spectrum response matrix',
+        version: RESPONSE_PROVENANCE_CONTRACT_VERSION,
+        source: 'instrument spectral response library',
+        limitation: 'Spectral overlap is not a substitute for an instrument-specific compensation or spreading-error matrix.',
+    },
+    measured_detector_response: {
+        label: 'File-backed detector response',
+        method: 'Bundled detector-response reference',
+        version: RESPONSE_PROVENANCE_CONTRACT_VERSION,
+        source: 'symphony_spectra.csv',
+        limitation: 'Detector responses are not an instrument-specific compensation or spreading-error matrix.',
+    },
+    synthetic_filter_proxy: {
+        label: 'Synthetic detector-response planning proxy',
+        method: 'Gaussian emission envelope over documented detector filters',
+        version: RESPONSE_PROVENANCE_CONTRACT_VERSION,
+        source: 'conventional_detector_dictionary.csv + fluorophore_dictionary.csv',
+        limitation: 'Planning proxy only; not measured compensation, spreading, or instrument-specific spillover evidence.',
+    },
+};
+
+const responseMatrixProvenance = (
+    provenanceClass: ResponseMatrixProvenanceClass,
+    overrides: Partial<Omit<ResponseMatrixProvenance, 'class'>> = {},
+): ResponseMatrixProvenance => ({
+    class: provenanceClass,
+    ...responseProvenanceDefaults[provenanceClass],
+    ...overrides,
+});
+
+const FULL_SPECTRUM_CYTOMETER_KEYS = ['aurora', 'discover', 'id7000', 'xenith'];
+const CONVENTIONAL_CYTOMETER_KEYS = [
+    'symphony', 'fortessa', 'celesta', 'attunenxt', 'accuri', 'calibur', 'canto', 'lyric',
+    'ze5', 'cytpix', 'quanteon', 'macsquant', 'facsverse', 'lsrii', 'cytoflex', 'navios',
+    'dxflex', 'facsaria',
+];
+
+const RESPONSE_LIBRARY_SOURCES: Record<string, string> = {
+    aurora: 'aurora_spectra.csv',
+    discover: 'discover_spectra.csv',
+    id7000: 'id7000_spectra.csv',
+    xenith: 'xenith_spectra.csv',
+    symphony: 'symphony_spectra.csv',
+};
+
+const normalizedCytometerKey = (cytometer: string): string => (
+    String(cytometer ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+);
+
+const responseMeasurementModeForCytometer = (cytometer: string): PanelMeasurementMode => {
+    const normalizedCytometer = normalizedCytometerKey(cytometer);
+    if (!normalizedCytometer) return 'spectral';
+    return FULL_SPECTRUM_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+        ? 'spectral'
+        : 'conventional';
+};
+
+const responseSourceForCytometer = (cytometer: string): string | undefined => {
+    const normalizedCytometer = normalizedCytometerKey(cytometer);
+    const sourceKey = Object.keys(RESPONSE_LIBRARY_SOURCES).find((name) => normalizedCytometer.includes(name));
+    return sourceKey ? RESPONSE_LIBRARY_SOURCES[sourceKey] : undefined;
+};
+
+const responseProvenanceForCytometer = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    source?: string,
+): ResponseMatrixProvenance => {
+    const normalizedCytometer = normalizedCytometerKey(cytometer);
+    if (!normalizedCytometer) {
+        return responseMatrixProvenance(
+            measurementMode === 'spectral' ? 'measured_full_spectrum' : 'synthetic_filter_proxy',
+            source ? { source } : {},
+        );
+    }
+    const provenanceClass: ResponseMatrixProvenanceClass = normalizedCytometer.includes('symphony')
+        ? 'measured_detector_response'
+        : FULL_SPECTRUM_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+            ? 'measured_full_spectrum'
+        : CONVENTIONAL_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+            ? 'synthetic_filter_proxy'
+        : 'synthetic_filter_proxy';
+    return responseMatrixProvenance(provenanceClass, source ? { source } : {});
+};
+
+const responseProvenanceForMeasurementMode = (measurementMode: PanelMeasurementMode): ResponseMatrixProvenance => (
+    responseMatrixProvenance(
+        measurementMode === 'spectral' ? 'measured_full_spectrum' : 'synthetic_filter_proxy',
+    )
+);
+
+const isResponseMatrixProvenance = (value: unknown): value is ResponseMatrixProvenance => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const record = value as Record<string, unknown>;
+    return (
+        (record.class === 'measured_full_spectrum'
+            || record.class === 'measured_detector_response'
+            || record.class === 'synthetic_filter_proxy')
+        && typeof record.label === 'string'
+        && typeof record.method === 'string'
+        && typeof record.version === 'string'
+        && typeof record.source === 'string'
+        && typeof record.limitation === 'string'
+    );
+};
+
+const responseProvenanceMatchesPayload = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    provided: unknown,
+): provided is ResponseMatrixProvenance => {
+    const expected = responseProvenanceForCytometer(
+        cytometer,
+        measurementMode,
+        responseSourceForCytometer(cytometer),
+    );
+    return isResponseMatrixProvenance(provided)
+        && provided.class === expected.class
+        && provided.label === expected.label
+        && provided.method === expected.method
+        && provided.version === expected.version
+        && provided.source === expected.source
+        && provided.limitation === expected.limitation;
+};
+
+const responseProvenanceForPayload = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    provided?: unknown,
+): ResponseMatrixProvenance => {
+    const expected = responseProvenanceForCytometer(
+        cytometer,
+        measurementMode,
+        responseSourceForCytometer(cytometer),
+    );
+    return responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
+        ? provided
+        : expected;
+};
+
+const responseProvenanceWarningForPayload = (
+    cytometer: string,
+    measurementMode: PanelMeasurementMode,
+    provided?: unknown,
+): string | null => (
+    provided === undefined || provided === null || responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
+        ? null
+        : 'Supplied response provenance did not match the selected instrument; the selected instrument contract was used.'
+);
+
 type LibraryInfo = {
     id: string;
     label: string;
     measurement_mode: PanelMeasurementMode;
+    response_provenance: ResponseMatrixProvenance;
 };
 
 type ConfigurationInfo = {
@@ -70,6 +240,7 @@ type PanelPayload = {
     cytometer: string;
     configuration: string;
     measurement_mode: PanelMeasurementMode;
+    response_provenance: ResponseMatrixProvenance;
     libraries: LibraryInfo[];
     configurations: ConfigurationInfo[];
     detectors: DetectorInfo[];
@@ -398,6 +569,16 @@ export {
     unique,
     unboxGuiState,
     wavelengthToColor,
+    isResponseMatrixProvenance,
+    responseMatrixProvenance,
+    responseProvenanceForCytometer,
+    responseProvenanceForMeasurementMode,
+    responseMeasurementModeForCytometer,
+    responseProvenanceMatchesPayload,
+    responseProvenanceForPayload,
+    responseProvenanceWarningForPayload,
+    RESPONSE_PROVENANCE_CONTRACT_VERSION,
+    WIZARD_SCORING_VERSION,
 };
 export type {
     ConfigurationInfo,
@@ -408,5 +589,7 @@ export type {
     NumericRow,
     PanelMeasurementMode,
     PanelPayload,
+    ResponseMatrixProvenance,
+    ResponseMatrixProvenanceClass,
     TabId,
 };

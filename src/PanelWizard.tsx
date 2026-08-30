@@ -34,6 +34,7 @@ import {
   generateWizardResults,
   isWizardFluorophoreAllowed,
 } from './panelWizardEngine'
+import { responseProvenanceForPayload, responseProvenanceWarningForPayload } from './panelBuilderShared'
 import type {
   AntigenDensity,
   CoexpressionLevel,
@@ -46,7 +47,7 @@ import type {
   WizardResults,
   WizardTab,
 } from './panelWizardEngine'
-import type { PanelMeasurementMode } from './panelBuilderShared'
+import type { PanelMeasurementMode, ResponseMatrixProvenance } from './panelBuilderShared'
 
 export type WizardApplication = {
   markers: WizardMarker[]
@@ -61,6 +62,7 @@ type PanelWizardProps = {
   availableFluorophores: string[]
   maxPanelSize: number
   measurementMode: PanelMeasurementMode
+  responseProvenance?: ResponseMatrixProvenance
   slots: string[]
   markerNames: Record<number, string>
   theme: 'light' | 'dark'
@@ -315,6 +317,7 @@ export function PanelWizard({
   availableFluorophores,
   maxPanelSize,
   measurementMode,
+  responseProvenance: providedResponseProvenance,
   slots,
   markerNames,
   theme,
@@ -325,12 +328,26 @@ export function PanelWizard({
   onClose,
   onApply,
 }: PanelWizardProps) {
-  const responseFitLabel = measurementMode === 'conventional'
+  const responseProvenance = responseProvenanceForPayload(
+    cytometer,
+    measurementMode,
+    providedResponseProvenance,
+  )
+  const responseProvenanceWarning = responseProvenanceWarningForPayload(
+    cytometer,
+    measurementMode,
+    providedResponseProvenance,
+  )
+  const responseFitLabel = responseProvenance.class === 'synthetic_filter_proxy'
     ? 'Detector-peak fit'
-    : 'Spectral fit'
-  const responseSimilarityLabel = measurementMode === 'conventional'
+    : responseProvenance.class === 'measured_detector_response'
+      ? 'Detector-response fit'
+      : 'Spectral fit'
+  const responseSimilarityLabel = responseProvenance.class === 'synthetic_filter_proxy'
     ? 'Lowest detector-peak similarity'
-    : 'Lowest spectral similarity'
+    : responseProvenance.class === 'measured_detector_response'
+      ? 'Lowest detector-response similarity'
+      : 'Lowest spectral similarity'
   const sortOptions = [
     { value: 'recommended', label: 'Recommended score' },
     { value: 'spectral', label: responseFitLabel },
@@ -407,6 +424,9 @@ export function PanelWizard({
   )
   const [wizardInputsChanged, setWizardInputsChanged] = useState(
     () => Boolean(initialTemplate || initialState?.inputsChanged),
+  )
+  const [resultsInvalidated, setResultsInvalidated] = useState(
+    () => Boolean(initialState?.resultsInvalidated),
   )
   const [calculating, setCalculating] = useState(false)
   const [calculatingContext, setCalculatingContext] = useState<string | null>(null)
@@ -518,6 +538,7 @@ export function PanelWizard({
       coexpressionVisited,
       coexpressionCompleted,
       inputsChanged: wizardInputsChanged,
+      resultsInvalidated,
       activeTab,
       results: resultContext === referenceContext ? results : null,
       resultMode,
@@ -536,6 +557,7 @@ export function PanelWizard({
     resultContext,
     resultSort,
     referenceContext,
+    resultsInvalidated,
     results,
     wizardInputsChanged,
   ])
@@ -676,6 +698,7 @@ export function PanelWizard({
     setError('')
     setResults(null)
     setResultContext(null)
+    setResultsInvalidated(false)
     await new Promise((resolve) => window.setTimeout(resolve, 30))
     try {
       const candidatePayload = await buildPanelPayload(
@@ -779,7 +802,7 @@ export function PanelWizard({
                 <Info size={18} />
               </button>
               <div className="wizard-info-popover" id="wizard-methodology" role="tooltip">
-                Marker-to-color assignments use antigen density, fluorophore brightness, co-expression, {measurementMode === 'conventional' ? 'detector-peak overlap' : 'spectral overlap'}, and availability.
+                Marker-to-color assignments use antigen density, fluorophore brightness, co-expression, {responseProvenance.class === 'synthetic_filter_proxy' ? 'detector-peak overlap' : responseProvenance.class === 'measured_detector_response' ? 'detector-response overlap' : 'spectral overlap'}, and availability.
               </div>
             </div>
             <button type="button" className="wizard-close" onClick={onClose} aria-label="Close panel wizard">
@@ -787,6 +810,12 @@ export function PanelWizard({
             </button>
           </div>
         </header>
+
+        <div className="wizard-provenance-note" role="note">
+          <strong>{responseProvenance.label}</strong>
+          <span>{responseProvenance.method}. Source: {responseProvenance.source}. {responseProvenance.limitation}</span>
+          {responseProvenanceWarning && <span role="alert">Warning: {responseProvenanceWarning}</span>}
+        </div>
 
         <nav className="wizard-tabs" aria-label="Panel wizard steps">
           <button
@@ -969,6 +998,11 @@ export function PanelWizard({
 
           {activeTab === 'recommendations' && (
             <div className="wizard-step recommendations-step">
+              {resultsInvalidated && !results && (
+                <div className="wizard-results-invalidated" role="status">
+                  Saved recommendations were discarded because the response or scoring contract changed. Recalculate to refresh them for this instrument.
+                </div>
+              )}
               {!results && (
                 <div className="calculation-gate">
                   <div
@@ -1034,7 +1068,7 @@ export function PanelWizard({
                       <strong>{formatMetric(activeResult.previousComplexity)} <ChevronRight size={15} /> {formatMetric(activeResult.complexity)}</strong>
                     </div>
                     <div>
-                      <span>{measurementMode === 'conventional' ? 'Worst peak similarity' : 'Worst spectral similarity'}</span>
+                      <span>{responseProvenance.class === 'synthetic_filter_proxy' ? 'Worst peak similarity' : responseProvenance.class === 'measured_detector_response' ? 'Worst detector-response similarity' : 'Worst spectral similarity'}</span>
                       <strong>{formatMetric(activeResult.maxSimilarity)}</strong>
                     </div>
                   </div>

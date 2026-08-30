@@ -1499,6 +1499,7 @@ const PanelBuilder = ({
                         availableFluorophores={payload.fluorophores.map((item) => item.fluorophore)}
                         maxPanelSize={payload.max_panel_size}
                         measurementMode={payload.measurement_mode}
+                        responseProvenance={payload.response_provenance}
                         slots={slots}
                         markerNames={markers}
                         theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}

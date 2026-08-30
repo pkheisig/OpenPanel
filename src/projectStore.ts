@@ -1,11 +1,17 @@
 import { openDB } from 'idb'
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import {
+  responseMeasurementModeForCytometer,
+  responseProvenanceMatchesPayload,
+  WIZARD_SCORING_VERSION,
+} from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
 import type {
   AntigenDensity,
   WizardPanelResult,
   WizardProjectState,
+  WizardResponseContext,
   WizardResults,
 } from './panelWizardEngine'
 
@@ -115,14 +121,48 @@ export function normalizeWizardPanelResult(value: unknown): WizardPanelResult | 
   } as unknown as WizardPanelResult
 }
 
-export function normalizeWizardResults(value: unknown): WizardResults | null {
-  if (!isRecord(value)) return null
-  const recommended = normalizeWizardPanelResult(value.recommended)
-  const bestFit = normalizeWizardPanelResult(value.bestFit)
-  return recommended && bestFit ? { recommended, bestFit } : null
+function isWizardResponseContext(value: unknown): value is WizardResponseContext {
+  return isRecord(value)
+    && typeof value.cytometer === 'string'
+    && typeof value.configuration === 'string'
+    && (value.measurement_mode === 'spectral' || value.measurement_mode === 'conventional')
 }
 
-function normalizeWizardState(value: unknown): WizardProjectState | null {
+export function normalizeWizardResults(
+  value: unknown,
+  expectedContext?: WizardResponseContext,
+): WizardResults | null {
+  if (!isRecord(value)) return null
+  if (value.scoring_version !== WIZARD_SCORING_VERSION) return null
+  const responseContext = value.response_context
+  if (!isWizardResponseContext(responseContext)) return null
+  if (!responseProvenanceMatchesPayload(
+    responseContext.cytometer,
+    responseContext.measurement_mode,
+    value.response_provenance,
+  )) return null
+  if (expectedContext && (
+    responseContext.cytometer !== expectedContext.cytometer
+    || responseContext.configuration !== expectedContext.configuration
+    || responseContext.measurement_mode !== expectedContext.measurement_mode
+  )) return null
+  const recommended = normalizeWizardPanelResult(value.recommended)
+  const bestFit = normalizeWizardPanelResult(value.bestFit)
+  return recommended && bestFit
+    ? {
+      scoring_version: WIZARD_SCORING_VERSION,
+      response_provenance: value.response_provenance,
+      response_context: responseContext,
+      recommended,
+      bestFit,
+    }
+    : null
+}
+
+function normalizeWizardState(
+  value: unknown,
+  expectedContext?: WizardResponseContext,
+): WizardProjectState | null {
   if (!isRecord(value) || !Array.isArray(value.markers)) return null
   const markers = value.markers
     .filter(isRecord)
@@ -153,7 +193,17 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
     && ['baseline', 'inflammatory', 'tumor'].includes(String(rawContext.condition))
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
-  const rawResults = normalizeWizardResults(value.results)
+  const rawResults = normalizeWizardResults(value.results, expectedContext)
+  const resultsInvalidated = isRecord(value.results) && rawResults === null
+  if (import.meta.env.DEV && isRecord(value.results) && rawResults === null) {
+    const rawProvenance = isRecord(value.results.response_provenance)
+      ? value.results.response_provenance
+      : undefined
+    console.info('OpenPanel discarded incompatible Wizard results during restore.', {
+      scoringVersion: value.results.scoring_version,
+      provenanceVersion: rawProvenance?.version,
+    })
+  }
   const activeTab = value.activeTab === 'coexpression' || value.activeTab === 'recommendations'
     ? value.activeTab
     : 'frequency'
@@ -172,6 +222,7 @@ function normalizeWizardState(value: unknown): WizardProjectState | null {
     coexpressionVisited: value.coexpressionVisited === true,
     coexpressionCompleted: value.coexpressionCompleted === true,
     ...(typeof value.inputsChanged === 'boolean' ? { inputsChanged: value.inputsChanged } : {}),
+    ...(resultsInvalidated ? { resultsInvalidated: true } : {}),
     activeTab,
     results: rawResults,
     resultMode,
@@ -195,16 +246,23 @@ function normalizeMarkers(value: unknown): Record<number, string> {
 function normalizeCytometerPanel(
   value: unknown,
   fallbackConfiguration: string,
+  cytometer: string,
 ): CytometerPanelState | null {
   if (!isRecord(value)) return null
   const configuration = scalar(value.configuration)
+  const effectiveConfiguration = typeof configuration === 'string' && configuration
+    ? configuration
+    : fallbackConfiguration
+  const expectedContext = {
+    cytometer,
+    configuration: effectiveConfiguration,
+    measurement_mode: responseMeasurementModeForCytometer(cytometer),
+  }
   return {
-    configuration: typeof configuration === 'string' && configuration
-      ? configuration
-      : fallbackConfiguration,
+    configuration: effectiveConfiguration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard),
+    wizard: normalizeWizardState(value.wizard, expectedContext),
   }
 }
 
@@ -231,14 +289,18 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
     configuration,
     slots: normalizeSlots(value.slots),
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard),
+    wizard: normalizeWizardState(value.wizard, {
+      cytometer,
+      configuration,
+      measurement_mode: responseMeasurementModeForCytometer(cytometer),
+    }),
   }
   const rawCytometerPanels = isRecord(value.cytometerPanels) ? value.cytometerPanels : {}
   const cytometerPanels = Object.fromEntries(
     Object.entries(rawCytometerPanels)
       .map(([key, panel]) => [
         key,
-        normalizeCytometerPanel(panel, key === cytometer ? configuration : ''),
+        normalizeCytometerPanel(panel, key === cytometer ? configuration : '', key),
       ] as const)
       .filter((entry): entry is [string, CytometerPanelState] => entry[1] !== null),
   )

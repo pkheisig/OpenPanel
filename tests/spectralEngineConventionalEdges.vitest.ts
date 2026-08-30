@@ -202,6 +202,14 @@ describe('conventional spectral engine defensive paths', () => {
     ])).toThrow('shared runtime cytometer scope')
   })
 
+  test('rejects non-positive antigen-density references', () => {
+    const headers = ['cell_type', 'antigen', 'molecules_per_cell', 'source']
+    expect(() => validateBundledDataRows('panel_wizard_antigen_density.csv', [
+      headers,
+      ['T cells', 'CD3', '0', 'test'],
+    ])).toThrow("column 'molecules_per_cell' must be greater than zero")
+  })
+
   test('builds a minimal conventional library from public reference tables', async () => {
     vi.stubGlobal('fetch', customFetch())
     const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'PE'])

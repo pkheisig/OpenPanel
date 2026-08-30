@@ -24,6 +24,8 @@ import {
   setActivePanelProject,
 } from '../src/projectStore'
 import type { ProjectState } from '../src/projectStore'
+import { responseMatrixProvenance } from '../src/panelBuilderShared'
+import { WIZARD_SCORING_VERSION } from '../src/panelWizardEngine'
 
 const state: ProjectState = {
   cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', slots: ['FITC'], markers: { 0: 'CD3' },
@@ -52,6 +54,9 @@ describe('IndexedDB fallback error paths', () => {
         resultMode: 'bestFit',
         resultSort: 'spectral',
         results: {
+          scoring_version: WIZARD_SCORING_VERSION,
+          response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
+          response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
           recommended: {
             kind: 'recommended',
             rows: [{ markerId: 'm1', markerName: 'CD3', slotIndex: 0, antigenDensity: 'medium', fluorophore: 'FITC' }],
@@ -74,9 +79,19 @@ describe('IndexedDB fallback error paths', () => {
     })?.rows).toHaveLength(1)
     expect(normalizeWizardResults(undefined)).toBeNull()
     expect(normalizeWizardResults({
+      scoring_version: WIZARD_SCORING_VERSION,
+      response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
+      response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
       recommended: { kind: 'recommended', rows: [], alternatives: [] },
       bestFit: { kind: 'best-fit', rows: [], alternatives: [] },
     })?.bestFit.kind).toBe('best-fit')
+    expect(normalizeWizardResults({
+      scoring_version: 'wizard-response-provenance-v0',
+      response_provenance: responseMatrixProvenance('measured_full_spectrum'),
+      response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
+      recommended: { kind: 'recommended', rows: [], alternatives: [] },
+      bestFit: { kind: 'best-fit', rows: [], alternatives: [] },
+    })).toBeNull()
 
     localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([{ id: 'existing', name: 'Existing', state }]))
     const unnamed = await createPanelProject('   ', state)

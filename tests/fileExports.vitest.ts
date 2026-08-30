@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import { jsPDF } from 'jspdf'
 import { projectJsonFilename } from '../src/browserFiles'
 import { addSimilarityPage, createPanelOverviewPdf } from '../src/pdfExport'
-import { detectImportedPanelRows } from '../src/panelBuilderShared'
+import { detectImportedPanelRows, responseMatrixProvenance } from '../src/panelBuilderShared'
 import { buildPanelPayload } from '../src/spectralEngine'
 import { mockBundledData } from './helpers'
 
@@ -62,7 +62,11 @@ describe('browser imports and exports', () => {
 
   test('creates the single-row conventional report and skips missing spectra safely', async () => {
     const payload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['Alexa Fluor 488'])
-    const conventional = { ...payload, measurement_mode: 'conventional' as const }
+    const conventional = {
+      ...payload,
+      measurement_mode: 'conventional' as const,
+      response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+    }
     const pdf = createPanelOverviewPdf(conventional, [{ fluor: 'Alexa Fluor 488', marker: '' }])
     const bytes = new Uint8Array(await pdf.arrayBuffer())
     expect(bytes.byteLength).toBeGreaterThan(1_000)
@@ -97,7 +101,11 @@ describe('browser imports and exports', () => {
     const conventionalDocument = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' })
     addSimilarityPage(
       conventionalDocument,
-      { ...fallbackPayload, measurement_mode: 'conventional' },
+      {
+        ...fallbackPayload,
+        measurement_mode: 'conventional',
+        response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+      },
       [{ fluor: 'Alexa Fluor 488', marker: '' }],
     )
     expect((conventionalDocument.output('arraybuffer') as ArrayBuffer).byteLength).toBeGreaterThan(500)

@@ -17,8 +17,11 @@ import type {
   FluorInfo,
   LibraryInfo,
   NumericRow,
+  PanelMeasurementMode,
   PanelPayload,
+  ResponseMatrixProvenance,
 } from './panelBuilderShared'
+import { responseProvenanceForCytometer } from './panelBuilderShared'
 
 type CytometerId =
   | 'aurora'
@@ -60,6 +63,7 @@ export type SpectralLibrary = {
   detectors: string[]
   fluorophores: string[]
   values: number[][]
+  response_provenance: ResponseMatrixProvenance
   fluorophoreMappings?: Map<string, FluorophoreMapping>
 }
 
@@ -176,28 +180,28 @@ export class BundledDataValidationError extends Error {
 }
 
 const LIBRARIES: LibraryInfo[] = [
-  { id: 'aurora', label: 'Cytek Aurora', measurement_mode: 'spectral' },
-  { id: 'discover', label: 'BD FACSDiscover', measurement_mode: 'spectral' },
-  { id: 'id7000', label: 'Sony ID7000', measurement_mode: 'spectral' },
-  { id: 'xenith', label: 'Thermo Fisher Attune Xenith', measurement_mode: 'spectral' },
-  { id: 'symphony', label: 'BD FACSymphony A5 SE', measurement_mode: 'conventional' },
-  { id: 'fortessa', label: 'BD LSRFortessa', measurement_mode: 'conventional' },
-  { id: 'celesta', label: 'BD FACSCelesta', measurement_mode: 'conventional' },
-  { id: 'attune_nxt', label: 'Thermo Fisher Attune NxT', measurement_mode: 'conventional' },
-  { id: 'accuri_c6_plus', label: 'BD Accuri C6 Plus', measurement_mode: 'conventional' },
-  { id: 'facscalibur', label: 'BD FACSCalibur', measurement_mode: 'conventional' },
-  { id: 'canto', label: 'BD FACSCanto II', measurement_mode: 'conventional' },
-  { id: 'lyric', label: 'BD FACSLyric', measurement_mode: 'conventional' },
-  { id: 'ze5', label: 'Bio-Rad ZE5', measurement_mode: 'conventional' },
-  { id: 'cytpix', label: 'Thermo Fisher Attune CytPix', measurement_mode: 'conventional' },
-  { id: 'quanteon', label: 'Agilent NovoCyte Quanteon', measurement_mode: 'conventional' },
-  { id: 'macsquant', label: 'Miltenyi MACSQuant', measurement_mode: 'conventional' },
-  { id: 'facsverse', label: 'BD FACSVerse', measurement_mode: 'conventional' },
-  { id: 'lsrii', label: 'BD LSR II', measurement_mode: 'conventional' },
-  { id: 'cytoflex_lx', label: 'Beckman Coulter CytoFLEX LX', measurement_mode: 'conventional' },
-  { id: 'navios', label: 'Beckman Coulter Navios', measurement_mode: 'conventional' },
-  { id: 'dxflex', label: 'Beckman Coulter DxFLEX', measurement_mode: 'conventional' },
-  { id: 'facsaria_fusion', label: 'BD FACSAria Fusion', measurement_mode: 'conventional' },
+  { id: 'aurora', label: 'Cytek Aurora', measurement_mode: 'spectral', response_provenance: responseProvenanceForCytometer('aurora', 'spectral', 'aurora_spectra.csv') },
+  { id: 'discover', label: 'BD FACSDiscover', measurement_mode: 'spectral', response_provenance: responseProvenanceForCytometer('discover', 'spectral', 'discover_spectra.csv') },
+  { id: 'id7000', label: 'Sony ID7000', measurement_mode: 'spectral', response_provenance: responseProvenanceForCytometer('id7000', 'spectral', 'id7000_spectra.csv') },
+  { id: 'xenith', label: 'Thermo Fisher Attune Xenith', measurement_mode: 'spectral', response_provenance: responseProvenanceForCytometer('xenith', 'spectral', 'xenith_spectra.csv') },
+  { id: 'symphony', label: 'BD FACSymphony A5 SE', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('symphony', 'conventional') },
+  { id: 'fortessa', label: 'BD LSRFortessa', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('fortessa', 'conventional') },
+  { id: 'celesta', label: 'BD FACSCelesta', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('celesta', 'conventional') },
+  { id: 'attune_nxt', label: 'Thermo Fisher Attune NxT', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('attune_nxt', 'conventional') },
+  { id: 'accuri_c6_plus', label: 'BD Accuri C6 Plus', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('accuri_c6_plus', 'conventional') },
+  { id: 'facscalibur', label: 'BD FACSCalibur', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('facscalibur', 'conventional') },
+  { id: 'canto', label: 'BD FACSCanto II', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('canto', 'conventional') },
+  { id: 'lyric', label: 'BD FACSLyric', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('lyric', 'conventional') },
+  { id: 'ze5', label: 'Bio-Rad ZE5', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('ze5', 'conventional') },
+  { id: 'cytpix', label: 'Thermo Fisher Attune CytPix', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('cytpix', 'conventional') },
+  { id: 'quanteon', label: 'Agilent NovoCyte Quanteon', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('quanteon', 'conventional') },
+  { id: 'macsquant', label: 'Miltenyi MACSQuant', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('macsquant', 'conventional') },
+  { id: 'facsverse', label: 'BD FACSVerse', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('facsverse', 'conventional') },
+  { id: 'lsrii', label: 'BD LSR II', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('lsrii', 'conventional') },
+  { id: 'cytoflex_lx', label: 'Beckman Coulter CytoFLEX LX', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('cytoflex_lx', 'conventional') },
+  { id: 'navios', label: 'Beckman Coulter Navios', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('navios', 'conventional') },
+  { id: 'dxflex', label: 'Beckman Coulter DxFLEX', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('dxflex', 'conventional') },
+  { id: 'facsaria_fusion', label: 'BD FACSAria Fusion', measurement_mode: 'conventional', response_provenance: responseProvenanceForCytometer('facsaria_fusion', 'conventional') },
 ]
 
 const LIBRARY_FILES: Partial<Record<CytometerId, string>> = {
@@ -1243,6 +1247,8 @@ function validateSpectralLibrary(
 export function parseLibrary(
   rows: string[][],
   source = 'bundled spectral library',
+  measurementMode?: PanelMeasurementMode,
+  cytometer = '',
 ): SpectralLibrary {
   const domain = SPECTRAL_RESPONSE_DOMAINS[source] ?? DEFAULT_SPECTRAL_RESPONSE_DOMAIN
   validateSpectralLibrary(source, rows, domain)
@@ -1254,7 +1260,14 @@ export function parseLibrary(
     fluorophores.push(canonicalizeFluorophoreName(row[0].trim()))
     values.push(row.slice(1).map((value) => Number(value.trim())))
   })
-  return { detectors, fluorophores, values }
+  const inferredCytometer = cytometer || (source.toLowerCase().endsWith('symphony_spectra.csv') ? 'symphony' : '')
+  const inferredMeasurementMode = measurementMode ?? (inferredCytometer ? 'conventional' : 'spectral')
+  const response_provenance = responseProvenanceForCytometer(
+    inferredCytometer,
+    inferredMeasurementMode,
+    source,
+  )
+  return { detectors, fluorophores, values, response_provenance }
 }
 
 function validateCytometerDictionary(
@@ -1810,7 +1823,10 @@ function validatePanelWizardAntigenDensity(filename: string, rows: string[][]): 
   )
   const seen = new Map<string, number>()
   records.forEach((row, index) => {
-    finiteField(filename, index, row, 'molecules_per_cell', { minimum: Number.MIN_VALUE })
+    const moleculesPerCell = finiteField(filename, index, row, 'molecules_per_cell', { minimum: 0 })
+    if (moleculesPerCell <= 0) {
+      validationError(filename, `row ${rowNumber(index)} column 'molecules_per_cell' must be greater than zero.`)
+    }
     const cellTypeKey = normalizeToken(rowValue(row, 'cell_type'))
     const antigenKey = normalizeToken(rowValue(row, 'antigen'))
     if (!cellTypeKey) validationError(filename, `row ${rowNumber(index)} cell_type has an empty canonical identity.`)
@@ -1894,7 +1910,11 @@ function initializeLibrary(cytometer: CytometerId): Promise<void> {
       const filename = LIBRARY_FILES[cytometer]!
       const rows = await loadCsv(filename)
       validateSpectralDetectorMetadata(filename, rows)
-      libraries.set(cytometer, parseLibrary(rows, filename))
+      const measurementMode = LIBRARIES.find((libraryInfo) => libraryInfo.id === cytometer)!.measurement_mode
+      libraries.set(
+        cytometer,
+        parseLibrary(rows, filename, measurementMode, cytometer),
+      )
     })
   libraryInitializations.set(cytometer, pending)
   return pending.catch((error) => {
@@ -2383,6 +2403,7 @@ function buildConventionalLibrary(cytometer: CytometerId): SpectralLibrary {
     detectors,
     fluorophores: values.map(({ fluorophore }) => fluorophore),
     values: values.map(({ row }) => row),
+    response_provenance: responseProvenanceForCytometer(cytometer, 'conventional'),
     fluorophoreMappings: new Map(Array.from(specifications.entries()).map(([fluorophore, specification]) => [
       fluorophore,
       specification.mapping,
@@ -2580,6 +2601,7 @@ export async function buildPanelPayload(
     cytometer: id,
     configuration: config,
     measurement_mode: LIBRARIES.find((libraryInfo) => libraryInfo.id === id)!.measurement_mode,
+    response_provenance: library.response_provenance,
     libraries: LIBRARIES,
     configurations: CONFIGURATIONS[id],
     detectors: base.detectorInfo,

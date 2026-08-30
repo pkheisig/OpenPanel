@@ -6,7 +6,9 @@ import {
   serializeProject,
 } from '../src/projectStore'
 import type { ProjectState } from '../src/projectStore'
+import { WIZARD_SCORING_VERSION } from '../src/panelWizardEngine'
 import type { WizardProjectState } from '../src/panelWizardEngine'
+import { responseMatrixProvenance } from '../src/panelBuilderShared'
 
 const wizard: WizardProjectState = {
   desiredSize: 2,
@@ -19,6 +21,9 @@ const wizard: WizardProjectState = {
   coexpressionCompleted: true,
   activeTab: 'recommendations',
   results: {
+    scoring_version: WIZARD_SCORING_VERSION,
+    response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
+    response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
     recommended: {
       kind: 'recommended',
       rows: [],
@@ -210,6 +215,9 @@ describe('OpenPanel project files', () => {
         coexpressionScale: 5, coexpressionVisited: true, coexpressionCompleted: false, inputsChanged: false,
         activeTab: 'coexpression', resultMode: 'bestFit', resultSort: 'marker',
         results: {
+          scoring_version: WIZARD_SCORING_VERSION,
+          response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'discover_spectra.csv' }),
+          response_context: { cytometer: 'discover', configuration: 'discover_s8', measurement_mode: 'spectral' },
           recommended: {
             kind: 'recommended',
             rows: [{ markerId: 'm', markerName: 'CD3', slotIndex: 0, frequency: 'high', fluorophore: 'PE' }],
@@ -243,6 +251,142 @@ describe('OpenPanel project files', () => {
     expect(parsed.wizard?.results?.bestFit.rows[0]).toMatchObject({ antigenDensity: 'medium' })
     expect(parsed.cytometerPanels).toHaveProperty('discover')
     expect(parsed.cytometerPanels.malformed).toMatchObject({ configuration: '' })
+  })
+
+  test('invalidates wizard results from an older scoring contract', () => {
+    const stale = {
+      ...project,
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? { ...project.wizard.results, scoring_version: 'wizard-response-provenance-v0' }
+            : null,
+        }
+        : null,
+    }
+    expect(parseProject(serializeProject(stale)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
+
+    const staleProvenance = {
+      ...project,
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? {
+              ...project.wizard.results,
+              response_provenance: responseMatrixProvenance('measured_full_spectrum', { version: 'response-provenance-v0' }),
+            }
+            : null,
+        }
+        : null,
+    }
+    expect(parseProject(serializeProject(staleProvenance)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
+
+    const mismatchedProvenance = {
+      ...project,
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? {
+              ...project.wizard.results,
+              response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+            }
+            : null,
+        }
+        : null,
+    }
+    expect(parseProject(serializeProject(mismatchedProvenance)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
+  })
+
+  test('invalidates wizard results from a different cytometer or configuration', () => {
+    const mismatched = {
+      ...project,
+      cytometer: 'discover',
+      configuration: 'discover_s8',
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? {
+              ...project.wizard.results,
+              response_context: { cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', measurement_mode: 'spectral' },
+            }
+            : null,
+        }
+        : null,
+      cytometerPanels: {},
+    }
+    expect(parseProject(serializeProject(mismatched)).wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
+  })
+
+  test('retains bound results for a configured non-active cytometer panel', () => {
+    const fortessaWizard: WizardProjectState = {
+      ...wizard,
+      results: wizard.results
+        ? {
+          ...wizard.results,
+          response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional' },
+        }
+        : null,
+    }
+    const multiPanel = {
+      ...project,
+      cytometerPanels: {
+        ...project.cytometerPanels,
+        fortessa: {
+          configuration: 'fortessa_3l',
+          slots: ['FITC'],
+          markers: { 0: 'CD3' },
+          wizard: fortessaWizard,
+        },
+      },
+    }
+    expect(parseProject(serializeProject(multiPanel)).cytometerPanels.fortessa.wizard?.results).toEqual(
+      fortessaWizard.results,
+    )
+  })
+
+  test('invalidates results when a panel has no configuration context', () => {
+    const fortessaWizard: WizardProjectState = {
+      ...wizard,
+      results: wizard.results
+        ? {
+          ...wizard.results,
+          response_provenance: responseMatrixProvenance('synthetic_filter_proxy'),
+          response_context: { cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional' },
+        }
+        : null,
+    }
+    const malformedPanel = {
+      ...project,
+      cytometerPanels: {
+        fortessa: {
+          configuration: '',
+          slots: [],
+          markers: {},
+          wizard: fortessaWizard,
+        },
+      },
+    }
+    expect(parseProject(serializeProject(malformedPanel)).cytometerPanels.fortessa.wizard).toMatchObject({
+      results: null,
+      resultsInvalidated: true,
+    })
   })
 
   test('uses defaults and legacy plot-height conversion for incomplete state', () => {
