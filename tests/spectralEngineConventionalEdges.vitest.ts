@@ -267,6 +267,12 @@ describe('conventional spectral engine defensive paths', () => {
     expect(result.detectors.filter((detector) => detector.detector.startsWith('450/50-V'))).toHaveLength(1)
   })
 
+  test('keeps the first requested spelling when interactive fluorophore aliases deduplicate', async () => {
+    vi.stubGlobal('fetch', customFetch())
+    const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'fit-c'])
+    expect(result.selected).toEqual(['FITC'])
+  })
+
   test('normalizes conventional cytometer scopes before constructing a library', async () => {
     const bundledFetch = customFetch()
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {

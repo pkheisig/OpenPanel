@@ -748,21 +748,36 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   return panel
 }
 
-function fallbackLibrary(): StoredPanelProject[] {
+function readFallbackRecords(): Record<string, unknown>[] {
   try {
     const parsed = JSON.parse(readLocalStorage(PANEL_LIBRARY_STORAGE_KEY) || '[]')
     return Array.isArray(parsed)
-      ? parsed.map(normalizeStoredPanel).filter((panel): panel is StoredPanelProject => panel !== null)
+      ? parsed.filter(isRecord)
       : []
   } catch {
     return []
   }
 }
 
+function fallbackLibrary(): StoredPanelProject[] {
+  return readFallbackRecords()
+    .map(normalizeStoredPanel)
+    .filter((panel): panel is StoredPanelProject => panel !== null)
+}
+
 function writeFallbackLibrary(panels: StoredPanelProject[]): void {
+  const persistedById = new Map(
+    readFallbackRecords()
+      .filter((record): record is Record<string, unknown> & { id: string } => typeof record.id === 'string')
+      .map((record) => [record.id, record] as const),
+  )
   writeLocalStorage(
     PANEL_LIBRARY_STORAGE_KEY,
-    JSON.stringify(panels.map((panel) => fallbackRawRecords.get(panel.id) ?? panel)),
+    JSON.stringify(panels.map((panel) => (
+      fallbackRawRecords.get(panel.id)
+      ?? (panel.loadError ? persistedById.get(panel.id) : undefined)
+      ?? panel
+    ))),
   )
 }
 

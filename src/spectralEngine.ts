@@ -2673,9 +2673,14 @@ export async function buildPanelPayload(
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
   const normalizedRequested = requestedFluorophores.map((value) => value.trim()).filter(Boolean)
-  const uniqueRequested = Array.from(new Map(
-    normalizedRequested.map((requested) => [fluorophoreIdentity(requested), requested] as const),
-  ).values())
+  const uniqueRequested: string[] = []
+  const seenRequested = new Set<string>()
+  normalizedRequested.forEach((requested) => {
+    const identity = fluorophoreIdentity(requested)
+    if (seenRequested.has(identity)) return
+    seenRequested.add(identity)
+    uniqueRequested.push(requested)
+  })
   const cacheRequested = rejectInvalidRequested
     ? normalizedRequested.map(fluorophoreIdentity)
     : uniqueRequested.map(fluorophoreIdentity)

@@ -403,9 +403,9 @@ const PanelBuilder = ({
     useEffect(() => () => sidebarResizeCleanupRef.current?.(), []);
 
     useEffect(() => {
-        if (wizardStateRef.current?.inputsChanged === true) return;
+        if (recoveryMode || wizardStateRef.current?.inputsChanged === true) return;
         syncWizardColorsWithPanel(slots);
-    }, [slots, syncWizardColorsWithPanel]);
+    }, [recoveryMode, slots, syncWizardColorsWithPanel]);
 
     useEffect(() => {
         if (typeof window.requestIdleCallback === 'function') {
