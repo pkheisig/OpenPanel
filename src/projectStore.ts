@@ -154,40 +154,45 @@ type ResourceTraversalState = { nodes: number }
 function assertProjectResourceTree(
   value: unknown,
   path = 'project',
-  seen = new WeakSet<object>(),
+  ancestors = new WeakSet<object>(),
   traversal: ResourceTraversalState = { nodes: 0 },
 ): void {
-  if (value && typeof value === 'object') {
-    if (seen.has(value)) return
-    seen.add(value)
+  const objectValue = value !== null && typeof value === 'object' ? value : undefined
+  if (objectValue) {
+    if (ancestors.has(objectValue)) return
+    ancestors.add(objectValue)
   }
-  traversal.nodes += 1
-  if (traversal.nodes > PROJECT_RESOURCE_LIMITS.maxResourceNodes) {
-    throw new ProjectResourceLimitError(`OpenPanel project contains too many nested values near ${path}.`)
-  }
-  if (typeof value === 'string') {
-    if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
-      throw new ProjectResourceLimitError(`${path} exceeds the maximum string length.`)
+  try {
+    traversal.nodes += 1
+    if (traversal.nodes > PROJECT_RESOURCE_LIMITS.maxResourceNodes) {
+      throw new ProjectResourceLimitError(`OpenPanel project contains too many nested values near ${path}.`)
     }
-    return
-  }
-  if (!value || typeof value !== 'object') return
-  if (Array.isArray(value)) {
-    if (value.length > PROJECT_RESOURCE_LIMITS.maxArrayItems) {
-      throw new ProjectResourceLimitError(`${path} contains too many items.`)
+    if (typeof value === 'string') {
+      if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
+        throw new ProjectResourceLimitError(`${path} exceeds the maximum string length.`)
+      }
+      return
     }
-    value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, seen, traversal))
-    return
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      if (value.length > PROJECT_RESOURCE_LIMITS.maxArrayItems) {
+        throw new ProjectResourceLimitError(`${path} contains too many items.`)
+      }
+      value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, ancestors, traversal))
+      return
+    }
+    const record = value as Record<string, unknown>
+    const entries = Object.entries(record)
+    const objectLimit = path.endsWith('.coexpression')
+      ? PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries
+      : PROJECT_RESOURCE_LIMITS.maxObjectEntries
+    if (entries.length > objectLimit) {
+      throw new ProjectResourceLimitError(`${path} contains too many entries.`)
+    }
+    entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, ancestors, traversal))
+  } finally {
+    if (objectValue) ancestors.delete(objectValue)
   }
-  const record = value as Record<string, unknown>
-  const entries = Object.entries(record)
-  const objectLimit = path.endsWith('.coexpression')
-    ? PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries
-    : PROJECT_RESOURCE_LIMITS.maxObjectEntries
-  if (entries.length > objectLimit) {
-    throw new ProjectResourceLimitError(`${path} contains too many entries.`)
-  }
-  entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, seen, traversal))
 }
 
 function assertArrayLimit(value: unknown, limit: number, label: string): void {

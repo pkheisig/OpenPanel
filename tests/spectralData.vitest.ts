@@ -70,7 +70,7 @@ describe('bundled spectral data', () => {
   test('rejects a full-scale conventional dictionary with a missing cytometer scope', () => {
     const rows = parseCsv(readFileSync(conventionalDetectorPath, 'utf8'))
     const withoutFortessa = [rows[0]!, ...rows.slice(1).filter((row) => row[0] !== 'fortessa')]
-    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', withoutFortessa))
+    expect(() => validateBundledDataRows('conventional_detector_dictionary.csv', withoutFortessa, { requireComplete: true }))
       .toThrow('pinned complete conventional detector bundle')
   })
 

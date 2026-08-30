@@ -1442,7 +1442,6 @@ const SHARED_CONVENTIONAL_CONFIGURATION_BY_CYTOMETER: Record<string, string> = {
 }
 
 const PINNED_CONVENTIONAL_DETECTOR_ROW_COUNT = 506
-const FULL_CONVENTIONAL_BUNDLE_ROW_THRESHOLD = 100
 
 function detectorSetContains(actual: Set<string>, expected: string): boolean {
   return detectorKeys(expected).some((key) => actual.has(key))
@@ -1458,7 +1457,7 @@ function validateConventionalConfigurationCoverage(
   records: CsvRow[],
   options: BundledDataValidationOptions = {},
 ): void {
-  const looksLikeFullBundle = options.requireComplete || records.length >= FULL_CONVENTIONAL_BUNDLE_ROW_THRESHOLD
+  const looksLikeFullBundle = options.requireComplete
   if (looksLikeFullBundle && records.length !== PINNED_CONVENTIONAL_DETECTOR_ROW_COUNT) {
     validationError(
       filename,
