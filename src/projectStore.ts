@@ -564,7 +564,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
 }
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, false)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
   try {
     await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
   } catch {
@@ -658,7 +658,7 @@ export async function createPanelProject(
     name: normalizePanelName(name),
     createdAt: now,
     updatedAt: now,
-    state: normalizeState(state as unknown as Record<string, unknown>, false),
+    state: normalizeState(state as unknown as Record<string, unknown>),
   }
   try {
     const db = await database()
@@ -685,7 +685,7 @@ export async function savePanelProject(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     archivedAt: existing?.archivedAt,
-    state: normalizeState(state as unknown as Record<string, unknown>, false),
+    state: normalizeState(state as unknown as Record<string, unknown>),
   }
   try {
     const db = await database()

@@ -5,10 +5,6 @@ export type SaveFileOptions = {
   extensions: string[]
 }
 
-function utf8ByteLength(text: string): number {
-  return typeof TextEncoder === 'undefined' ? new Blob([text]).size : new TextEncoder().encode(text).byteLength
-}
-
 export async function readTextFileWithinLimit(
   file: File,
   maxBytes: number,
@@ -22,11 +18,7 @@ export async function readTextFileWithinLimit(
   if (bytes.byteLength > maxBytes) {
     throw new Error(`${description} is too large. Maximum size is ${Math.floor(maxBytes / (1024 * 1024))} MB.`)
   }
-  const text = new TextDecoder().decode(bytes)
-  if (utf8ByteLength(text) > maxBytes) {
-    throw new Error(`${description} is too large. Maximum size is ${Math.floor(maxBytes / (1024 * 1024))} MB.`)
-  }
-  return text
+  return new TextDecoder().decode(bytes)
 }
 
 export function projectJsonFilename(projectName: string): string {

@@ -2668,7 +2668,9 @@ export async function buildPanelPayload(
   const uniqueRequested = Array.from(new Map(
     normalizedRequested.map((requested) => [fluorophoreIdentity(requested), requested] as const),
   ).values())
-  const cacheRequested = rejectInvalidRequested ? normalizedRequested : uniqueRequested
+  const cacheRequested = rejectInvalidRequested
+    ? normalizedRequested.map(fluorophoreIdentity)
+    : uniqueRequested.map(fluorophoreIdentity)
   const payloadCacheKey = `${id}:${config}:${JSON.stringify(cacheRequested)}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
   if (cachedPayload && !rejectInvalidRequested) {
