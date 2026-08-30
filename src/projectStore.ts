@@ -745,7 +745,9 @@ export async function saveActiveProject(state: ProjectState): Promise<void> {
   try {
     await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
   } catch {
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)
+    if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
+      throw new Error('OpenPanel active project could not be persisted in local storage.')
+    }
   }
 }
 
@@ -970,13 +972,13 @@ function writeFallbackLibrary(panels: StoredPanelProject[]): void {
       .filter((record): record is Record<string, unknown> & { id: string } => typeof record.id === 'string')
       .map((record) => [record.id, record] as const),
   )
-  writeLocalStorage(
-    PANEL_LIBRARY_STORAGE_KEY,
-    JSON.stringify(panels.map((panel) => (
-      (panel.loadError ? persistedById.get(panel.id) : undefined)
-      ?? panel
-    ))),
-  )
+  const serialized = JSON.stringify(panels.map((panel) => (
+    (panel.loadError ? persistedById.get(panel.id) : undefined)
+    ?? panel
+  )))
+  if (!writeLocalStorage(PANEL_LIBRARY_STORAGE_KEY, serialized)) {
+    throw new Error('OpenPanel panel library could not be persisted in local storage.')
+  }
 }
 
 function createPanelId(): string {
@@ -1034,7 +1036,9 @@ export async function createPanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== panel.id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)
+    if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
+      throw new Error('OpenPanel active project could not be persisted in local storage.')
+    }
   }
   setActivePanelProject(panel.id)
   return panel
@@ -1065,7 +1069,9 @@ export async function savePanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)
+    if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
+      throw new Error('OpenPanel active project could not be persisted in local storage.')
+    }
   }
   setActivePanelProject(id)
   return panel

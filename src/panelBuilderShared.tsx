@@ -521,6 +521,7 @@ const parseCsvLikeRows = (text: string) => {
 
 const strongHeaderWords = new Set(['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent']);
 const genericHeaderWords = new Set(['sample', 'sampleid', 'well', 'wellid', 'id', 'name', 'names', 'group', 'groups', 'channel', 'channels', 'file', 'filename', 'notes', 'conjugate', 'panel', 'panels', 'label', 'labels', 'metadata', 'source']);
+const unambiguousGenericHeaderWords = new Set(['sample', 'sampleid', 'well', 'wellid', 'file', 'filename', 'metadata', 'source']);
 const fluorophoreHeaderWords = new Set(['fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent']);
 
 const rowHasHeaderWords = (row: string[]) => {
@@ -530,6 +531,7 @@ const rowHasHeaderWords = (row: string[]) => {
     return strongCount >= 2
         || genericCount >= 2
         || (strongCount >= 1 && genericCount >= 1)
+        || (row.length > 1 && keys.some(key => unambiguousGenericHeaderWords.has(key)))
         || (row.length === 1 && strongCount === 1);
 };
 

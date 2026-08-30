@@ -98,6 +98,12 @@ describe('IndexedDB fallback error paths', () => {
     expect(unnamed.name).toBe('Untitled panel')
   })
 
+  test('reports fallback persistence failure when local storage is unavailable', async () => {
+    vi.stubGlobal('window', undefined)
+
+    await expect(saveActiveProject(state)).rejects.toThrow('active project could not be persisted')
+  })
+
   test('persists the active state and recovers or rejects malformed legacy data', async () => {
     await saveActiveProject(state)
     expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('OpenPanel project')
