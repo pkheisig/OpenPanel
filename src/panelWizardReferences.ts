@@ -1,4 +1,14 @@
-import { parseCsv } from './spectralEngine'
+import {
+  BundledDataValidationError,
+  parseCsv,
+  resolveCytometer,
+  resolveConfiguration,
+  resolveBundledFluorophoreKey,
+  resolveKnownConfiguration,
+  resolveKnownConfigurationAcrossCytometers,
+  validateBundledDataRows,
+} from './spectralEngine'
+import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import { buildMarkerOptions } from './panelWizardKnowledge'
 import type { UiSelectOption } from './UiSelect'
 
@@ -21,13 +31,26 @@ function dataUrl(filename: string): string {
 }
 
 async function loadCsv(filename: string): Promise<string[][]> {
+  let response: Response
   try {
-    const response = await fetch(dataUrl(filename))
-    if (!response.ok) return []
-    return parseCsv(await response.text())
-  } catch {
-    return []
+    response = await fetch(dataUrl(filename))
+  } catch (error) {
+    throw new BundledDataValidationError(
+      `${filename}: could not load bundled reference data: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
+  if (!response.ok) {
+    throw new BundledDataValidationError(`${filename}: could not load bundled reference data (${response.status}).`)
+  }
+  let rows: string[][]
+  try {
+    rows = parseCsv(await response.text())
+  } catch (error) {
+    if (error instanceof BundledDataValidationError) throw error
+    throw new BundledDataValidationError(`${filename}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  validateBundledDataRows(filename, rows, { requireComplete: import.meta.env.MODE !== 'test' })
+  return rows
 }
 
 function normalize(value: string): string {
@@ -39,13 +62,14 @@ export function antigenDensityKey(cellType: string, antigen: string): string {
 }
 
 export function fluorophoreBrightnessKey(fluorophore: string): string {
-  return normalize(fluorophore)
+  return resolveBundledFluorophoreKey(fluorophore)
+    ?? normalize(canonicalizeFluorophoreName(fluorophore))
 }
 
 function rowsToRecords(rows: string[][]): Array<Record<string, string>> {
   const headers = rows[0] ?? []
   return rows.slice(1).map((values) => (
-    Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']))
+    Object.fromEntries(headers.map((header, index) => [header, (values[index] ?? '').trim()]))
   ))
 }
 
@@ -54,7 +78,7 @@ export async function loadPanelWizardReferences(
   configuration: string,
 ): Promise<WizardReferenceData> {
   if (!referenceRowsPromise) {
-    referenceRowsPromise = Promise.all([
+    const pending = Promise.all([
       loadCsv('panel_wizard_brightness.csv'),
       loadCsv('panel_wizard_antigen_density.csv'),
       loadCsv('marker_dictionary.csv'),
@@ -63,12 +87,24 @@ export async function loadPanelWizardReferences(
       antigenDensity,
       markerDictionary,
     }))
+    referenceRowsPromise = pending.catch((error: unknown) => {
+      referenceRowsPromise = null
+      throw error
+    })
   }
   const rows = await referenceRowsPromise
+  const requestedCytometer = resolveCytometer(cytometer)
+  const requestedConfiguration = resolveConfiguration(requestedCytometer, configuration)
   const brightnessByFluorophore: Record<string, number> = {}
   rowsToRecords(rows.brightness).forEach((row) => {
-    if (row.cytometer !== '*' && normalize(row.cytometer) !== normalize(cytometer)) return
-    if (row.configuration !== '*' && normalize(row.configuration) !== normalize(configuration)) return
+    const rowCytometer = row.cytometer === '*' ? '*' : resolveCytometer(row.cytometer)
+    if (rowCytometer !== '*' && rowCytometer !== requestedCytometer) return
+    const rowConfiguration = row.configuration === '*'
+      ? '*'
+      : rowCytometer === '*'
+        ? resolveKnownConfigurationAcrossCytometers(row.configuration)
+        : resolveKnownConfiguration(rowCytometer, row.configuration)
+    if (rowConfiguration !== '*' && rowConfiguration !== requestedConfiguration) return
     const score = Number(row.brightness_score)
     if (Number.isFinite(score)) brightnessByFluorophore[fluorophoreBrightnessKey(row.fluorophore)] = score
   })

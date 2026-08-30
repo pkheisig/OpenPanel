@@ -32,20 +32,18 @@ import { resetPanelWizardReferencesForTests } from '../src/panelWizardReferences
 beforeEach(mockBundledData)
 
 describe('panel wizard recommendation engine', () => {
-  test('falls back cleanly when reference files are unavailable or malformed', async () => {
+  test('fails closed when reference files are unavailable', async () => {
     resetPanelWizardReferencesForTests()
     vi.stubGlobal('fetch', async (input: string | URL) => {
       const source = String(input)
       if (source.includes('brightness')) {
-        return new Response('cytometer,configuration,fluorophore,brightness_score\n*,*,FITC,3\n', { status: 200 })
+        return new Response('cytometer,configuration,fluorophore,brightness_score,source\n*,*,FITC,3,test\n', { status: 200 })
       }
       if (source.includes('antigen_density')) return new Response('unavailable', { status: 404 })
       throw new Error('network down')
     })
-    const references = await loadPanelWizardReferences('aurora', 'config')
-    expect(references.brightnessByFluorophore).toEqual({ fitc: 3 })
-    expect(references.antigenDensityByContext).toEqual({})
-    expect(references.markerOptions.length).toBeGreaterThan(0)
+    await expect(loadPanelWizardReferences('aurora', 'config'))
+      .rejects.toThrow(/panel_wizard_(antigen_density|marker_dictionary)\.csv/)
     vi.unstubAllGlobals()
   })
 
@@ -55,26 +53,47 @@ describe('panel wizard recommendation engine', () => {
       const source = String(input)
       if (source.includes('brightness')) {
         return new Response(
-          'cytometer,configuration,fluorophore,brightness_score\n'
-          + 'other,*,FITC,1\n'
-          + 'aurora,other,PE,2\n'
-          + '*,5l_uv_v_b_yg_r,APC,3\n'
-          + '*,*,BV421,4\n'
-          + '*,*,Invalid,not-a-number\n',
+          'cytometer,configuration,fluorophore,brightness_score,source\n'
+          + 'discover,*,FITC,1,test\n'
+          + 'aurora,3l_v_b_r,PE,3,test\n'
+          + '*,5l_uv_v_b_yg_r,APC,3,test\n'
+          + '*,*,BV421,4,test\n',
           { status: 200 },
         )
       }
       if (source.includes('antigen_density')) return new Response(
-        'cell_type,antigen,molecules_per_cell\nT cells,CD3,100\nB cells,CD19,not-a-number',
+        'cell_type,antigen,molecules_per_cell,source\nT cells,CD3,100,test\nB cells,CD19,50,test',
         { status: 200 },
       )
-      return new Response('marker,aliases\nCD3,T-cell\nCD4', { status: 200 })
+      return new Response('marker,aliases\nCD3,T-cell\nCD4,', { status: 200 })
     })
     const references = await loadPanelWizardReferences('aurora', '5l_uv_v_b_yg_r')
     expect(references.brightnessByFluorophore).toEqual({ apc: 3, bv421: 4 })
     expect(references.antigenDensityByContext['tcells::cd3']).toBe(100)
-    expect(references.antigenDensityByContext['bcells::cd19']).toBeUndefined()
+    expect(references.antigenDensityByContext['bcells::cd19']).toBe(50)
     expect((await loadPanelWizardReferences('aurora', '5l_uv_v_b_yg_r')).markerOptions.length).toBeGreaterThan(0)
+    vi.unstubAllGlobals()
+  })
+
+  test('matches brightness rows through canonical cytometer and configuration aliases', async () => {
+    resetPanelWizardReferencesForTests()
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response(
+          'cytometer,configuration,fluorophore,brightness_score,source\n'
+          + 'Thermo Fisher Attune Xenith,Full,FITC,3,test\n',
+          { status: 200 },
+        )
+      }
+      if (source.includes('antigen_density')) return new Response(
+        'cell_type,antigen,molecules_per_cell,source\nT cells,CD3,100,test',
+        { status: 200 },
+      )
+      return new Response('marker,aliases\nCD3,T-cell', { status: 200 })
+    })
+    const references = await loadPanelWizardReferences('xenith', 'full')
+    expect(references.brightnessByFluorophore).toEqual({ fitc: 3 })
     vi.unstubAllGlobals()
   })
 
@@ -83,13 +102,29 @@ describe('panel wizard recommendation engine', () => {
     vi.stubGlobal('window', undefined)
     vi.stubGlobal('fetch', async (input: string | URL) => {
       const source = String(input)
-      if (source.includes('brightness')) return new Response('cytometer,configuration,fluorophore,brightness_score\n', { status: 200 })
-      if (source.includes('antigen_density')) return new Response('cell_type,antigen,molecules_per_cell\n', { status: 200 })
+      if (source.includes('brightness')) return new Response('cytometer,configuration,fluorophore,brightness_score,source\n', { status: 200 })
+      if (source.includes('antigen_density')) return new Response('cell_type,antigen,molecules_per_cell,source\n', { status: 200 })
       return new Response('marker,aliases\nCD3,T-cell', { status: 200 })
     })
     await expect(loadPanelWizardReferences('aurora', 'config')).resolves.toMatchObject({
       brightnessByFluorophore: {}, antigenDensityByContext: {},
     })
+    vi.unstubAllGlobals()
+  })
+
+  test('fails closed when a reference row contains an invalid value', async () => {
+    resetPanelWizardReferencesForTests()
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const source = String(input)
+      if (source.includes('brightness')) {
+        return new Response('cytometer,configuration,fluorophore,brightness_score,source\n*,*,FITC,not-a-number,test', { status: 200 })
+      }
+      if (source.includes('antigen_density')) {
+        return new Response('cell_type,antigen,molecules_per_cell,source\nT cells,CD3,100,test', { status: 200 })
+      }
+      return new Response('marker,aliases\nCD3,T-cell', { status: 200 })
+    })
+    await expect(loadPanelWizardReferences('aurora', 'config')).rejects.toThrow('brightness_score')
     vi.unstubAllGlobals()
   })
 

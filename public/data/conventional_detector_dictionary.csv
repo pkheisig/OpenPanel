@@ -1,20 +1,20 @@
 cytometer,configuration,detector,laser,description,is_scatter,common_fluorophores
-fortessa,fortessa_3l,450/50-V-A,Violet,450/50,FALSE,BV421;Alexa 405;eFluor 450;Hoechst;Pacific Blue;DAPI;Sytox
-fortessa,fortessa_3l,525/50-V-A,Violet,525/50,FALSE,BV510;AmCyan;V500;Qdot 525;Krome Orange;Pacific Orange
-fortessa,fortessa_3l,610/20-V-A,Violet,610/20,FALSE,BV605;eFluor 605NC;Qdot 605
-fortessa,fortessa_3l,670/30-V-A,Violet,670/30,FALSE,BV650;eFluor 650NC;Qdot 655
-fortessa,fortessa_3l,710/50-V-A,Violet,710/50,FALSE,BV711;eFluor 700NC;Qdot 705
+fortessa,fortessa_3l,450/50-V-A,Violet,450/50,FALSE,BV421;Alexa 405;eFluor 450;Hoechst;Pacific Blue;DAPI
+fortessa,fortessa_3l,525/50-V-A,Violet,525/50,FALSE,BV510;AmCyan;V500;Qdot 525;Pacific Orange
+fortessa,fortessa_3l,610/20-V-A,Violet,610/20,FALSE,BV605;Qdot 605
+fortessa,fortessa_3l,670/30-V-A,Violet,670/30,FALSE,BV650;Qdot 655
+fortessa,fortessa_3l,710/50-V-A,Violet,710/50,FALSE,BV711;Qdot 705
 fortessa,fortessa_3l,780/60-V-A,Violet,780/60,FALSE,BV786;Qdot 800
 fortessa,fortessa_3l,488/10-B-A,Blue,488/10,TRUE,SSC
 fortessa,fortessa_3l,525/50-B-A,Blue,525/50,FALSE,FITC;GFP;Alexa 488;CFSE
-fortessa,fortessa_3l,575/26-B-A,Blue,575/26,FALSE,PE;PKH26
+fortessa,fortessa_3l,575/26-B-A,Blue,575/26,FALSE,PE
 fortessa,fortessa_3l,610/20-B-A,Blue,610/20,FALSE,PE-CF594;Texas Red;PE-Texas Red;PI
-fortessa,fortessa_3l,695/40-B-A,Blue,695/40,FALSE,PerCP-Cy5.5;PerCP;PE-Cy5;7AAD;PE-Cy5.5;PerCP eFluor 710
-fortessa,fortessa_3l,780/60-B-A,Blue,780/60,FALSE,PE-Cy7;PE-CY7;PC7;PE-Vio 7
-fortessa,fortessa_3l,670/30-R-A,Red,670/30,FALSE,APC;Alexa 647;TOPRO-3;TOTO-3;eFluor 660
-fortessa,fortessa_3l,730/45-R-A,Red,730/45,FALSE,Alexa Fluor 700;Alexa 700;eFluor 710;APC-Alexa 700
+fortessa,fortessa_3l,695/40-B-A,Blue,695/40,FALSE,PerCP-Cy5.5;PerCP;PE-Cy5;7AAD;PE-Cy5.5
+fortessa,fortessa_3l,780/60-B-A,Blue,780/60,FALSE,PE-Cy7;PE-CY7
+fortessa,fortessa_3l,670/30-R-A,Red,670/30,FALSE,APC;Alexa 647;eFluor 660
+fortessa,fortessa_3l,730/45-R-A,Red,730/45,FALSE,Alexa Fluor 700;Alexa 700
 fortessa,fortessa_3l,780/60-R-A,Red,780/60,FALSE,APC-Cy7;Alexa Fluor 750;APC-Vio 770;APC-eFluor 780;APC-H7
-fortessa,fortessa_4l,450/50-V-A,Violet,450/50,FALSE,BV421;Alexa 405;eFluor 450;Pacific Blue;DAPI;Sytox
+fortessa,fortessa_4l,450/50-V-A,Violet,450/50,FALSE,BV421;Alexa 405;eFluor 450;Pacific Blue;DAPI
 fortessa,fortessa_4l,525/50-V-A,Violet,525/50,FALSE,BV510
 fortessa,fortessa_4l,610/20-V-A,Violet,610/20,FALSE,BV605
 fortessa,fortessa_4l,670/30-V-A,Violet,670/30,FALSE,BV650
@@ -78,7 +78,7 @@ celesta,celesta_bvyg,610/20-YG-A,YellowGreen,610/20,FALSE,PE-CF594;PI
 celesta,celesta_bvyg,670/30-YG-A,YellowGreen,670/30,FALSE,PE-Cy5
 celesta,celesta_bvyg,780/60-YG-A,YellowGreen,780/60,FALSE,PE-Cy7
 attune_nxt,attune_nxt_4l,440/50-V-A,Violet,440/50,FALSE,Pacific Blue
-attune_nxt,attune_nxt_4l,512/25-V-A,Violet,512/25,FALSE,Pacific Green
+attune_nxt,attune_nxt_4l,512/25-V-A,Violet,512/25,FALSE,
 attune_nxt,attune_nxt_4l,603/48-V-A,Violet,603/48,FALSE,Pacific Orange
 attune_nxt,attune_nxt_4l,710/50-V-A,Violet,710/50,FALSE,Qdot 705
 attune_nxt,attune_nxt_4l,530/30-B-A,Blue,530/30,FALSE,FITC;Alexa 488
@@ -429,8 +429,8 @@ lsrii,lsrii_reference,lsrii_Vo3,Violet,585/15,FALSE,Qdot 585
 lsrii,lsrii_reference,lsrii_Vo4,Violet,560/20,FALSE,Qdot 565
 lsrii,lsrii_reference,lsrii_Vo5,Violet,525/50,FALSE,AmCyan;Qdot 525
 lsrii,lsrii_reference,lsrii_Vo6,Violet,450/50,FALSE,Pacific Blue
-lsrii,lsrii_reference,lsrii_UV1,UV,530/30,FALSE,Indo-1 (Blue)
-lsrii,lsrii_reference,lsrii_UV2,UV,450/50,FALSE,Indo-1 (Violet);DAPI
+lsrii,lsrii_reference,lsrii_UV1,UV,530/30,FALSE,
+lsrii,lsrii_reference,lsrii_UV2,UV,450/50,FALSE,DAPI
 lsrii,lsrii_reference,lsrii_Rt1,Red,780/60,FALSE,APC-Cy7
 lsrii,lsrii_reference,lsrii_Rt2,Red,730/45,FALSE,Alexa Fluor 700
 lsrii,lsrii_reference,lsrii_Rt3,Red,660/20,FALSE,APC;Alexa Fluor 647
@@ -453,18 +453,18 @@ cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y585,YellowGreen,585/42,FALSE
 cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y610,YellowGreen,610/20,FALSE,mCherry;PE-CF594;Propidium Iodide
 cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y675,YellowGreen,675/30,FALSE,PE-Cy5;7-AAD
 cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y710,YellowGreen,710/50,FALSE,PE-Cy5.5
-cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y763,YellowGreen,763/43,FALSE,PE-Cy7;PC7
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_Y763,YellowGreen,763/43,FALSE,PE-Cy7
 cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R660,Red,660/10,FALSE,APC;Alexa Fluor 647
-cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R712,Red,712/25,FALSE,Alexa Fluor 700;APC-A700
-cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R763,Red,763/43,FALSE,APC-A750;APC-Cy7;APC-eFluor 780
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R712,Red,712/25,FALSE,Alexa Fluor 700
+cytoflex_lx,cytoflex_lx_u3_v5_b3_y5_r3_i0,cytoflex_R763,Red,763/43,FALSE,APC-Cy7;APC-eFluor 780
 navios,navios_2l_8,navios_B1,Blue,525/40,FALSE,FITC;Alexa Fluor 488
 navios,navios_2l_8,navios_B2,Blue,575/30,FALSE,PE
 navios,navios_2l_8,navios_B3,Blue,620/30,FALSE,ECD;PE-Texas Red
 navios,navios_2l_8,navios_B4,Blue,695/30,FALSE,PE-Cy5.5;PerCP-Cy5.5
-navios,navios_2l_8,navios_B5,Blue,755 LP,FALSE,PE-Cy7;PC7
+navios,navios_2l_8,navios_B5,Blue,755 LP,FALSE,PE-Cy7
 navios,navios_2l_8,navios_BSSC,Blue,488/10,TRUE,SSC
 navios,navios_2l_8,navios_R1,Red,660/20,FALSE,APC;Alexa Fluor 647
-navios,navios_2l_8,navios_R2,Red,725/20,FALSE,Alexa Fluor 700;APC-Alexa 700
+navios,navios_2l_8,navios_R2,Red,725/20,FALSE,Alexa Fluor 700
 navios,navios_2l_8,navios_R3,Red,755 LP,FALSE,APC-Cy7;APC-H7;APC-Alexa 750
 accuri_c6_plus,accuri_c6_plus_standard,accuri_FL1,Blue,533/30,FALSE,FITC;BB515;Alexa Fluor 488;CFSE;GFP
 accuri_c6_plus,accuri_c6_plus_standard,accuri_FL2,Blue,585/40,FALSE,PE;Propidium Iodide;PE-CF594
@@ -474,10 +474,10 @@ facscalibur,facscalibur_2l_4,facscalibur_FL1,Blue,530/30,FALSE,FITC;BB515;Alexa 
 facscalibur,facscalibur_2l_4,facscalibur_FL2,Blue,585/42,FALSE,PE;Propidium Iodide;Cy3
 facscalibur,facscalibur_2l_4,facscalibur_FL3,Blue,670 LP,FALSE,PerCP;PerCP-Cy5.5;PE-Cy5;7-AAD
 facscalibur,facscalibur_2l_4,facscalibur_FL4,Red,661/16,FALSE,APC;Alexa Fluor 647;Alexa Fluor 633;eFluor 660
-dxflex,dxflex_b5_r3_v5,dxflex_V450,Violet,450/45,FALSE,BV421;Pacific Blue;Alexa Fluor 405;eFluor 450;Horizon V450;DAPI
-dxflex,dxflex_b5_r3_v5,dxflex_V525,Violet,525/40,FALSE,BV510;AmCyan;Horizon V500;BB515
-dxflex,dxflex_b5_r3_v5,dxflex_V610,Violet,610/20,FALSE,BV605;Qdot 605;SuperBright600;eFluor 605NC
-dxflex,dxflex_b5_r3_v5,dxflex_V660,Violet,660/20,FALSE,BV650;Qdot 655;eFluor 650NC
+dxflex,dxflex_b5_r3_v5,dxflex_V450,Violet,450/45,FALSE,BV421;Pacific Blue;Alexa Fluor 405;eFluor 450;DAPI
+dxflex,dxflex_b5_r3_v5,dxflex_V525,Violet,525/40,FALSE,BV510;AmCyan;BB515
+dxflex,dxflex_b5_r3_v5,dxflex_V610,Violet,610/20,FALSE,BV605;Qdot 605;SuperBright600
+dxflex,dxflex_b5_r3_v5,dxflex_V660,Violet,660/20,FALSE,BV650;Qdot 655
 dxflex,dxflex_b5_r3_v5,dxflex_V780,Violet,780/60,FALSE,BV785;BV786;Qdot 800
 dxflex,dxflex_b5_r3_v5,dxflex_B525,Blue,525/40,FALSE,FITC;GFP;CFSE;BB515;Alexa Fluor 488
 dxflex,dxflex_b5_r3_v5,dxflex_B585,Blue,585/42,FALSE,PE;Propidium Iodide
@@ -486,22 +486,22 @@ dxflex,dxflex_b5_r3_v5,dxflex_B690,Blue,690/50,FALSE,PerCP;PerCP-Cy5.5;PE-Cy5.5;
 dxflex,dxflex_b5_r3_v5,dxflex_B780,Blue,780/60,FALSE,PE-Cy7
 dxflex,dxflex_b5_r3_v5,dxflex_R660,Red,660/20,FALSE,APC;Alexa Fluor 647;Cy5;Alexa Fluor 633
 dxflex,dxflex_b5_r3_v5,dxflex_R712,Red,712/25,FALSE,Alexa Fluor 700;APC-R700;R718
-dxflex,dxflex_b5_r3_v5,dxflex_R780,Red,780/60,FALSE,APC-Cy7;APC-eFluor 780;APC-H7;APC-Alexa 750;Viability eFluor 780
+dxflex,dxflex_b5_r3_v5,dxflex_R780,Red,780/60,FALSE,APC-Cy7;APC-eFluor 780;APC-H7;APC-Alexa 750
 facsaria_fusion,facsaria_fusion_buv,facsaria_B530,Blue,530/30,FALSE,FITC;Alexa Fluor 488;CFSE
 facsaria_fusion,facsaria_fusion_buv,facsaria_B710,Blue,710/50,FALSE,PerCP;PerCP-Cy5.5;PerCP-eFluor 710;7-AAD;Propidium Iodide
 facsaria_fusion,facsaria_fusion_buv,facsaria_R670,Red,670/30,FALSE,APC;Cy5;Alexa Fluor 647
 facsaria_fusion,facsaria_fusion_buv,facsaria_R712,Red,712/21,FALSE,Alexa Fluor 700;APC-R700
-facsaria_fusion,facsaria_fusion_buv,facsaria_R780,Red,780/60,FALSE,APC-Cy7;APC-H7;APC-Vio780;APC-Fire750;APC-eFluor 780;LIVE/DEAD NIR
-facsaria_fusion,facsaria_fusion_buv,facsaria_V450,Violet,450/50,FALSE,Pacific Blue;Alexa Fluor 405;BV421;eFluor 450;Horizon V450;VioBlue;SuperBright436
-facsaria_fusion,facsaria_fusion_buv,facsaria_V525,Violet,525/50,FALSE,Pacific Orange;Horizon V500;BV510;AmCyan;Qdot 525;VioGreen;eFluor 506
-facsaria_fusion,facsaria_fusion_buv,facsaria_V610,Violet,610/20,FALSE,BV605;Qdot 605;eFluor 605NC;LIVE/DEAD Yellow;SuperBright600
-facsaria_fusion,facsaria_fusion_buv,facsaria_V660,Violet,660/20,FALSE,BV650;eFluor 650NC;Qdot 655
-facsaria_fusion,facsaria_fusion_buv,facsaria_V710,Violet,710/40,FALSE,BV710;Qdot 705
+facsaria_fusion,facsaria_fusion_buv,facsaria_R780,Red,780/60,FALSE,APC-Cy7;APC-H7;APC-Fire750;APC-eFluor 780;LIVE/DEAD NIR
+facsaria_fusion,facsaria_fusion_buv,facsaria_V450,Violet,450/50,FALSE,Pacific Blue;Alexa Fluor 405;BV421;eFluor 450;VioBlue;SuperBright436
+facsaria_fusion,facsaria_fusion_buv,facsaria_V525,Violet,525/50,FALSE,Pacific Orange;BV510;AmCyan;Qdot 525;VioGreen;eFluor 506
+facsaria_fusion,facsaria_fusion_buv,facsaria_V610,Violet,610/20,FALSE,BV605;Qdot 605;LIVE/DEAD Yellow;SuperBright600
+facsaria_fusion,facsaria_fusion_buv,facsaria_V660,Violet,660/20,FALSE,BV650;Qdot 655
+facsaria_fusion,facsaria_fusion_buv,facsaria_V710,Violet,710/40,FALSE,Qdot 705
 facsaria_fusion,facsaria_fusion_buv,facsaria_V780,Violet,780/60,FALSE,BV785;Qdot 800
 facsaria_fusion,facsaria_fusion_buv,facsaria_Y586,YellowGreen,586/15,FALSE,PE
-facsaria_fusion,facsaria_fusion_buv,facsaria_Y610,YellowGreen,610/20,FALSE,PE-AF605;PE-Texas Red;PE-CF594;PE-Dazzle594;PE-Alexa594
-facsaria_fusion,facsaria_fusion_buv,facsaria_Y780,YellowGreen,780/60,FALSE,PE-Cy7;PE-Vio780
+facsaria_fusion,facsaria_fusion_buv,facsaria_Y610,YellowGreen,610/20,FALSE,PE-Texas Red;PE-CF594;PE-Dazzle594
+facsaria_fusion,facsaria_fusion_buv,facsaria_Y780,YellowGreen,780/60,FALSE,PE-Cy7
 facsaria_fusion,facsaria_fusion_buv,facsaria_U379,UV,379/34,FALSE,BUV395
-facsaria_fusion,facsaria_fusion_buv,facsaria_U515,UV,515/30,FALSE,Hoechst 33342;Hoechst 33258;Alexa Fluor 350;LIVE/DEAD UV;DAPI;BUV496
+facsaria_fusion,facsaria_fusion_buv,facsaria_U515,UV,515/30,FALSE,Hoechst 33342;Alexa Fluor 350;DAPI;BUV496
 facsaria_fusion,facsaria_fusion_buv,facsaria_U740,UV,740/40,FALSE,BUV737
 facsaria_fusion,facsaria_fusion_buv,facsaria_U800,UV,800/50,FALSE,BUV805

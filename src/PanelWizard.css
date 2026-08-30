@@ -1281,6 +1281,18 @@
   font-weight: 700;
 }
 
+.wizard-error-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.wizard-error-actions .wizard-secondary {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
 .wizard-subdialog-backdrop {
   position: absolute;
   z-index: 600;

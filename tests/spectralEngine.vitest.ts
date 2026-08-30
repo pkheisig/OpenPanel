@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildPanelPayload,
@@ -12,8 +14,11 @@ import {
   resetSpectralEngineForTests,
   resolveConfiguration,
   resolveCytometer,
+  validateBundledDataRows,
 } from '../src/spectralEngine'
 import { mockBundledData } from './helpers'
+
+const auroraPath = fileURLToPath(new URL('../public/data/aurora_spectra.csv', import.meta.url))
 
 beforeEach(mockBundledData)
 
@@ -111,7 +116,7 @@ describe('browser spectral engine parity', () => {
     expect(failedAuroraRequest).toBe(true)
   })
 
-  test('rejects a configuration whose library has no matching detectors', async () => {
+  test('rejects a truncated or substituted spectral library before building a partial payload', async () => {
     const bundledFetch = globalThis.fetch
     vi.stubGlobal('fetch', async (input: string | URL | Request) => {
       const source = input instanceof Request ? input.url : String(input)
@@ -120,7 +125,86 @@ describe('browser spectral engine parity', () => {
       }
       return bundledFetch(input)
     })
-    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('no matching detectors')
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('pinned coverage')
+  })
+
+  test('pins spectral fluorophore identities as well as dimensions', () => {
+    const rows = parseCsv(readFileSync(auroraPath, 'utf8'))
+    rows[1]![0] = 'FITCC'
+    expect(() => validateBundledDataRows('aurora_spectra.csv', rows))
+      .toThrow('not in pinned fluorophore coverage')
+  })
+
+  test('reports the source when a bundled data fetch rejects', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (source.endsWith('/aurora_spectra.csv')) throw new Error('network down')
+      return bundledFetch(input)
+    })
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r'))
+      .rejects.toThrow('aurora_spectra.csv: could not load bundled data file: network down')
+  })
+
+  test('normalizes accepted dictionary laser aliases before selecting spectral detectors', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      const response = await bundledFetch(input)
+      if (!source.endsWith('/cytometer_dictionary.csv')) return response
+      const body = (await response.text()).replace(
+        '"aurora","B1-A","Blue",""',
+        '"aurora","B1-A","B",""',
+      )
+      return new Response(body, { status: 200 })
+    })
+    const payload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['FITC'])
+    expect(payload.detectors).toHaveLength(64)
+    expect(payload.detectors.find((detector) => detector.detector === 'B1-A')?.laser).toBe('Blue')
+  })
+
+  test('rejects a spectral detector without matching dictionary metadata', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/cytometer_dictionary.csv')) return response
+      const body = (await response.text())
+        .split('\n')
+        .filter((line) => !line.startsWith('"xenith","FL09-A",'))
+        .join('\n')
+      return new Response(body, { status: 200 })
+    })
+    await expect(buildPanelPayload('xenith', 'full'))
+      .rejects.toThrow("xenith_spectra.csv: detector column 'FL09-A' has no matching cytometer dictionary metadata.")
+  })
+
+  test('matches spectral dictionary metadata through runtime cytometer aliases', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const response = await bundledFetch(input)
+      const source = input instanceof Request ? input.url : String(input)
+      if (!source.endsWith('/cytometer_dictionary.csv')) return response
+      const body = (await response.text())
+        .split('\n')
+        .map((line) => line.replace(/^"xenith",/, '"Attune Xenith",'))
+        .join('\n')
+      return new Response(body, { status: 200 })
+    })
+    const result = await buildPanelPayload('xenith', 'full')
+    expect(result.detectors.find((detector) => detector.detector === 'FL09-A')?.laser).toBe('UV')
+  })
+
+  test('rejects a library detector that shadows the fluorophore identity field', async () => {
+    const bundledFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+      const source = input instanceof Request ? input.url : String(input)
+      if (source.endsWith('/aurora_spectra.csv')) {
+        return new Response('fluorophore,fluorophore\nFITC,1\n', { status: 200 })
+      }
+      return bundledFetch(input)
+    })
+    await expect(buildPanelPayload('aurora', '5l_uv_v_b_yg_r')).rejects.toThrow('reserved for the fluorophore identity column')
   })
 
   test('shares dictionary and library failures across concurrent initializers before retrying', async () => {
@@ -507,6 +591,13 @@ describe('browser spectral engine parity', () => {
     expect(parseCsv('"fluorophore","B1-A"\r\n"A ""quoted"" dye",1e-3\r\n')).toEqual([
       ['fluorophore', 'B1-A'],
       ['A "quoted" dye', '1e-3'],
+    ])
+    expect(() => parseCsv('fluorophore,B1-A\r\nFITC,"1')).toThrow('unterminated quoted field')
+    expect(() => parseCsv('fluorophore,B1-A\r\nFITC,0"1')).toThrow('misplaced quote')
+    expect(() => parseCsv('fluorophore,B1-A\r\nFITC,"1"oops')).toThrow('after a closing quote')
+    expect(parseCsv('fluorophore,B1-A\n,\n')).toEqual([
+      ['fluorophore', 'B1-A'],
+      ['', ''],
     ])
     expect(parseCsv('\n')).toEqual([])
     expect(normalizeDetectorToken(undefined)).toBe('')

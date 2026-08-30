@@ -91,6 +91,39 @@ test('keeps the landing page usable when localStorage is blocked', async ({ brow
   await context.close()
 })
 
+test('fails closed when a bundled spectral asset is malformed', async ({ browser }) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' })
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined })
+    Object.defineProperty(window, 'showOpenFilePicker', { configurable: true, value: undefined })
+    localStorage.setItem('spectreasy-theme', 'light')
+    localStorage.setItem('spectreasy_slots', JSON.stringify(['APC', 'PE', 'FITC', 'BV421']))
+    localStorage.setItem('spectreasy_markers', JSON.stringify({ 0: 'TCR', 1: 'TCR' }))
+  })
+  const page = await context.newPage()
+  let intercepted = false
+  await page.route('**/*aurora_spectra.csv*', async (route) => {
+    intercepted = true
+    const response = await route.fetch()
+    await route.fulfill({
+      response,
+      body: 'fluorophore,Unknown-A\nFITC,1\n',
+    })
+  })
+
+  await page.goto(APP_PATH)
+  await expect(page.getByRole('form', { name: 'Panel configuration' })).toBeVisible()
+  await chooseOption(page, 'CYTOMETER', 'Cytek Aurora')
+  await chooseOption(page, 'DETECTOR CONFIGURATION', 'Aurora 5L: UV/V/B/YG/R')
+  await page.getByRole('button', { name: 'Build panel' }).click()
+
+  await expect(page.locator('.panel-boot-error')).toContainText('aurora_spectra.csv')
+  expect(intercepted).toBe(true)
+  await expect(page.getByLabel('Panel name')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open panel wizard' })).toHaveCount(0)
+  await context.close()
+})
+
 test('resizes the sidebar fluidly and persists the final width', async ({ page }) => {
   await page.goto(APP_PATH)
   await openEmptyPanel(page)

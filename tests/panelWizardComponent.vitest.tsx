@@ -164,6 +164,7 @@ describe('PanelWizard component', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Recommendations/ }))
     expect(screen.getByRole('button', { name: 'Calculate recommendations' })).not.toBeNull()
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Calculate recommendations' }))
     await waitFor(() => expect(screen.getByText('Recommended')).not.toBeNull(), { timeout: 2_000 })
     expect(mocks.generateResults).toHaveBeenCalled()
@@ -219,9 +220,158 @@ describe('PanelWizard component', () => {
     fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search or enter marker' }), { key: 'Enter' })
     fireEvent.click(screen.getByRole('button', { name: /Co-expression/ }))
     fireEvent.click(screen.getByRole('button', { name: /Recommendations/ }))
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Calculate recommendations' }))
     await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull(), { timeout: 2_000 })
     expect(screen.getByRole('alert').textContent).toContain('calculation failed')
+  })
+
+  test('surfaces bundled reference failures and clears stale results', async () => {
+    mocks.loadReferences.mockRejectedValueOnce(new Error('panel_wizard_brightness.csv: malformed reference data'))
+    renderWizard({
+      slots: ['FITC', 'PE'], markerNames: { 0: 'CD3', 1: 'CD4' },
+      initialState: {
+        desiredSize: 2,
+        markers: [
+          { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'FITC' },
+          { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'high', currentFluorophore: 'PE' },
+        ],
+        coexpression: {}, coexpressionVisited: true, coexpressionCompleted: true,
+        activeTab: 'recommendations', results: wizardResults, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
+      },
+    })
+    await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull())
+    expect(screen.getByRole('alert').textContent).toContain('panel_wizard_brightness.csv')
+    expect(mocks.generateResults).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /Apply 2-color panel/ })).toBeNull()
+  })
+
+  test('retries reference loading from an in-wizard failure', async () => {
+    mocks.loadReferences.mockRejectedValueOnce(new Error('panel_wizard_brightness.csv: temporary failure'))
+    renderWizard({
+      slots: ['FITC', 'PE'],
+      markerNames: { 0: 'CD3', 1: 'CD4' },
+      initialState: {
+        desiredSize: 2,
+        markers: [
+          { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'FITC' },
+          { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'high', currentFluorophore: 'PE' },
+        ],
+        coexpression: {}, coexpressionVisited: true, coexpressionCompleted: true,
+        activeTab: 'recommendations', results: null, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
+      },
+    })
+
+    await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull())
+    const retry = screen.getByRole('button', { name: 'Retry loading reference data' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(mocks.loadReferences).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  test('clears calculation state when the cytometer context changes', async () => {
+    let resolvePayload: ((payload: typeof basePayload) => void) | undefined
+    mocks.buildPanelPayload.mockImplementationOnce(() => new Promise<typeof basePayload>((resolve) => {
+      resolvePayload = resolve
+    }))
+
+    function ContextHarness() {
+      const [cytometer, setCytometer] = React.useState('aurora')
+      const initialState = {
+        desiredSize: 2,
+        markers: [
+          { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'medium' as const, currentFluorophore: 'FITC' },
+          { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'high' as const, currentFluorophore: 'PE' },
+        ],
+        coexpression: {}, coexpressionVisited: true, coexpressionCompleted: true,
+        activeTab: 'recommendations' as const, results: null, resultMode: 'recommended' as const,
+        resultSort: 'recommended' as const, inputsChanged: true,
+      }
+      return (
+        <>
+          <button type="button" onClick={() => setCytometer((current) => current === 'aurora' ? 'discover' : 'aurora')}>
+            Switch cytometer context
+          </button>
+          <PanelWizard
+            cytometer={cytometer}
+            configuration="config"
+            configurationLabel="Aurora 5L: UV/V/B"
+            availableFluorophores={['FITC', 'PE', 'APC']}
+            maxPanelSize={3}
+            measurementMode="spectral"
+            slots={['FITC', 'PE']}
+            markerNames={{ 0: 'CD3', 1: 'CD4' }}
+            theme="light"
+            initialState={initialState}
+            onStateChange={vi.fn()}
+            onClearPanel={vi.fn(async () => undefined)}
+            onClose={vi.fn()}
+            onApply={vi.fn(async () => undefined)}
+          />
+        </>
+      )
+    }
+
+    render(<ContextHarness />)
+    await waitFor(() => expect(mocks.loadReferences).toHaveBeenCalledTimes(1))
+    const calculate = () => screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement
+    await waitFor(() => expect(calculate().disabled).toBe(false))
+    fireEvent.click(calculate())
+    await waitFor(() => expect(screen.getByRole('button', { name: /Calculating panels/ })).not.toBeNull())
+    await waitFor(() => expect(mocks.buildPanelPayload).toHaveBeenCalled())
+
+    const switchContext = screen.getByRole('button', { name: 'Switch cytometer context' })
+    fireEvent.click(switchContext)
+    await waitFor(() => expect(mocks.loadReferences).toHaveBeenCalledTimes(2))
+    fireEvent.click(switchContext)
+    await waitFor(() => expect(mocks.loadReferences).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(calculate().disabled).toBe(false))
+
+    resolvePayload?.(basePayload)
+  })
+
+  test('clears completed results when the cytometer context changes', async () => {
+    function ContextHarness() {
+      const [cytometer, setCytometer] = React.useState('aurora')
+      const initialState = {
+        desiredSize: 2,
+        markers: [
+          { id: 'marker-0', slotIndex: 0, name: 'CD3', antigenDensity: 'medium' as const, currentFluorophore: 'FITC' },
+          { id: 'marker-1', slotIndex: 1, name: 'CD4', antigenDensity: 'high' as const, currentFluorophore: 'PE' },
+        ],
+        coexpression: {}, coexpressionVisited: true, coexpressionCompleted: true,
+        activeTab: 'recommendations' as const, results: wizardResults, resultMode: 'recommended' as const,
+        resultSort: 'recommended' as const, inputsChanged: true,
+      }
+      return (
+        <>
+          <button type="button" onClick={() => setCytometer('discover')}>Switch completed result context</button>
+          <PanelWizard
+            cytometer={cytometer}
+            configuration="config"
+            configurationLabel="Aurora 5L: UV/V/B"
+            availableFluorophores={['FITC', 'PE', 'APC']}
+            maxPanelSize={3}
+            measurementMode="spectral"
+            slots={['FITC', 'PE']}
+            markerNames={{ 0: 'CD3', 1: 'CD4' }}
+            theme="light"
+            initialState={initialState}
+            onStateChange={vi.fn()}
+            onClearPanel={vi.fn(async () => undefined)}
+            onClose={vi.fn()}
+            onApply={vi.fn(async () => undefined)}
+          />
+        </>
+      )
+    }
+
+    render(<ContextHarness />)
+    await waitFor(() => expect(screen.getByText('Complexity')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Switch completed result context' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Calculate recommendations' })).not.toBeNull())
+    expect(screen.queryByText('Complexity')).toBeNull()
   })
 
   test('keeps the clear confirmation open while clearing is in progress', async () => {
@@ -346,6 +496,7 @@ describe('PanelWizard component', () => {
         activeTab: 'recommendations', results: null, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
       },
     })
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Calculate recommendations' }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: 'Calculate recommendations' }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('The panel recommendations could not be calculated.'))
 
@@ -364,6 +515,7 @@ describe('PanelWizard component', () => {
         activeTab: 'recommendations', results: wizardResults, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
       },
     })
+    await waitFor(() => expect((screen.getByRole('button', { name: /Apply 2-color panel/ }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: /Apply 2-color panel/ }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('The recommendations could not be applied.'))
 
@@ -382,6 +534,7 @@ describe('PanelWizard component', () => {
         activeTab: 'recommendations', results: wizardResults, resultMode: 'recommended', resultSort: 'recommended', inputsChanged: true,
       },
     })
+    await waitFor(() => expect((screen.getByRole('button', { name: /Apply 2-color panel/ }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: /Apply 2-color panel/ }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('apply failed with Error'))
 

@@ -25,12 +25,50 @@ For rows added from the Cytek export:
 Existing higher-precision Aurora rows were retained unchanged. No spectrum is
 interpolated from a different dye or cytometer.
 
+## Bundled-data validation contract
+
+Every bundled CSV is validated before it can contribute to a panel payload.
+The validators require the documented headers, exact row widths, nonblank
+identities and required metadata, finite numeric fields, unique canonical
+identities, and unambiguous detector definitions. Spectral response values
+must remain in the signed normalized domain `[-1, 1]`; small negative values
+are retained baseline residuals, not missing values, and no malformed value is
+coerced to zero. Each spectral row must contain a meaningful positive detector
+response; negative values are retained only as baseline residuals alongside a
+positive signal.
+
+On 2026-08-29, the bundled inputs were repaired to satisfy that contract: the
+FACSymphony identity header was restored to `fluorophore`, the redundant
+`LIVE/DEAD Fixable Near-IR` dictionary row was removed because it canonicalized
+to `LIVE DEAD NIR`, and ambiguous overlapping aliases were removed from the
+BYG750, EYFP/YFP, and NovaFluor Blue dictionary entries. These changes only
+resolve identity/schema ambiguity; they do not alter spectral response values.
+Conventional detector-map names that have no canonical row or alias in
+`fluorophore_dictionary.csv` were also removed rather than receiving a
+filter-center fallback; unsupported names remain unsupported until a verified
+dictionary mapping is available.
+
+The response-matrix coverage is pinned at 64 detectors x 395 fluorophores for
+Aurora, 78 x 78 for FACSDiscover, 182 x 65 for ID7000, 51 x 63 for Attune
+Xenith, and 48 x 24 for FACSymphony. The validator rejects unknown or missing
+detector columns and rejects any row-count change instead of constructing a
+partial payload.
+The complete conventional detector dictionary is pinned to 506 rows, the
+marker dictionary to 878 marker identities, and the conventional planning
+estimate table to five named fluorophores; production loads reject truncation
+or substitution of those references. Complete spectral matrices, fluorophore
+excitation/emission references, conventional detector assignments, and
+spectral detector laser assignments are additionally checked against pinned
+SHA-256 snapshots, so valid-shaped substitutions cannot silently change the
+bundled scientific inputs.
+
 On 2026-07-31, missing reference records were merged from the AutoSpectral
 development branch at commit
 [`f262593f8dc9461dedf2b95cd6a55cc57550f589`](https://github.com/DrCytometer/AutoSpectral/commit/f262593f8dc9461dedf2b95cd6a55cc57550f589).
 The merge added 25 Aurora signatures and 10 FACSDiscover signatures without
 replacing any existing OpenPanel spectrum. It also expanded the local
-fluorophore dictionary to 446 unique canonical names. ID7000 and Xenith were
+fluorophore dictionary to 445 unique canonical names after the identity
+cleanup above. ID7000 and Xenith were
 already complete relative to that snapshot.
 
 OpenPanel supports spectral Aurora, FACSDiscover, ID7000, and Attune Xenith,

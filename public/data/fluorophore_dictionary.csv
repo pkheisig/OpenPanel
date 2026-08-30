@@ -63,7 +63,7 @@
 "BV785","Brilliant Violet 785;B785;BV 785","Violet","785",
 "BV786","Brilliant Violet 786;B786;BV 786","Violet","786",
 "BYG584","BYG584-P","YellowGreen","583",
-"BYG750","cFluor BYG750;cFluorBYG750","YellowGreen","750",
+"BYG750","","YellowGreen","750",
 "CellROX Green","","Blue","520",
 "CellROX Orange","","YellowGreen","565",
 "CellROX Red","","Red","665",
@@ -189,7 +189,7 @@
 "eFluor 780","e780;eFluor780;fixable viability dye eFluor 780;eFlour 780","Red","780","TRUE"
 "eVolve 605","eVolve605","Violet","605",
 "eVolve 655","eVolve655","Violet","655",
-"EYFP","YFP;Enhanced Yellow Fluorescent Protein","Blue","527",
+"EYFP","Enhanced Yellow Fluorescent Protein","Blue","527",
 "FITC","Fluorescein","Blue","517",
 "Fix. Via. Dye eF780","","Red","780","TRUE"
 "Fixable Viability Dye eFluor 450","FVD450;FVD-450;FVDeF450","Violet","452","TRUE"
@@ -231,7 +231,6 @@
 "LIVE DEAD Yellow","LD Yellow;LIVE/DEAD Yellow","Violet","575","TRUE"
 "Live-Dead Blue","Live Dead Blue;LiveDead Blue;LDBlue;LIVEDEAD Blue;L/D Blue;LD Blue","UV","450","TRUE"
 "LIVE/DEAD Aqua","LIVEDEAD Aqua;L/D Aqua;LD Aqua;Live Dead Aqua;KIVEDEAD Aqua","Violet","517","TRUE"
-"LIVE/DEAD Fixable Near-IR","LIVEDEAD NIR;L/D NIR","Red","775","TRUE"
 "LIVE/DEAD Fixable Near-IR 876","LIVEDEAD NIR 876;L/D 876;LD 876;Live Dead 876","Red","876","TRUE"
 "MarinaBlue","Marina Blue","UV","462",
 "mBanana","","YellowGreen","553",
@@ -257,7 +256,7 @@
 "MultiDot 520","MD520","Violet","520",
 "MultiDot 580","MD580","Violet","580",
 "MultiDot 640","MD640","Violet","640",
-"NovaFluor Blue 510","NB610;NFB610;NB510;NFB510;Nova Blue 510","Blue","510",
+"NovaFluor Blue 510","NB510;NFB510;Nova Blue 510","Blue","510",
 "NovaFluor Blue 530","NB530;NFB530;Nova Blue 530","Blue","530",
 "NovaFluor Blue 555","NB555;NFB555;Nova Blue 555","Blue","555",
 "NovaFluor Blue 585","NB585;NFB585;Nova Blue 585","Blue","585",
@@ -436,7 +435,7 @@
 "VioBright V600","Vio Bright V600;VBV600","Violet","600",
 "VioGreen","","Violet","520",
 "Violet Fluor 450","VFl450;VF450","Violet","445",
-"YFP","Yellow Fluorescent Protein;EYFP","Blue","527",
+"YFP","Yellow Fluorescent Protein","Blue","527",
 "YG2 AF","","YellowGreen","598",
 "Zombie Aqua","ZombieAqua;Zombie-Aqua","Violet","516","TRUE"
 "Zombie Green","ZombieGreen;Zombie-Green","Blue","515","TRUE"
