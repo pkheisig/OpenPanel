@@ -2557,23 +2557,29 @@ export async function buildPanelPayload(
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
   const normalizedRequested = requestedFluorophores.map((value) => value.trim()).filter(Boolean)
+  const base = configurationBase(id, config, library)
+  const requestedLibraryKey = (requested: string): string => {
+    const libraryIndex = requestedLibraryIndex(requested, base)
+    return libraryIndex === undefined
+      ? `unknown:${fluorophoreIdentity(requested)}`
+      : `library:${libraryIndex}`
+  }
   const uniqueRequested: string[] = []
   const seenRequested = new Set<string>()
   normalizedRequested.forEach((requested) => {
-    const identity = fluorophoreIdentity(requested)
-    if (seenRequested.has(identity)) return
-    seenRequested.add(identity)
+    const libraryKey = requestedLibraryKey(requested)
+    if (seenRequested.has(libraryKey)) return
+    seenRequested.add(libraryKey)
     uniqueRequested.push(requested)
   })
   const cacheRequested = rejectInvalidRequested
-    ? normalizedRequested.map(fluorophoreIdentity)
-    : uniqueRequested.map(fluorophoreIdentity)
-  const payloadCacheKey = `${id}:${config}:${JSON.stringify(cacheRequested)}`
+    ? normalizedRequested.map(requestedLibraryKey)
+    : uniqueRequested.map(requestedLibraryKey)
+  const payloadCacheKey = `${rejectInvalidRequested ? 'strict' : 'lenient'}:${id}:${config}:${JSON.stringify(cacheRequested)}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
   if (cachedPayload && !rejectInvalidRequested) {
     return cachedPayload
   }
-  const base = configurationBase(id, config, library)
   if (rejectInvalidRequested) {
     const validation = validateRequestedFromBase(
       normalizedRequested,

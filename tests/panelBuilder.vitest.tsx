@@ -664,6 +664,7 @@ describe('PanelBuilder', () => {
     const importedState = { ...project, slots: ['B', ''], markers: {}, wizard }
     const alignedWizard = { ...wizard, markers: [{ ...wizard.markers[0], currentFluorophore: 'B' }] }
     mocks.parseProject.mockReturnValueOnce(importedState)
+    mocks.alignWizardFluorophores.mockReturnValueOnce(wizard)
     mocks.alignWizardFluorophores.mockReturnValueOnce(alignedWizard)
     mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
     render(<PanelBuilder initialProject={project} projectId="panel-1" projectName="My panel" />)

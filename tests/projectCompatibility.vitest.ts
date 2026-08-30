@@ -216,6 +216,19 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject(oversizedPanels)).toThrow('project.cytometerPanels')
   })
 
+  test('rechecks normalized project collections after restoring the active panel', () => {
+    const panelsWithoutActiveKey = Object.fromEntries(
+      Array.from({ length: PROJECT_RESOURCE_LIMITS.maxCytometerPanels }, (_, index) => [
+        `cytometer-${index}`,
+        { configuration: 'full', slots: [], markers: {}, wizard: null },
+      ]),
+    )
+    expect(() => parseProject(JSON.stringify({
+      ...project,
+      cytometerPanels: panelsWithoutActiveKey,
+    }))).toThrow('project.cytometerPanels contains 65 entries')
+  })
+
   test('applies resource limits to the former R gui_state config envelope', () => {
     const oversizedLegacy = JSON.stringify({
       module: 'panel_builder',

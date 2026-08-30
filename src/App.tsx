@@ -50,6 +50,18 @@ function includeRecoveryPanel(
     : panels
 }
 
+function preserveMarkersWithinSlots(
+  markers: Record<number, string>,
+  slots: string[],
+): Record<number, string> {
+  return Object.fromEntries(
+    Object.entries(markers).filter(([index]) => {
+      const slotIndex = Number(index)
+      return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < slots.length
+    }),
+  ) as Record<number, string>
+}
+
 function emptyProject(selection: PanelLaunchSelection): ProjectState {
   const slots = selection.slots ? [...selection.slots] : Array(18).fill('')
   const markers = selection.markers ? { ...selection.markers } : {}
@@ -152,6 +164,8 @@ export default function App() {
           if (validation.accepted.length > payload.max_panel_size) {
             throw new Error(`This panel has ${validation.accepted.length} colors, but the selected configuration has only ${payload.max_panel_size} detectors.`)
           }
+          const canonicalCytometer = payload.cytometer || state.cytometer
+          const canonicalConfiguration = payload.configuration || configuration
           const wizardRequested = state.wizard?.markers
             .map((marker) => marker.currentFluorophore)
             .filter(Boolean) ?? []
@@ -194,6 +208,7 @@ export default function App() {
               panelValidation.accepted,
               true,
             )
+            if ((panelPayload.cytometer || panelCytometer) === canonicalCytometer) continue
             if (panelValidation.accepted.length > panelPayload.max_panel_size) {
               throw new Error(`Panel '${panelCytometer}' has ${panelValidation.accepted.length} colors, but its configuration has only ${panelPayload.max_panel_size} detectors.`)
             }
@@ -218,30 +233,27 @@ export default function App() {
               panelSlots,
               panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
             )
-            const panelMarkers = Object.fromEntries(
-              Object.entries(panelState.markers).filter(([index]) => panelSlots[Number(index)]),
-            ) as Record<number, string>
-            canonicalCytometerPanels[panelCytometer] = {
+            canonicalCytometerPanels[panelPayload.cytometer || panelCytometer] = {
               ...panelState,
-              configuration: panelConfiguration,
+              configuration: panelPayload.configuration || panelConfiguration,
               slots: panelSlots,
-              markers: panelMarkers,
+              markers: preserveMarkersWithinSlots(panelState.markers, panelSlots),
               wizard: panelWizard,
             }
           }
-          const canonicalMarkers = Object.fromEntries(
-            Object.entries(state.markers).filter(([index]) => canonicalSlots[Number(index)]),
-          ) as Record<number, string>
+          const canonicalMarkers = preserveMarkersWithinSlots(state.markers, canonicalSlots)
           const activeCytometerPanel = state.cytometerPanels[state.cytometer]
-          canonicalCytometerPanels[state.cytometer] = {
-            ...(activeCytometerPanel ?? { configuration, wizard: canonicalWizard }),
-            configuration,
+          canonicalCytometerPanels[canonicalCytometer] = {
+            ...(activeCytometerPanel ?? { configuration: canonicalConfiguration, wizard: canonicalWizard }),
+            configuration: canonicalConfiguration,
             slots: canonicalSlots,
             markers: canonicalMarkers,
             wizard: canonicalWizard,
           }
           const canonicalState: ProjectState = {
             ...state,
+            cytometer: canonicalCytometer,
+            configuration: canonicalConfiguration,
             slots: canonicalSlots,
             markers: canonicalMarkers,
             cytometerPanels: canonicalCytometerPanels,

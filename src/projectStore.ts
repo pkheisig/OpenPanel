@@ -587,6 +587,7 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
     if (legacyConfig !== value) assertProjectResourceLimits(legacyConfig, false)
     if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
     const normalized = normalizeState(legacyConfig, false)
+    assertProjectResourceLimits(normalized, false)
     assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
     return normalized
   } catch (error) {
@@ -635,6 +636,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
 }
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
   const serializedState = serializeProject(normalizedState)
   try {

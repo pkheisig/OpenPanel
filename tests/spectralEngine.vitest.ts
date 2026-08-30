@@ -150,6 +150,11 @@ describe('browser spectral engine parity', () => {
       .toThrow('not in pinned fluorophore coverage')
   })
 
+  test('keeps distinct bundled GFP and EGFP entries distinct', async () => {
+    const payload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', ['GFP', 'EGFP'], true)
+    expect(payload.selected).toEqual(['GFP', 'EGFP'])
+  })
+
   test('reports the source when a bundled data fetch rejects', async () => {
     const bundledFetch = globalThis.fetch
     vi.stubGlobal('fetch', async (input: string | URL | Request) => {

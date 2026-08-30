@@ -100,6 +100,11 @@ describe('IndexedDB project persistence', () => {
       'duplicate fluorophore "fit-c" at project.slots[1]',
     )
     expect(fakeDb.records).toEqual(recordsBefore)
+
+    await expect(saveActiveProject(duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(fakeDb.records).toEqual(recordsBefore)
   })
 
   test('rejects oversized aggregate state before database persistence', async () => {

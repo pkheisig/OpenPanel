@@ -12,6 +12,7 @@ import { openTextFile, projectJsonFilename, readTextFileWithinLimit, saveBlob } 
 import { writeLocalStorage } from './browserStorage';
 import { buildPanelPayload, resolveKnownConfiguration } from './spectralEngine';
 import { fluorophoreIdentity } from './fluorophoreNames';
+import { CYTOMETER_ALIASES } from './cytometerAliases';
 import {
     parseProject,
     DEFAULT_PLOT_SCALE,
@@ -29,12 +30,14 @@ import {
     PdfIcon,
     assertPanelSlotsWithinCapacity,
     binEmission,
+    buildFluorLookup,
     csvEscape,
     detectImportedPanelRows,
     emptySlots,
     getCytometerName,
     laserOrder,
     mapDetectorToEmission,
+    matchImportedFluor,
     unique,
     validatePanelFluorophores,
 } from './panelBuilderShared';
@@ -193,6 +196,12 @@ export function createPanelBuilderProjectState(
         markers,
         wizard,
     };
+    const canonicalPanels = Object.fromEntries(
+        Object.entries(cytometerPanels).map(([panelCytometer, panel]) => [
+            CYTOMETER_ALIASES[panelCytometer.toLowerCase().replace(/[^a-z0-9]+/g, '')] ?? panelCytometer,
+            panel,
+        ]),
+    );
     return {
         cytometer: activeCytometer,
         configuration: activePanel.configuration,
@@ -206,7 +215,7 @@ export function createPanelBuilderProjectState(
         plotScaleMode: 'fit-width',
         wizard,
         cytometerPanels: {
-            ...cytometerPanels,
+            ...canonicalPanels,
             [activeCytometer]: activePanel,
         },
     };
@@ -316,6 +325,88 @@ type PanelEditSnapshot = {
     markers: Record<number, string>;
     wizard: WizardProjectState | null;
 };
+
+function canonicalizeSlotsForPayload(slots: string[], payload: PanelPayload): string[] {
+    const lookup = buildFluorLookup(payload.fluorophores);
+    return slots.map((slot) => {
+        const trimmed = slot.trim();
+        return trimmed ? (matchImportedFluor(trimmed, lookup) || trimmed) : '';
+    });
+}
+
+function preserveMarkersWithinSlots(
+    markers: Record<number, string>,
+    slots: string[],
+): Record<number, string> {
+    return Object.fromEntries(
+        Object.entries(markers).filter(([index]) => {
+            const slotIndex = Number(index);
+            return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < slots.length;
+        }),
+    ) as Record<number, string>;
+}
+
+function panelValidationError(
+    context: string,
+    diagnostics: Array<{ requested: string; reason: string }>,
+): Error {
+    const details = diagnostics.map((diagnostic) => (
+        `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
+    )).join('; ');
+    return new Error(`OpenPanel project ${context} rejected ${diagnostics.length} fluorophore(s): ${details}`);
+}
+
+async function canonicalizeImportedInactivePanels(
+    state: ProjectState,
+    activeCytometer: string,
+): Promise<Record<string, CytometerPanelState>> {
+    const canonicalPanels: Record<string, CytometerPanelState> = {};
+    for (const [panelCytometer, panelState] of Object.entries(state.cytometerPanels)) {
+        const panelConfiguration = resolveKnownConfiguration(panelCytometer, panelState.configuration);
+        if (!panelConfiguration) {
+            throw new Error(`OpenPanel project uses an unsupported configuration '${panelState.configuration}' for '${panelCytometer}'.`);
+        }
+        const panelPayload = await buildPanelPayload(
+            panelCytometer,
+            panelConfiguration,
+            panelState.slots.filter((slot) => slot.trim()),
+            true,
+        );
+        const panelValidation = validatePanelFluorophores(panelState.slots, panelPayload.fluorophores);
+        if (panelValidation.diagnostics.length > 0) {
+            throw panelValidationError(`inactive '${panelCytometer}' panel import`, panelValidation.diagnostics);
+        }
+        if (panelValidation.accepted.length > panelPayload.max_panel_size) {
+            throw new Error(`Panel '${panelCytometer}' has ${panelValidation.accepted.length} colors, but its configuration has only ${panelPayload.max_panel_size} detectors.`);
+        }
+        let acceptedIndex = 0;
+        const panelSlots = panelState.slots.map((slot) => (
+            slot.trim() ? panelValidation.accepted[acceptedIndex++] : ''
+        ));
+        assertPanelSlotsWithinCapacity(panelSlots, panelPayload.max_panel_size);
+        const panelWizardRequested = panelState.wizard?.markers
+            .map((marker) => marker.currentFluorophore)
+            .filter(Boolean) ?? [];
+        const panelWizardValidation = validatePanelFluorophores(panelWizardRequested, panelPayload.fluorophores);
+        if (panelWizardValidation.diagnostics.length > 0) {
+            throw panelValidationError(`inactive '${panelCytometer}' wizard import`, panelWizardValidation.diagnostics);
+        }
+        const panelWizard = alignWizardFluorophores(
+            panelState.wizard,
+            panelSlots,
+            panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+        );
+        if (panelPayload.cytometer === activeCytometer) continue;
+        canonicalPanels[panelPayload.cytometer] = {
+            ...panelState,
+            configuration: panelPayload.configuration,
+            slots: panelSlots,
+            markers: preserveMarkersWithinSlots(panelState.markers, panelSlots),
+            wizard: panelWizard,
+        };
+    }
+    return canonicalPanels;
+}
 
 const PanelBuilder = ({
     embedded = false,
@@ -700,8 +791,18 @@ const PanelBuilder = ({
                 setPayload(initial);
                 setCytometer(getCytometerName(initial.cytometer));
                 setConfiguration(getCytometerName(initial.configuration));
-                const initialColorCount = new Set(slotsRef.current.filter(Boolean).map(fluorophoreIdentity)).size;
-                const trimmed = trimInitialPanel(slotsRef.current, markersRef.current, initial.max_panel_size);
+                const canonicalSlots = canonicalizeSlotsForPayload(slotsRef.current, initial);
+                const canonicalWizard = alignWizardFluorophores(
+                    wizardStateRef.current,
+                    canonicalSlots,
+                    initial.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+                );
+                slotsRef.current = canonicalSlots;
+                wizardStateRef.current = canonicalWizard;
+                setSlots(canonicalSlots);
+                setWizardState(canonicalWizard);
+                const initialColorCount = new Set(canonicalSlots.filter(Boolean).map(fluorophoreIdentity)).size;
+                const trimmed = trimInitialPanel(canonicalSlots, markersRef.current, initial.max_panel_size);
                 if (trimmed) {
                     slotsRef.current = trimmed.slots;
                     markersRef.current = trimmed.markers;
@@ -1166,12 +1267,21 @@ const PanelBuilder = ({
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
             }
             assertPanelSlotsWithinCapacity(nextSlots, nextPayload.max_panel_size);
-            const nextMarkers = Object.fromEntries(
-                Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
-            ) as Record<number, string>;
+            const nextMarkers = preserveMarkersWithinSlots(state.markers, nextSlots);
+            const nextCytometer = getCytometerName(nextPayload.cytometer);
+            const nextConfiguration = getCytometerName(nextPayload.configuration);
+            const nextCytometerPanels = await canonicalizeImportedInactivePanels(state, nextCytometer);
+            const activeCytometerPanel = state.cytometerPanels[state.cytometer];
+            nextCytometerPanels[nextCytometer] = {
+                ...(activeCytometerPanel ?? { configuration: nextConfiguration, wizard: nextWizard }),
+                configuration: nextConfiguration,
+                slots: nextSlots,
+                markers: nextMarkers,
+                wizard: nextWizard,
+            };
             setPayload(nextPayload);
-            setCytometer(getCytometerName(nextPayload.cytometer));
-            setConfiguration(getCytometerName(nextPayload.configuration));
+            setCytometer(nextCytometer);
+            setConfiguration(nextConfiguration);
             slotsRef.current = nextSlots;
             markersRef.current = nextMarkers;
             wizardStateRef.current = nextWizard;
@@ -1183,19 +1293,11 @@ const PanelBuilder = ({
             setSidebarCollapsed(state.sidebarCollapsed);
             setPlotScale(state.plotScale);
             setWizardState(nextWizard);
-            const nextCytometerPanels = {
-                ...state.cytometerPanels,
-                [state.cytometer]: {
-                    configuration: getCytometerName(nextPayload.configuration),
-                    slots: nextSlots,
-                    markers: nextMarkers,
-                    wizard: nextWizard,
-                },
-            };
             setCytometerPanels(nextCytometerPanels);
             await persistProjectState({
                 ...state,
-                configuration: getCytometerName(nextPayload.configuration),
+                cytometer: nextCytometer,
+                configuration: nextConfiguration,
                 slots: nextSlots,
                 markers: nextMarkers,
                 wizard: nextWizard,
