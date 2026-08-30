@@ -30,6 +30,7 @@ import {
   wavelengthToColor,
   PdfIcon,
   PanelImportValidationError,
+  assertPanelMarkersWithinCapacity,
   validatePanelFluorophores,
 } from '../src/panelBuilderShared'
 import type { DetectorInfo, FluorInfo, NumericRow } from '../src/panelBuilderShared'
@@ -161,6 +162,12 @@ describe('panel rendering helpers', () => {
     expect(detectImportedPanelRows('Fluorophore,Marker\nAlexa Fluor 488,', fluorophores).rows).toEqual([
       { marker: '', fluor: 'Alexa Fluor 488' },
     ])
+    expect(detectImportedPanelRows('Fluorophore,Clone\nAlexa Fluor 488,UCHT1', fluorophores).rows).toEqual([
+      { marker: 'UCHT1', fluor: 'Alexa Fluor 488' },
+    ])
+    expect(detectImportedPanelRows('Dye,Antibody\nPE (R-phycoerythrin),CD4', fluorophores).rows).toEqual([
+      { marker: 'CD4', fluor: 'PE (R-phycoerythrin)' },
+    ])
     expect(detectImportedPanelRows('"Fluorophore"\n"PE (R-phycoerythrin)"', fluorophores).rows).toEqual([
       { marker: '', fluor: 'PE (R-phycoerythrin)' },
     ])
@@ -207,6 +214,11 @@ describe('panel rendering helpers', () => {
         reason: 'The fluorophore is not available for the selected cytometer configuration.',
       }],
     })
+  })
+
+  test('rejects markers beyond detector capacity even when their slots are empty', () => {
+    expect(() => assertPanelMarkersWithinCapacity({ 17: 'CD3' }, 18)).not.toThrow()
+    expect(() => assertPanelMarkersWithinCapacity({ 18: 'CD4' }, 18)).toThrow('marker slot 19')
   })
 
   test('uses the bundled alias when detecting duplicate project fluorophores', () => {

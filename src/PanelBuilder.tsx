@@ -28,6 +28,7 @@ import type { CytometerPanelState, ProjectState } from './projectStore';
 import type { WizardProjectState } from './panelWizardEngine';
 import {
     PdfIcon,
+    assertPanelMarkersWithinCapacity,
     assertPanelSlotsWithinCapacity,
     binEmission,
     buildFluorLookup,
@@ -385,6 +386,7 @@ async function canonicalizeImportedInactivePanels(
             slot.trim() ? panelValidation.accepted[acceptedIndex++] : ''
         ));
         assertPanelSlotsWithinCapacity(panelSlots, panelPayload.max_panel_size);
+        assertPanelMarkersWithinCapacity(panelState.markers, panelPayload.max_panel_size);
         const panelWizardRequested = panelState.wizard?.markers
             .map((marker) => marker.currentFluorophore)
             .filter(Boolean) ?? [];
@@ -1274,6 +1276,7 @@ const PanelBuilder = ({
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
             }
             assertPanelSlotsWithinCapacity(nextSlots, nextPayload.max_panel_size);
+            assertPanelMarkersWithinCapacity(state.markers, nextPayload.max_panel_size);
             const nextMarkers = preserveMarkersWithinSlots(state.markers, nextSlots);
             const nextCytometer = getCytometerName(nextPayload.cytometer);
             const nextConfiguration = getCytometerName(nextPayload.configuration);

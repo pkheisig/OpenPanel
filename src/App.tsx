@@ -10,7 +10,7 @@ import {
   validateRequestedFluorophores,
 } from './spectralEngine'
 import { readLocalStorage, writeLocalStorage } from './browserStorage'
-import { assertPanelSlotsWithinCapacity } from './panelBuilderShared'
+import { assertPanelMarkersWithinCapacity, assertPanelSlotsWithinCapacity } from './panelBuilderShared'
 import {
   DEFAULT_PLOT_SCALE,
   PROJECT_RESOURCE_LIMITS,
@@ -182,6 +182,7 @@ export default function App() {
             slot.trim() ? validation.accepted[acceptedIndex++] : ''
           ))
           assertPanelSlotsWithinCapacity(canonicalSlots, payload.max_panel_size)
+          assertPanelMarkersWithinCapacity(state.markers, payload.max_panel_size)
           const canonicalWizard = alignWizardFluorophores(
             state.wizard,
             canonicalSlots,
@@ -222,6 +223,7 @@ export default function App() {
               slot.trim() ? panelValidation.accepted[panelAcceptedIndex++] : ''
             ))
             assertPanelSlotsWithinCapacity(panelSlots, panelPayload.max_panel_size)
+            assertPanelMarkersWithinCapacity(panelState.markers, panelPayload.max_panel_size)
             const panelWizardRequested = panelState.wizard?.markers
               .map((marker) => marker.currentFluorophore)
               .filter(Boolean) ?? []

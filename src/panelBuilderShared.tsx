@@ -323,6 +323,17 @@ const assertPanelSlotsWithinCapacity = (slots: string[], maxPanelSize: number): 
     }
 };
 
+const assertPanelMarkersWithinCapacity = (markers: Record<number, string>, maxPanelSize: number): void => {
+    const overflowIndex = Object.keys(markers)
+        .map(Number)
+        .find(index => Number.isInteger(index) && index >= maxPanelSize);
+    if (overflowIndex !== undefined) {
+        throw new Error(
+            `The imported panel uses marker slot ${overflowIndex + 1}, but the selected configuration supports only ${maxPanelSize} detectors.`,
+        );
+    }
+};
+
 const formatMetric = (value: number | string | null | undefined) => {
     const numeric = typeof value === 'number' ? value : Number(value);
     if (!Number.isFinite(numeric)) return 'NA';
@@ -503,6 +514,7 @@ const parseCsvLikeRows = (text: string) => {
 
 const strongHeaderWords = new Set(['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent']);
 const genericHeaderWords = new Set(['sample', 'sampleid', 'well', 'wellid', 'id', 'name', 'names', 'group', 'groups', 'channel', 'channels', 'file', 'filename', 'notes', 'conjugate', 'panel', 'panels', 'label', 'labels', 'metadata', 'source']);
+const fluorophoreHeaderWords = new Set(['fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent']);
 
 const rowHasHeaderWords = (row: string[]) => {
     const keys = row.map(normalizeImportToken);
@@ -556,7 +568,12 @@ const detectImportedPanelRows = (
     const lookup = buildFluorLookup(fluorophores);
     const firstRow = rows[0].values;
     const firstRowHasKnownFluor = firstRow.some(value => !!matchImportedFluor(value, lookup));
-    const hasHeader = rowHasHeaderWords(firstRow) && !firstRowHasKnownFluor;
+    const singleFluorHeaderIndex = firstRow.findIndex(value => fluorophoreHeaderWords.has(normalizeImportToken(value)));
+    const hasKnownFluorBelowSingleHeader = singleFluorHeaderIndex >= 0
+        && rows.slice(1).some(row => !!matchImportedFluor(row.values[singleFluorHeaderIndex] || '', lookup));
+    const hasHeader = !firstRowHasKnownFluor && (
+        rowHasHeaderWords(firstRow) || hasKnownFluorBelowSingleHeader
+    );
     const headers = hasHeader ? firstRow.map(normalizeImportToken) : [];
     const dataRows = hasHeader ? rows.slice(1) : rows;
     const maxCols = Math.max(...rows.map(row => row.values.length));
@@ -720,6 +737,7 @@ export {
     PdfIcon,
     bandColor,
     assertPanelSlotsWithinCapacity,
+    assertPanelMarkersWithinCapacity,
     binEmission,
     buildFluorLookup,
     csvEscape,
