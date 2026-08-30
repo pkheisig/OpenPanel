@@ -917,6 +917,26 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+.response-provenance-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 24px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--bg-card));
+  border-bottom: 1px solid var(--border-color-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.response-provenance-banner strong {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .tab-button {
   height: 36px;
   border: 1px solid transparent;
@@ -966,6 +986,10 @@
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   box-shadow: none;
+}
+
+.panel-builder.dark .response-provenance-banner {
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-card));
 }
 
 .tab-content {

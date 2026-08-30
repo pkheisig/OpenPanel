@@ -625,14 +625,14 @@ test('adapts the workspace and wizard to a conventional FACSymphony', async ({ p
 
   await selectFluorophore(page, 0, 'BUV395')
   await selectFluorophore(page, 1, 'PE')
-  await expect(page.getByRole('img', { name: 'Combined detector peaks' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'PEAKS', exact: true })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Combined detector responses' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'RESPONSES', exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Open panel wizard' }).click()
   const wizard = page.getByRole('dialog', { name: 'Panel wizard' })
   await expect(wizard.getByRole('spinbutton', { name: 'Panel size', exact: true })).toHaveAttribute('max', '48')
   await wizard.getByRole('button', { name: 'About panel wizard calculations' }).focus()
-  await expect(wizard.getByRole('tooltip')).toContainText('detector-peak overlap')
+  await expect(wizard.getByRole('tooltip')).toContainText('detector-response overlap')
 })
 
 test('adapts the workspace and wizard to BD LSRFortessa 3L detectors', async ({ page }) => {

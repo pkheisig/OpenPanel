@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import { responseProvenanceForMeasurementMode } from './panelBuilderShared'
 import type { DetectorInfo, NumericRow, PanelPayload } from './panelBuilderShared'
 
 type PanelReportRow = {
@@ -38,31 +39,49 @@ function reportLabel(row: PanelReportRow, used: Map<string, number>): string {
 
 function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelReportRow[]): void {
   const width = document.internal.pageSize.getWidth()
+  const responseProvenance = payload.response_provenance
+    ?? responseProvenanceForMeasurementMode(payload.measurement_mode)
+  const title = responseProvenance.class === 'synthetic_filter_proxy'
+    ? 'Fluorophore Detector-Overlap Planning Proxy'
+    : responseProvenance.class === 'measured_detector_response'
+      ? 'Fluorophore Detector-Response Similarity'
+      : 'Fluorophore Spectral Similarity'
+  const complexityLabel = responseProvenance.class === 'synthetic_filter_proxy'
+    ? 'Planning-proxy complexity'
+    : responseProvenance.class === 'measured_detector_response'
+      ? 'Detector-response complexity'
+      : 'Complexity Index'
   document.setFont('helvetica', 'bold')
   document.setFontSize(18)
-  document.text(
-    payload.measurement_mode === 'conventional'
-      ? 'Fluorophore Detector-Peak Similarity'
-      : 'Fluorophore Spectral Similarity',
-    12,
-    14,
-  )
+  document.text(title, 12, 14)
   document.setFont('helvetica', 'normal')
   document.setFontSize(9)
   const cytometer = payload.libraries.find((item) => item.id === payload.cytometer)?.label ?? payload.cytometer
   const configuration = payload.configurations.find((item) => item.id === payload.configuration)?.label ?? payload.configuration
   document.text(`${cytometer} | ${configuration} | ${rows.length} fluorophore(s)`, 12, 21)
   document.setFont('helvetica', 'bold')
-  document.text(`Complexity Index: ${payload.complexity_index?.toFixed(2) ?? 'NA'}`, width - 12, 14, { align: 'right' })
+  document.text(`${complexityLabel}: ${payload.complexity_index?.toFixed(2) ?? 'NA'}`, width - 12, 14, { align: 'right' })
+  document.setFont('helvetica', 'bold')
+  document.setFontSize(8)
+  document.text(
+    `${responseProvenance.label} · ${responseProvenance.method} · Source: ${responseProvenance.source}`,
+    12,
+    27,
+    { maxWidth: width - 24 },
+  )
+  document.setFont('helvetica', 'normal')
+  document.setFontSize(7)
+  document.text(responseProvenance.limitation, 12, 32, { maxWidth: width - 24 })
 
   if (rows.length < 2) {
-    document.setFont('helvetica', 'normal')
     document.text(
-      payload.measurement_mode === 'conventional'
-        ? 'Add at least two fluorophores to calculate pairwise detector-peak similarity.'
-        : 'Add at least two fluorophores to calculate pairwise spectral similarity.',
+      responseProvenance.class === 'synthetic_filter_proxy'
+        ? 'Add at least two fluorophores to calculate pairwise detector-peak planning-proxy similarity.'
+        : responseProvenance.class === 'measured_detector_response'
+          ? 'Add at least two fluorophores to calculate pairwise detector-response similarity.'
+          : 'Add at least two fluorophores to calculate pairwise spectral similarity.',
       12,
-      34,
+      45,
     )
     return
   }
@@ -73,7 +92,7 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   const availableWidth = width - 24 - labelWidth
   const cell = Math.min(15, availableWidth / names.length, 120 / names.length)
   const startX = 12 + labelWidth
-  const startY = 36
+  const startY = 45
   const fontSize = Math.max(4, Math.min(8, cell * 0.55))
 
   names.forEach((name, rowIndex) => {
@@ -97,6 +116,23 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
       document.text(value === 1 ? '1' : value.toFixed(2), x + cell / 2, y + cell * 0.65, { align: 'center' })
     })
   })
+}
+
+function addReportProvenanceNote(document: jsPDF, payload: PanelPayload): void {
+  const width = document.internal.pageSize.getWidth()
+  const responseProvenance = payload.response_provenance
+    ?? responseProvenanceForMeasurementMode(payload.measurement_mode)
+  document.setFont('helvetica', 'bold')
+  document.setFontSize(7)
+  document.setTextColor(20, 30, 35)
+  document.text(responseProvenance.label, 12, 9)
+  document.setFont('helvetica', 'normal')
+  document.text(
+    `${responseProvenance.method}. Source: ${responseProvenance.source}. ${responseProvenance.limitation}`,
+    12,
+    13,
+    { maxWidth: width - 24 },
+  )
 }
 
 function addSignatureChart(
@@ -169,10 +205,11 @@ export function createPanelOverviewPdf(payload: PanelPayload, rows: PanelReportR
   rows.forEach((row, index) => {
     if (index % 2 === 0) {
       if (index > 0 || rows.length >= 2) document.addPage('letter', 'landscape')
+      addReportProvenanceNote(document, payload)
     }
     const spectrum = spectra.get(row.fluor)
     if (!spectrum) return
-    addSignatureChart(document, payload.detectors, spectrum, reportLabel(row, usedLabels), index % 2 === 0 ? 24 : 118)
+    addSignatureChart(document, payload.detectors, spectrum, reportLabel(row, usedLabels), index % 2 === 0 ? 28 : 120)
   })
   return document.output('blob')
 }

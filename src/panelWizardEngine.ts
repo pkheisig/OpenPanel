@@ -3,11 +3,14 @@ import { calculatePanelComplexity, calculateSimilarityMatrix } from './spectralE
 import {
   fluorophoreBrightnessKey,
 } from './panelWizardReferences'
-import type { NumericRow, PanelPayload } from './panelBuilderShared'
+import { responseProvenanceForMeasurementMode } from './panelBuilderShared'
+import type { NumericRow, PanelPayload, ResponseMatrixProvenance } from './panelBuilderShared'
 import type { WizardReferenceData } from './panelWizardReferences'
 
 export type CoexpressionLevel = 0 | 1 | 2 | 3 | 4
 export type AntigenDensity = 'low' | 'medium' | 'high'
+
+export const WIZARD_SCORING_VERSION = 'wizard-response-provenance-v1'
 
 export const ANTIGEN_DENSITY_SCORES: Record<AntigenDensity, number> = {
   low: 20,
@@ -61,6 +64,8 @@ export type WizardPanelResult = {
 }
 
 export type WizardResults = {
+  scoring_version?: typeof WIZARD_SCORING_VERSION
+  response_provenance?: ResponseMatrixProvenance
   recommended: WizardPanelResult
   bestFit: WizardPanelResult
 }
@@ -93,7 +98,7 @@ type PanelMetrics = {
   complexity: number
   maxSimilarity: number
   topSimilarityMean: number
-  maxSpreadingInflation: number
+  maxResponseSeparation: number
   spectralRisk: number
 }
 
@@ -313,8 +318,9 @@ function combinedSelectionRisk(
   markers: WizardMarker[],
   spectra: Map<string, number[]>,
   references?: WizardReferenceData,
+  responseProvenance?: ResponseMatrixProvenance,
 ): number {
-  return panelMetrics(selection, spectra).spectralRisk
+  return panelMetrics(selection, spectra, responseProvenance).spectralRisk
     + brightnessCoverageRisk(selection, locked, markers, references) * 12
 }
 
@@ -373,6 +379,7 @@ function spectrumVector(row: NumericRow, detectors: string[]): number[] {
 function panelMetrics(
   names: string[],
   spectra: Map<string, number[]>,
+  responseProvenance: ResponseMatrixProvenance = responseProvenanceForMeasurementMode('spectral'),
 ): PanelMetrics {
   const values = names.map((name) => spectra.get(name)).filter((value): value is number[] => value !== undefined)
   const complexity = calculatePanelComplexity(values) ?? Number.POSITIVE_INFINITY
@@ -389,15 +396,15 @@ function panelMetrics(
   const topSimilarityMean = pairs.length === 0
     ? 0
     : pairs.slice(0, topCount).reduce((sum, value) => sum + value, 0) / topCount
-  let maxSpreadingInflation = 1
-  if (similarities.length > 1) {
+  let maxResponseSeparation = 1
+  if (similarities.length > 1 && responseProvenance.class !== 'synthetic_filter_proxy') {
     try {
       const regularized = new Matrix(similarities)
       for (let index = 0; index < regularized.rows; index += 1) {
         regularized.set(index, index, regularized.get(index, index) + 1e-6)
       }
       const hotspot = inverse(regularized)
-      maxSpreadingInflation = Math.max(
+      maxResponseSeparation = Math.max(
         1,
         ...Array.from(
           { length: hotspot.rows },
@@ -405,11 +412,11 @@ function panelMetrics(
         ),
       )
     } catch {
-      maxSpreadingInflation = 100
+      maxResponseSeparation = 100
     }
   }
   const complexityRisk = Number.isFinite(complexity) ? Math.log2(Math.max(1, complexity)) * 18 : 1000
-  const spreadingRisk = Math.log2(Math.max(1, maxSpreadingInflation)) * 28
+  const responseSeparationRisk = Math.log2(Math.max(1, maxResponseSeparation)) * 28
   const similarityGuardrail = maxSimilarity >= 0.98
     ? 90 + (maxSimilarity - 0.98) * 500
     : maxSimilarity >= 0.9
@@ -419,8 +426,8 @@ function panelMetrics(
     complexity,
     maxSimilarity,
     topSimilarityMean,
-    maxSpreadingInflation,
-    spectralRisk: complexityRisk + spreadingRisk + maxSimilarity * 42 + topSimilarityMean * 22 + similarityGuardrail,
+    maxResponseSeparation,
+    spectralRisk: complexityRisk + responseSeparationRisk + maxSimilarity * 42 + topSimilarityMean * 22 + similarityGuardrail,
   }
 }
 
@@ -458,6 +465,7 @@ function optimizeBestFit(
   selectionAllowed: (selection: string[]) => boolean,
   markers: WizardMarker[],
   references?: WizardReferenceData,
+  responseProvenance?: ResponseMatrixProvenance,
 ): string[] {
   let selected = [...locked]
   for (let index = 0; index < additions; index += 1) {
@@ -472,7 +480,9 @@ function optimizeBestFit(
       .slice(0, 14)
       .map(({ candidate }) => ({
         candidate,
-        combinedRisk: combinedSelectionRisk([...selected, candidate], locked, markers, spectra, references),
+        combinedRisk: combinedSelectionRisk(
+          [...selected, candidate], locked, markers, spectra, references, responseProvenance,
+        ),
       }))
       .sort((left, right) => (
         left.combinedRisk - right.combinedRisk
@@ -487,7 +497,9 @@ function optimizeBestFit(
   for (let pass = 0; pass < 3; pass += 1) {
     let improved = false
     for (let selectedIndex = lockedCount; selectedIndex < selected.length; selectedIndex += 1) {
-      const currentRisk = combinedSelectionRisk(selected, locked, markers, spectra, references)
+      const currentRisk = combinedSelectionRisk(
+        selected, locked, markers, spectra, references, responseProvenance,
+      )
       const replacement = candidates
         .filter((candidate) => !selected.includes(candidate))
         .map((candidate) => {
@@ -505,7 +517,9 @@ function optimizeBestFit(
         .map(({ candidate, trial }) => ({
           candidate,
           trial,
-          risk: combinedSelectionRisk(trial, locked, markers, spectra, references),
+          risk: combinedSelectionRisk(
+            trial, locked, markers, spectra, references, responseProvenance,
+          ),
         }))
         .filter((trial) => trial.risk + 1e-8 < currentRisk)
         .sort((left, right) => left.risk - right.risk)[0]
@@ -528,9 +542,10 @@ function optimizeRecommended(
   locked: string[],
   markers: WizardMarker[],
   references?: WizardReferenceData,
+  responseProvenance?: ResponseMatrixProvenance,
 ): string[] {
   let selected = [...bestFit]
-  const bestMetrics = panelMetrics(bestFit, spectra)
+  const bestMetrics = panelMetrics(bestFit, spectra, responseProvenance)
   const complexityLimit = Math.max(
     bestMetrics.complexity + 0.35,
     bestMetrics.complexity * 1.25,
@@ -566,12 +581,14 @@ function optimizeRecommended(
       ))
       .slice(0, 50)
     for (const opportunity of shortlisted) {
-      const metrics = panelMetrics(opportunity.trial, spectra)
+      const metrics = panelMetrics(opportunity.trial, spectra, responseProvenance)
       if (
         metrics.complexity > complexityLimit
         || metrics.maxSimilarity > similarityLimit
       ) continue
-      const risk = combinedSelectionRisk(opportunity.trial, locked, markers, spectra, references)
+      const risk = combinedSelectionRisk(
+        opportunity.trial, locked, markers, spectra, references, responseProvenance,
+      )
       if (
         !bestSwap
         || opportunity.availabilityGain > bestSwap.availabilityGain
@@ -632,12 +649,13 @@ function recommendationRows(
   spectra: Map<string, number[]>,
   payload: PanelPayload,
   references?: WizardReferenceData,
+  responseProvenance?: ResponseMatrixProvenance,
 ): WizardRecommendation[] {
   const proposed = selected.filter((name) => !locked.includes(name))
-  const fullMetrics = panelMetrics(selected, spectra)
+  const fullMetrics = panelMetrics(selected, spectra, responseProvenance)
   const dyeMetric = (fluorophore: string) => {
     const without = selected.filter((name) => name !== fluorophore)
-    const withoutMetrics = panelMetrics(without, spectra)
+    const withoutMetrics = panelMetrics(without, spectra, responseProvenance)
     const withoutComplexity = withoutMetrics.complexity
     const pair = closestPair(fluorophore, selected, spectra)
     const complexityDelta = Number.isFinite(withoutComplexity)
@@ -646,7 +664,7 @@ function recommendationRows(
     const availability = fluorophoreAvailability(fluorophore)
     const spreadingDelta = Math.max(
       0,
-      fullMetrics.maxSpreadingInflation - withoutMetrics.maxSpreadingInflation,
+      fullMetrics.maxResponseSeparation - withoutMetrics.maxResponseSeparation,
     )
     const spectralFit = Math.round(clamp(
       100
@@ -779,6 +797,7 @@ function alternatives(
   spectra: Map<string, number[]>,
   payload: PanelPayload,
   references?: WizardReferenceData,
+  responseProvenance?: ResponseMatrixProvenance,
 ): WizardAlternative[] {
   const replaceable = selected.filter((name) => !locked.includes(name))
   const baseline = replaceable[replaceable.length - 1]
@@ -788,21 +807,21 @@ function alternatives(
       const trial = baseline
         ? selected.map((name) => name === baseline ? fluorophore : name)
         : [...selected, fluorophore]
-      const metrics = panelMetrics(trial, spectra)
+      const metrics = panelMetrics(trial, spectra, responseProvenance)
       const pair = closestPair(fluorophore, trial, spectra)
       const availability = fluorophoreAvailability(fluorophore)
       const baselineComplexity = baseline
-        ? panelMetrics(selected.filter((name) => name !== baseline), spectra).complexity
-        : panelMetrics(selected, spectra).complexity
+        ? panelMetrics(selected.filter((name) => name !== baseline), spectra, responseProvenance).complexity
+        : panelMetrics(selected, spectra, responseProvenance).complexity
       const complexityDelta = Number.isFinite(baselineComplexity)
         ? metrics.complexity - baselineComplexity
         : 0
       const previousMetrics = baseline
-        ? panelMetrics(selected.filter((name) => name !== baseline), spectra)
-        : panelMetrics(selected, spectra)
+        ? panelMetrics(selected.filter((name) => name !== baseline), spectra, responseProvenance)
+        : panelMetrics(selected, spectra, responseProvenance)
       const spreadingDelta = Math.max(
         0,
-        metrics.maxSpreadingInflation - previousMetrics.maxSpreadingInflation,
+        metrics.maxResponseSeparation - previousMetrics.maxResponseSeparation,
       )
       const spectralFit = Math.round(clamp(
         100
@@ -838,17 +857,22 @@ function buildResult(
   spectra: Map<string, number[]>,
   payload: PanelPayload,
   references?: WizardReferenceData,
+  responseProvenance?: ResponseMatrixProvenance,
 ): WizardPanelResult {
-  const metrics = panelMetrics(selected, spectra)
-  const lockedMetrics = panelMetrics(locked, spectra)
+  const metrics = panelMetrics(selected, spectra, responseProvenance)
+  const lockedMetrics = panelMetrics(locked, spectra, responseProvenance)
   const additions = selected.filter((name) => !locked.includes(name))
   const averageAvailability = additions.length === 0
     ? 0
     : additions.reduce((sum, name) => sum + fluorophoreAvailability(name).score, 0) / additions.length
   return {
     kind,
-    rows: recommendationRows(selected, locked, markers, coexpression, spectra, payload, references),
-    alternatives: alternatives(selected, candidates, locked, spectra, payload, references),
+    rows: recommendationRows(
+      selected, locked, markers, coexpression, spectra, payload, references, responseProvenance,
+    ),
+    alternatives: alternatives(
+      selected, candidates, locked, spectra, payload, references, responseProvenance,
+    ),
     complexity: metrics.complexity,
     previousComplexity: lockedMetrics.complexity,
     maxSimilarity: metrics.maxSimilarity,
@@ -864,6 +888,8 @@ export function generateWizardResults(
   desiredSize: number,
   references?: WizardReferenceData,
 ): WizardResults {
+  const responseProvenance = payload.response_provenance
+    ?? responseProvenanceForMeasurementMode(payload.measurement_mode)
   const detectorNames = payload.detectors.map((detector) => detector.detector)
   const spectra = new Map(payload.spectra.map((row) => [
     row.fluorophore,
@@ -905,6 +931,7 @@ export function generateWizardResults(
     selectionAllowed,
     eligibleMarkers,
     references,
+    responseProvenance,
   )
   const recommendedCandidates = candidates.filter((candidate) => (
     locked.includes(candidate) || fluorophoreAvailability(candidate).tier !== 'Rare'
@@ -945,6 +972,7 @@ export function generateWizardResults(
     selectionAllowed,
     eligibleMarkers,
     references,
+    responseProvenance,
   )
   const recommendedSelection = optimizeRecommended(
     recommendedBaseline,
@@ -955,8 +983,11 @@ export function generateWizardResults(
     locked,
     eligibleMarkers,
     references,
+    responseProvenance,
   )
   return {
+    scoring_version: WIZARD_SCORING_VERSION,
+    response_provenance: responseProvenance,
     recommended: buildResult(
       'recommended',
       recommendedSelection,
@@ -967,6 +998,7 @@ export function generateWizardResults(
       spectra,
       payload,
       references,
+      responseProvenance,
     ),
     bestFit: buildResult(
       'best-fit',
@@ -978,6 +1010,7 @@ export function generateWizardResults(
       spectra,
       payload,
       references,
+      responseProvenance,
     ),
   }
 }

@@ -123,6 +123,21 @@ actual reference matrix still needs instrument-specific single-stain controls,
 because filter tables and emission maxima do not encode PMT gains, dichroic
 transmission, laser power, tandem-dye behavior, or sample-dependent spread.
 
+OpenPanel records response provenance with every panel payload and Wizard result:
+
+- `measured_full_spectrum` identifies a bundled, file-backed full-spectrum response
+  library (Aurora, Cytek Discover, ID7000, and Xenith).
+- `measured_detector_response` identifies the file-backed FACSymphony detector
+  response reference. It describes detector responses, not compensation or
+  spreading measurements.
+- `synthetic_filter_proxy` identifies conventional panels generated from detector
+  filters and generic emission envelopes. This is a planning proxy only.
+
+The provenance class, method, source, limitation, and contract version are shown in
+the panel UI and PDF exports. Wizard results are invalidated when the response
+provenance/scoring contract changes so persisted recommendations cannot be read as
+measurements from a different response model.
+
 ## Public fluorophore and conventional-instrument references
 
 - `conventional_fluorophore_estimates.csv` adds public-data planning mappings
@@ -332,7 +347,8 @@ validated on every OpenPanel configuration.
 Spectral-mode spread risk uses the Hotspot Matrix /
 spreading-inflation-factor formulation described in
 [AutoSpectral](https://www.biorxiv.org/content/10.64898/2026.01.27.701929v2).
-In conventional mode, the corresponding inverse-similarity term is exposed as
-a detector-response separation proxy; it is not a measured compensation or
-spreading-error estimate without an instrument-specific spillover/spread
-matrix or noise model.
+In conventional mode, inverse-similarity is not used to produce a spreading-risk
+number from the synthetic filter proxy. The UI exposes detector-peak similarity and
+planning-proxy complexity instead; neither is a measured compensation or
+spreading-error estimate without an instrument-specific spillover/spread matrix or
+noise model.

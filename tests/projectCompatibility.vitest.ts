@@ -6,7 +6,9 @@ import {
   serializeProject,
 } from '../src/projectStore'
 import type { ProjectState } from '../src/projectStore'
+import { WIZARD_SCORING_VERSION } from '../src/panelWizardEngine'
 import type { WizardProjectState } from '../src/panelWizardEngine'
+import { responseMatrixProvenance } from '../src/panelBuilderShared'
 
 const wizard: WizardProjectState = {
   desiredSize: 2,
@@ -19,6 +21,8 @@ const wizard: WizardProjectState = {
   coexpressionCompleted: true,
   activeTab: 'recommendations',
   results: {
+    scoring_version: WIZARD_SCORING_VERSION,
+    response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'aurora_spectra.csv' }),
     recommended: {
       kind: 'recommended',
       rows: [],
@@ -210,6 +214,8 @@ describe('OpenPanel project files', () => {
         coexpressionScale: 5, coexpressionVisited: true, coexpressionCompleted: false, inputsChanged: false,
         activeTab: 'coexpression', resultMode: 'bestFit', resultSort: 'marker',
         results: {
+          scoring_version: WIZARD_SCORING_VERSION,
+          response_provenance: responseMatrixProvenance('measured_full_spectrum', { source: 'discover_spectra.csv' }),
           recommended: {
             kind: 'recommended',
             rows: [{ markerId: 'm', markerName: 'CD3', slotIndex: 0, frequency: 'high', fluorophore: 'PE' }],
@@ -243,6 +249,37 @@ describe('OpenPanel project files', () => {
     expect(parsed.wizard?.results?.bestFit.rows[0]).toMatchObject({ antigenDensity: 'medium' })
     expect(parsed.cytometerPanels).toHaveProperty('discover')
     expect(parsed.cytometerPanels.malformed).toMatchObject({ configuration: '' })
+  })
+
+  test('invalidates wizard results from an older scoring contract', () => {
+    const stale = {
+      ...project,
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? { ...project.wizard.results, scoring_version: 'wizard-response-provenance-v0' }
+            : null,
+        }
+        : null,
+    }
+    expect(parseProject(serializeProject(stale)).wizard?.results).toBeNull()
+
+    const staleProvenance = {
+      ...project,
+      wizard: project.wizard
+        ? {
+          ...project.wizard,
+          results: project.wizard.results
+            ? {
+              ...project.wizard.results,
+              response_provenance: responseMatrixProvenance('measured_full_spectrum', { version: 'response-provenance-v0' }),
+            }
+            : null,
+        }
+        : null,
+    }
+    expect(parseProject(serializeProject(staleProvenance)).wizard?.results).toBeNull()
   })
 
   test('uses defaults and legacy plot-height conversion for incomplete state', () => {

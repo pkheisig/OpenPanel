@@ -1,7 +1,12 @@
 import { openDB } from 'idb'
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import {
+  isResponseMatrixProvenance,
+  RESPONSE_PROVENANCE_CONTRACT_VERSION,
+} from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
+import { WIZARD_SCORING_VERSION } from './panelWizardEngine'
 import type {
   AntigenDensity,
   WizardPanelResult,
@@ -117,9 +122,21 @@ export function normalizeWizardPanelResult(value: unknown): WizardPanelResult | 
 
 export function normalizeWizardResults(value: unknown): WizardResults | null {
   if (!isRecord(value)) return null
+  if (value.scoring_version !== WIZARD_SCORING_VERSION) return null
+  if (
+    !isResponseMatrixProvenance(value.response_provenance)
+    || value.response_provenance.version !== RESPONSE_PROVENANCE_CONTRACT_VERSION
+  ) return null
   const recommended = normalizeWizardPanelResult(value.recommended)
   const bestFit = normalizeWizardPanelResult(value.bestFit)
-  return recommended && bestFit ? { recommended, bestFit } : null
+  return recommended && bestFit
+    ? {
+      scoring_version: WIZARD_SCORING_VERSION,
+      response_provenance: value.response_provenance,
+      recommended,
+      bestFit,
+    }
+    : null
 }
 
 function normalizeWizardState(value: unknown): WizardProjectState | null {

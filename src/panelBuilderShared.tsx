@@ -30,10 +30,81 @@ const PdfIcon = ({ size = 20 }: { size?: number }) => (
 
 type PanelMeasurementMode = 'spectral' | 'conventional';
 
+type ResponseMatrixProvenanceClass =
+    | 'measured_full_spectrum'
+    | 'measured_detector_response'
+    | 'synthetic_filter_proxy';
+
+type ResponseMatrixProvenance = {
+    class: ResponseMatrixProvenanceClass;
+    label: string;
+    method: string;
+    version: string;
+    source: string;
+    limitation: string;
+};
+
+const RESPONSE_PROVENANCE_CONTRACT_VERSION = 'response-provenance-v1';
+
+const responseProvenanceDefaults: Record<ResponseMatrixProvenanceClass, Omit<ResponseMatrixProvenance, 'class'>> = {
+    measured_full_spectrum: {
+        label: 'Measured/full-spectrum response',
+        method: 'Bundled full-spectrum response matrix',
+        version: RESPONSE_PROVENANCE_CONTRACT_VERSION,
+        source: 'instrument spectral response library',
+        limitation: 'Spectral overlap is not a substitute for an instrument-specific compensation or spreading-error matrix.',
+    },
+    measured_detector_response: {
+        label: 'File-backed detector response',
+        method: 'Bundled detector-response reference',
+        version: RESPONSE_PROVENANCE_CONTRACT_VERSION,
+        source: 'symphony_spectra.csv',
+        limitation: 'Detector responses are not an instrument-specific compensation or spreading-error matrix.',
+    },
+    synthetic_filter_proxy: {
+        label: 'Synthetic detector-response planning proxy',
+        method: 'Gaussian emission envelope over documented detector filters',
+        version: RESPONSE_PROVENANCE_CONTRACT_VERSION,
+        source: 'conventional_detector_dictionary.csv + fluorophore_dictionary.csv',
+        limitation: 'Planning proxy only; not measured compensation, spreading, or instrument-specific spillover evidence.',
+    },
+};
+
+const responseMatrixProvenance = (
+    provenanceClass: ResponseMatrixProvenanceClass,
+    overrides: Partial<Omit<ResponseMatrixProvenance, 'class'>> = {},
+): ResponseMatrixProvenance => ({
+    class: provenanceClass,
+    ...responseProvenanceDefaults[provenanceClass],
+    ...overrides,
+});
+
+const responseProvenanceForMeasurementMode = (measurementMode: PanelMeasurementMode): ResponseMatrixProvenance => (
+    measurementMode === 'conventional'
+        ? responseMatrixProvenance('synthetic_filter_proxy')
+        : responseMatrixProvenance('measured_full_spectrum')
+);
+
+const isResponseMatrixProvenance = (value: unknown): value is ResponseMatrixProvenance => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const record = value as Record<string, unknown>;
+    return (
+        (record.class === 'measured_full_spectrum'
+            || record.class === 'measured_detector_response'
+            || record.class === 'synthetic_filter_proxy')
+        && typeof record.label === 'string'
+        && typeof record.method === 'string'
+        && typeof record.version === 'string'
+        && typeof record.source === 'string'
+        && typeof record.limitation === 'string'
+    );
+};
+
 type LibraryInfo = {
     id: string;
     label: string;
     measurement_mode: PanelMeasurementMode;
+    response_provenance: ResponseMatrixProvenance;
 };
 
 type ConfigurationInfo = {
@@ -70,6 +141,7 @@ type PanelPayload = {
     cytometer: string;
     configuration: string;
     measurement_mode: PanelMeasurementMode;
+    response_provenance: ResponseMatrixProvenance;
     libraries: LibraryInfo[];
     configurations: ConfigurationInfo[];
     detectors: DetectorInfo[];
@@ -398,6 +470,10 @@ export {
     unique,
     unboxGuiState,
     wavelengthToColor,
+    isResponseMatrixProvenance,
+    responseMatrixProvenance,
+    responseProvenanceForMeasurementMode,
+    RESPONSE_PROVENANCE_CONTRACT_VERSION,
 };
 export type {
     ConfigurationInfo,
@@ -408,5 +484,7 @@ export type {
     NumericRow,
     PanelMeasurementMode,
     PanelPayload,
+    ResponseMatrixProvenance,
+    ResponseMatrixProvenanceClass,
     TabId,
 };

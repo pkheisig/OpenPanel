@@ -31,6 +31,7 @@ import {
     laserWavelength,
     linePath,
     toSimilarityValue,
+    responseProvenanceForMeasurementMode,
 } from './panelBuilderShared';
 import type { NumericRow, PanelPayload, TabId } from './panelBuilderShared';
 
@@ -141,8 +142,23 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumLeft = 42;
     const spectrumRight = spectrumWidth - 8;
     const spectrumPlotWidth = spectrumRight - spectrumLeft;
-    const responseLabel = payload.measurement_mode === 'conventional' ? 'detector peaks' : 'spectra';
-    const signatureTabLabel = payload.measurement_mode === 'conventional' ? 'PEAKS' : 'SPECTRA';
+    const responseProvenance = payload.response_provenance
+        ?? responseProvenanceForMeasurementMode(payload.measurement_mode);
+    const responseLabel = responseProvenance.class === 'synthetic_filter_proxy'
+        ? 'detector peaks'
+        : responseProvenance.class === 'measured_detector_response'
+            ? 'detector responses'
+            : 'spectra';
+    const signatureTabLabel = responseProvenance.class === 'synthetic_filter_proxy'
+        ? 'PEAKS'
+        : responseProvenance.class === 'measured_detector_response'
+            ? 'RESPONSES'
+            : 'SPECTRA';
+    const complexityLabel = responseProvenance.class === 'synthetic_filter_proxy'
+        ? 'Planning-proxy complexity'
+        : responseProvenance.class === 'measured_detector_response'
+            ? 'Detector-response complexity'
+            : 'Complexity Index';
 
     useEffect(() => {
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });
@@ -417,12 +433,17 @@ export const PanelVisualizations = memo(function PanelVisualizations({
         )}
     </div>
 
+    <div className="response-provenance-banner" role="note">
+        <strong>{responseProvenance.label}</strong>
+        <span>{responseProvenance.method}. Source: {responseProvenance.source}. {responseProvenance.limitation}</span>
+    </div>
+
     <div className="tabs-bar">
         <button className={`tab-button ${tab === 'panel' ? 'active' : ''}`} onClick={() => setTab('panel')}>PANEL</button>
         <button className={`tab-button ${tab === 'similarity' ? 'active' : ''}`} onClick={() => setTab('similarity')}>SIMILARITY</button>
         <button className={`tab-button ${tab === 'signatures' ? 'active' : ''}`} onClick={() => setTab('signatures')}>{signatureTabLabel}</button>
         <div style={{ flex: 1 }} />
-        <div className="complexity-badge">Complexity Index: {formatMetric(payload.complexity_index)}</div>
+        <div className="complexity-badge">{complexityLabel}: {formatMetric(payload.complexity_index)}</div>
     </div>
 
     {error && <div className="error-state">{error}</div>}
