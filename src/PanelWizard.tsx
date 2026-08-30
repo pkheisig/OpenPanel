@@ -598,6 +598,7 @@ export function PanelWizard({
       setError(`Marker names cannot exceed ${PROJECT_RESOURCE_LIMITS.maxStringLength} characters.`)
       return
     }
+    setError('')
     setMarkers((current) => current.map((marker) => {
       if (marker.id !== id) return marker
       const next = { ...marker, ...patch }

@@ -468,12 +468,37 @@ const csvEscape = (value: string) => `"${value.replace(/"/g, '""')}"`;
 
 const normalizeImportToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+const MAX_IMPORTED_PANEL_ROWS = 4096;
+const MAX_IMPORTED_PANEL_CELLS = 16384;
+
 const parseDelimitedRows = (text: string, delimiter: string) => {
     const rows: Array<{ values: string[]; sourceRow: number }> = [];
     let row: string[] = [];
     let cell = '';
     let quoted = false;
     let sourceRow = 1;
+    let parsedCells = 0;
+
+    const pushCell = () => {
+        parsedCells += 1;
+        if (parsedCells > MAX_IMPORTED_PANEL_CELLS) {
+            throw new Error(`The imported CSV contains more than ${MAX_IMPORTED_PANEL_CELLS} cells.`);
+        }
+        row.push(cell.trim());
+        cell = '';
+    };
+
+    const pushRow = () => {
+        pushCell();
+        if (row.some(value => value.length > 0)) {
+            if (rows.length >= MAX_IMPORTED_PANEL_ROWS) {
+                throw new Error(`The imported CSV contains more than ${MAX_IMPORTED_PANEL_ROWS} rows.`);
+            }
+            rows.push({ values: row, sourceRow });
+        }
+        row = [];
+        sourceRow += 1;
+    };
 
     for (let i = 0; i < text.length; i += 1) {
         const char = text[i];
@@ -487,22 +512,16 @@ const parseDelimitedRows = (text: string, delimiter: string) => {
                 quoted = !quoted;
             }
         } else if (char === delimiter && !quoted) {
-            row.push(cell.trim());
-            cell = '';
+            pushCell();
         } else if ((char === '\n' || char === '\r') && !quoted) {
-            row.push(cell.trim());
-            cell = '';
-            if (row.some(value => value.length > 0)) rows.push({ values: row, sourceRow });
-            row = [];
-            sourceRow += 1;
+            pushRow();
             if (char === '\r' && next === '\n') i += 1;
         } else {
             cell += char;
         }
     }
 
-    row.push(cell.trim());
-    if (row.some(value => value.length > 0)) rows.push({ values: row, sourceRow });
+    pushRow();
     if (rows.length > 0 && rows[0].values.length > 0) rows[0].values[0] = rows[0].values[0].replace(/^\uFEFF/, '');
     return rows;
 };

@@ -207,6 +207,20 @@ describe('panel rendering helpers', () => {
     expect((error as Error).message).toContain('row 4')
   })
 
+  test('rejects CSVs with too many rows before retaining row diagnostics', () => {
+    const rows = Array.from({ length: 4097 }, (_, index) => `CD${index},Alexa Fluor 488`).join('\n')
+
+    expect(() => detectImportedPanelRows(`Marker,Fluorophore\n${rows}`, fluorophores))
+      .toThrow('more than 4096 rows')
+  })
+
+  test('rejects CSVs with too many cells while parsing', () => {
+    const cells = Array.from({ length: 16383 }, () => 'x').join(',')
+
+    expect(() => detectImportedPanelRows(`Marker,Fluorophore\n${cells}`, fluorophores))
+      .toThrow('more than 16384 cells')
+  })
+
   test('identifies project fluorophores unavailable to a selected payload', () => {
     expect(validatePanelFluorophores(
       ['Alexa Fluor 488', 'Unknown dye', ''],
