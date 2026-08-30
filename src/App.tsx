@@ -135,7 +135,7 @@ export default function App() {
         onStart={async (selection) => {
           assertLegacyRecoveryResolved()
           const panel = await createPanelProject(selection.name, emptyProject(selection))
-          await refreshPanels(activePanel)
+          await refreshPanels(null)
           setActivePanel(panel)
           rememberSurface('editor')
           setShowLanding(false)
@@ -278,7 +278,7 @@ export default function App() {
             projectNameFromFilename(file.name),
             canonicalState,
           )
-          await refreshPanels(activePanel)
+          await refreshPanels(null)
           setActivePanel(panel)
           rememberSurface('editor')
           setShowLanding(false)

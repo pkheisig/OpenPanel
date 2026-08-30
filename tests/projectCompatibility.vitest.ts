@@ -351,6 +351,16 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject(oversizedText)).toThrow(ProjectResourceLimitError)
   })
 
+  test('bounds arbitrary imported JSON values before normalization', () => {
+    let nested: Record<string, unknown> = { leaf: true }
+    for (let depth = 0; depth < 257; depth += 1) nested = { nested }
+
+    expect(() => parseProject(JSON.stringify({ ...project, extra: nested })))
+      .toThrow('maximum nesting depth')
+    expect(() => parseProject(JSON.stringify({ ...project, extra: Array.from({ length: 4097 }, () => true) })))
+      .toThrow('too many items')
+  })
+
   test('rejects circular project state before JSON serialization', () => {
     const cyclic = { ...project, self: undefined } as unknown as Record<string, unknown>
     cyclic.self = cyclic

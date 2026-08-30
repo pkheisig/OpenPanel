@@ -149,6 +149,19 @@ describe('App surface restoration and handoff', () => {
     await waitFor(() => expect(screen.getByTestId('recovery-present')).not.toBeNull())
   })
 
+  test('does not re-add a stale recovery panel after starting a project', async () => {
+    fixtures.restored = { ...fixtures.project, id: 'recovery', loadError: 'project is oversized.' }
+    fixtures.surface = 'landing'
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+
+    fireEvent.click(screen.getByRole('button', { name: 'start' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock editor' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'exit' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    expect(screen.queryByTestId('recovery-present')).toBeNull()
+  })
+
   test('blocks new projects from overwriting a legacy recovery record', async () => {
     fixtures.restored = { ...fixtures.project, id: 'active', loadError: 'project is oversized.' }
     fixtures.surface = 'landing'
