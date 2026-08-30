@@ -39,6 +39,15 @@ function rememberSurface(surface: 'landing' | 'editor'): void {
   writeLocalStorage(CURRENT_SURFACE_STORAGE_KEY, surface)
 }
 
+function includeRecoveryPanel(
+  panels: StoredPanelProject[],
+  recoveryPanel: StoredPanelProject | null | undefined,
+): StoredPanelProject[] {
+  return recoveryPanel?.loadError && !panels.some((panel) => panel.id === recoveryPanel.id)
+    ? [recoveryPanel, ...panels]
+    : panels
+}
+
 function emptyProject(selection: PanelLaunchSelection): ProjectState {
   const slots = selection.slots ? [...selection.slots] : Array(18).fill('')
   const markers = selection.markers ? { ...selection.markers } : {}
@@ -77,9 +86,7 @@ export default function App() {
       const restored = await loadLastPanelProject()
       const storedPanels = await listPanelProjects()
       if (cancelled) return
-      const visiblePanels = restored?.loadError && !storedPanels.some((panel) => panel.id === restored.id)
-        ? [restored, ...storedPanels]
-        : storedPanels
+      const visiblePanels = includeRecoveryPanel(storedPanels, restored)
       setActivePanel(restored)
       setPanels(visiblePanels)
       const landing = storedSurface() === 'landing' || restored === null || Boolean(restored?.loadError)
@@ -93,12 +100,15 @@ export default function App() {
     }
   }, [])
 
+  const refreshPanels = async (recoveryPanel: StoredPanelProject | null | undefined = activePanel) => {
+    setPanels(includeRecoveryPanel(await listPanelProjects(), recoveryPanel))
+  }
+
   if (loading) {
     return <div className="app-loading" role="status">Opening your last panel…</div>
   }
 
   if (showLanding || !activePanel) {
-    const refreshPanels = async () => setPanels(await listPanelProjects())
     return (
       <LandingPage
         panels={panels}
@@ -196,7 +206,7 @@ export default function App() {
         onDelete={async (panel) => {
           await deletePanelProject(panel.id)
           if (activePanel?.id === panel.id) setActivePanel(null)
-          await refreshPanels()
+          await refreshPanels(null)
         }}
         onOpen={(panel) => {
           if (!panel.loadError) setActivePanelProject(panel.id)
@@ -218,7 +228,7 @@ export default function App() {
       recoveryMode={Boolean(activePanel.loadError)}
       onRequestExit={async () => {
         rememberSurface('landing')
-        setPanels(await listPanelProjects())
+        await refreshPanels()
         setShowLanding(true)
       }}
     />

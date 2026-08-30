@@ -33,6 +33,8 @@ vi.mock('../src/LandingPage', () => ({
       <button type="button" onClick={() => void props.onArchive({ ...fixtures.project, id: 'other-panel' })}>archive other</button>
       <button type="button" onClick={() => void props.onDelete({ ...fixtures.project, id: 'other-panel' })}>delete other</button>
       <button type="button" onClick={() => props.onOpen(fixtures.project)}>open</button>
+      <button type="button" onClick={() => props.onOpen(fixtures.restored ?? fixtures.project)}>open recovery</button>
+      {Array.isArray(props.panels) && (props.panels as Array<{ id: string }>).some((panel) => panel.id === 'active') && <span data-testid="recovery-present" />}
     </section>
   ),
 }))
@@ -131,6 +133,17 @@ describe('App surface restoration and handoff', () => {
       '5l_uv_v_b_yg_r',
       [],
     )
+  })
+
+  test('keeps a synthetic recovery panel visible after returning to the library', async () => {
+    fixtures.restored = { ...fixtures.project, id: 'active', loadError: 'project is oversized.' }
+    fixtures.surface = 'landing'
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'open recovery' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock editor' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'exit' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-present')).not.toBeNull())
   })
 
   test('canonicalizes accepted aliases before creating an imported panel', async () => {

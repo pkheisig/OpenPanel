@@ -160,8 +160,9 @@ describe('IndexedDB project persistence', () => {
     expect(panels[0]).toMatchObject({
       id: 'oversized',
       loadError: 'project.slots contains 257 items; maximum is 256.',
-      state: { slots: Array(18).fill('') },
     })
+    expect(panels[0].state.slots).toHaveLength(256)
+    expect(panels[0].state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
   })
 
   test('does not overwrite unreadable saved panels through project actions', async () => {
@@ -187,11 +188,13 @@ describe('IndexedDB project persistence', () => {
     fakeDb.records.set('active', rawState)
 
     await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')
-    await expect(loadLastPanelProject()).resolves.toMatchObject({
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
       id: 'active',
       loadError: 'project.slots contains 257 items; maximum is 256.',
-      state: { slots: Array(18).fill('') },
     })
+    expect(recovered?.state.slots).toHaveLength(256)
+    expect(recovered?.state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
     expect(fakeDb.records.get('active')).toEqual(rawState)
     await deletePanelProject('active')
     expect(fakeDb.records.has('active')).toBe(false)

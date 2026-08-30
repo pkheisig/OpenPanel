@@ -201,11 +201,14 @@ describe('IndexedDB fallback error paths', () => {
     localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
 
     await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')
-    await expect(loadLastPanelProject()).resolves.toMatchObject({
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
       id: 'active',
       loadError: 'project.slots contains 257 items; maximum is 256.',
-      state: { slots: Array(18).fill('') },
+      state: { markers: { 0: 'CD3' } },
     })
+    expect(recovered?.state.slots).toHaveLength(256)
+    expect(recovered?.state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
     await deletePanelProject('active')
     expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toBeNull()
   })

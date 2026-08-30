@@ -37,6 +37,8 @@ export const PROJECT_RESOURCE_LIMITS = {
 } as const
 
 export class ProjectResourceLimitError extends Error {
+  rawValue?: Record<string, unknown>
+
   constructor(message: string) {
     super(message)
     this.name = 'ProjectResourceLimitError'
@@ -553,7 +555,6 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('This project file does not contain an OpenPanel project.')
   }
-  assertProjectResourceLimits(value, false)
   const record = value as Record<string, unknown>
   if (record.kind !== undefined && record.kind !== PROJECT_FILE_KIND) {
     throw new Error('This JSON file belongs to a different application.')
@@ -564,10 +565,16 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
   const legacyConfig = record.config && typeof record.config === 'object' && !Array.isArray(record.config)
     ? record.config as Record<string, unknown>
     : record
-  if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
-  const normalized = normalizeState(legacyConfig, false)
-  assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
-  return normalized
+  try {
+    assertProjectResourceLimits(value, false)
+    if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
+    const normalized = normalizeState(legacyConfig, false)
+    assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
+    return normalized
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError) error.rawValue = legacyConfig
+    throw error
+  }
 }
 
 export function parseProject(text: string): ProjectState {
@@ -579,16 +586,21 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
     const db = await database()
     const stored = await db.get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
     if (stored) {
-      const normalized = normalizeState(stored as unknown as Record<string, unknown>)
-      assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
       try {
-        if (JSON.stringify(stored) !== JSON.stringify(normalized)) {
-          await db.put(PROJECT_STORE, normalized, ACTIVE_PROJECT_KEY)
+        const normalized = normalizeState(stored as unknown as Record<string, unknown>)
+        assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
+        try {
+          if (JSON.stringify(stored) !== JSON.stringify(normalized)) {
+            await db.put(PROJECT_STORE, normalized, ACTIVE_PROJECT_KEY)
+          }
+        } catch {
+          // A read remains usable even when a best-effort healing write fails.
         }
-      } catch {
-        // A read remains usable even when a best-effort healing write fails.
+        return normalized
+      } catch (error) {
+        if (error instanceof ProjectResourceLimitError && isRecord(stored)) error.rawValue = stored
+        throw error
       }
-      return normalized
     }
   } catch (error) {
     if (error instanceof ProjectResourceLimitError) throw error
@@ -646,14 +658,14 @@ function recoverStoredProjectState(value: Record<string, unknown>): ProjectState
       : fallback
   )
   const safeSlots = (candidate: unknown): string[] => (
-    Array.isArray(candidate) && candidate.length <= PROJECT_RESOURCE_LIMITS.maxSlots
-      ? candidate.map((slot) => typeof slot === 'string' && slot.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? slot : '')
+    Array.isArray(candidate)
+      ? candidate.slice(0, PROJECT_RESOURCE_LIMITS.maxSlots).map((slot) => typeof slot === 'string' && slot.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? slot : '')
       : Array(18).fill('')
   )
   const safeMarkers = (candidate: unknown): Record<string, string> => {
-    if (!isRecord(candidate) || Object.keys(candidate).length > PROJECT_RESOURCE_LIMITS.maxMarkers) return {}
+    if (!isRecord(candidate)) return {}
     return Object.fromEntries(
-      Object.entries(candidate).map(([key, marker]) => [
+      Object.entries(candidate).slice(0, PROJECT_RESOURCE_LIMITS.maxMarkers).map(([key, marker]) => [
         key,
         typeof marker === 'string' && marker.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? marker : '',
       ]),
@@ -851,12 +863,13 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
     legacy = await loadActiveProject()
   } catch (error) {
     if (!(error instanceof ProjectResourceLimitError)) return null
+    const recoveredState = error.rawValue ? recoverStoredProjectState(error.rawValue) : safeStoredProjectState({})
     return {
       id: ACTIVE_PROJECT_KEY,
       name: 'Recovered panel',
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
-      state: safeStoredProjectState({}),
+      state: recoveredState,
       loadError: error.message,
     }
   }
