@@ -248,6 +248,9 @@ describe('PanelBuilder', () => {
       />,
     )
     await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Export overview PDF' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Mock oversized marker' }))
     expect(document.body.textContent).toContain('Marker names cannot exceed 8192 characters.')
 

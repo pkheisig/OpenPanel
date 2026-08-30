@@ -926,6 +926,7 @@ const PanelBuilder = ({
     };
 
     const exportPanelCsv = async () => {
+        if (recoveryMode) return;
         if (selectedRows.length === 0) {
             setError('Select at least one fluorophore before exporting a panel.');
             return;
@@ -943,6 +944,7 @@ const PanelBuilder = ({
     };
 
     const exportPanelOverview = async () => {
+        if (recoveryMode) return;
         if (selectedRows.length === 0) {
             setError('Select at least one fluorophore before exporting a panel overview.');
             return;
@@ -1043,6 +1045,7 @@ const PanelBuilder = ({
     };
 
     const importPanelCsv = async (file: File | null) => {
+        if (recoveryMode) return;
         if (!file || !payload) return;
         setError('');
         setImporting(true);
@@ -1085,6 +1088,7 @@ const PanelBuilder = ({
     };
 
     const choosePanelCsv = async () => {
+        if (recoveryMode) return;
         const file = await openTextFile({
             description: 'Panel CSV',
             mimeType: 'text/csv',
@@ -1096,6 +1100,7 @@ const PanelBuilder = ({
     const currentProjectState = (): ProjectState => projectState;
 
     const exportProject = async () => {
+        if (recoveryMode) return;
         await saveBlob(new Blob([serializeProject(currentProjectState())], { type: 'application/json' }), {
             suggestedName: projectJsonFilename(panelName),
             description: 'OpenPanel project',
@@ -1105,6 +1110,7 @@ const PanelBuilder = ({
     };
 
     const importProject = async (file: File | null) => {
+        if (recoveryMode) return;
         if (!file) return;
         setError('');
         setImporting(true);
@@ -1203,6 +1209,7 @@ const PanelBuilder = ({
     };
 
     const chooseProject = async () => {
+        if (recoveryMode) return;
         const file = await openTextFile({
             description: 'OpenPanel project',
             mimeType: 'application/json',
@@ -1268,7 +1275,7 @@ const PanelBuilder = ({
                         onPointerEnter={() => void loadPanelWizard()}
                         onFocus={() => void loadPanelWizard()}
                         aria-label="Open panel wizard"
-                        disabled={panelExceedsDetectorLimit}
+                        disabled={panelExceedsDetectorLimit || recoveryMode}
                         title={panelExceedsDetectorLimit ? panelCapacityMessage(selectedColorCount, payload.max_panel_size) : 'Open panel wizard'}
                     >
                         <WandSparkles size={17} aria-hidden="true" />
@@ -1359,7 +1366,7 @@ const PanelBuilder = ({
                                 type="button"
                                 className={`export-button file-action-trigger${fileMenu === 'import' ? ' is-open' : ''}`}
                                 onClick={() => setFileMenu(current => current === 'import' ? null : 'import')}
-                                disabled={importing}
+                                disabled={importing || recoveryMode}
                                 aria-label={importing ? 'Importing file' : 'Import'}
                                 aria-haspopup="menu"
                                 aria-expanded={fileMenu === 'import'}
@@ -1370,14 +1377,14 @@ const PanelBuilder = ({
                             </button>
                             {fileMenu === 'import' && (
                                 <div className="file-action-popout" role="menu" aria-label="Import options">
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void choosePanelCsv();
                                     }}>
                                         <FileSpreadsheet size={17} />
                                         <span><strong>Import panel</strong><small>CSV file</small></span>
                                     </button>
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void chooseProject();
                                     }}>
@@ -1393,6 +1400,7 @@ const PanelBuilder = ({
                                 className={`export-button file-action-trigger${fileMenu === 'export' ? ' is-open' : ''}`}
                                 onClick={() => setFileMenu(current => current === 'export' ? null : 'export')}
                                 aria-label="Export"
+                                disabled={recoveryMode}
                                 aria-haspopup="menu"
                                 aria-expanded={fileMenu === 'export'}
                                 title="Export"
@@ -1402,14 +1410,14 @@ const PanelBuilder = ({
                             </button>
                             {fileMenu === 'export' && (
                                 <div className="file-action-popout" role="menu" aria-label="Export options">
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void exportPanelCsv();
                                     }}>
                                         <FileSpreadsheet size={17} />
                                         <span><strong>Export panel</strong><small>CSV file</small></span>
                                     </button>
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void exportProject();
                                     }}>
@@ -1426,7 +1434,7 @@ const PanelBuilder = ({
                             return;
                         }
                         setShowPdfConfirm(true);
-                    }} disabled={exporting} aria-label={exporting ? 'Exporting overview PDF' : 'Export overview PDF'} title={exporting ? 'Exporting…' : 'Export overview PDF'}>
+                    }} disabled={exporting || recoveryMode} aria-label={exporting ? 'Exporting overview PDF' : 'Export overview PDF'} title={exporting ? 'Exporting…' : 'Export overview PDF'}>
                         <PdfIcon size={20} />
                     </button>
                     {embedded && onRequestExit && <button

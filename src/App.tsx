@@ -27,7 +27,7 @@ import {
   serializeProject,
   setActivePanelProject,
 } from './projectStore'
-import type { ProjectState, StoredPanelProject } from './projectStore'
+import type { CytometerPanelState, ProjectState, StoredPanelProject } from './projectStore'
 import { readThemePreference } from './themePreference'
 
 const CURRENT_SURFACE_STORAGE_KEY = 'openpanel.current-surface'
@@ -173,24 +173,78 @@ export default function App() {
             canonicalSlots,
             wizardValidation.accepted,
           )
+          const canonicalCytometerPanels: Record<string, CytometerPanelState> = {}
+          for (const [panelCytometer, panelState] of Object.entries(state.cytometerPanels)) {
+            if (panelCytometer === state.cytometer) continue
+            const panelConfiguration = resolveKnownConfiguration(panelCytometer, panelState.configuration)
+            if (!panelConfiguration) {
+              throw new Error(`OpenPanel project uses an unsupported configuration '${panelState.configuration}' for '${panelCytometer}'.`)
+            }
+            const panelValidation = await validateRequestedFluorophores(
+              panelCytometer,
+              panelConfiguration,
+              panelState.slots,
+            )
+            if (panelValidation.diagnostics.length > 0) {
+              throw new PanelSelectionValidationError(panelValidation.diagnostics)
+            }
+            const panelPayload = await buildPanelPayload(
+              panelCytometer,
+              panelConfiguration,
+              panelValidation.accepted,
+              true,
+            )
+            if (panelValidation.accepted.length > panelPayload.max_panel_size) {
+              throw new Error(`Panel '${panelCytometer}' has ${panelValidation.accepted.length} colors, but its configuration has only ${panelPayload.max_panel_size} detectors.`)
+            }
+            let panelAcceptedIndex = 0
+            const panelSlots = panelState.slots.map((slot) => (
+              slot.trim() ? panelValidation.accepted[panelAcceptedIndex++] : ''
+            ))
+            assertPanelSlotsWithinCapacity(panelSlots, panelPayload.max_panel_size)
+            const panelWizardRequested = panelState.wizard?.markers
+              .map((marker) => marker.currentFluorophore)
+              .filter(Boolean) ?? []
+            const panelWizardValidation = await validateRequestedFluorophores(
+              panelCytometer,
+              panelConfiguration,
+              panelWizardRequested,
+            )
+            if (panelWizardValidation.diagnostics.length > 0) {
+              throw new PanelSelectionValidationError(panelWizardValidation.diagnostics)
+            }
+            const panelWizard = alignWizardFluorophores(
+              panelState.wizard,
+              panelSlots,
+              panelWizardValidation.accepted,
+            )
+            const panelMarkers = Object.fromEntries(
+              Object.entries(panelState.markers).filter(([index]) => panelSlots[Number(index)]),
+            ) as Record<number, string>
+            canonicalCytometerPanels[panelCytometer] = {
+              ...panelState,
+              configuration: panelConfiguration,
+              slots: panelSlots,
+              markers: panelMarkers,
+              wizard: panelWizard,
+            }
+          }
           const canonicalMarkers = Object.fromEntries(
             Object.entries(state.markers).filter(([index]) => canonicalSlots[Number(index)]),
           ) as Record<number, string>
           const activeCytometerPanel = state.cytometerPanels[state.cytometer]
+          canonicalCytometerPanels[state.cytometer] = {
+            ...(activeCytometerPanel ?? { configuration, wizard: canonicalWizard }),
+            configuration,
+            slots: canonicalSlots,
+            markers: canonicalMarkers,
+            wizard: canonicalWizard,
+          }
           const canonicalState: ProjectState = {
             ...state,
             slots: canonicalSlots,
             markers: canonicalMarkers,
-            cytometerPanels: {
-              ...state.cytometerPanels,
-              [state.cytometer]: {
-                ...(activeCytometerPanel ?? { configuration, wizard: canonicalWizard }),
-                configuration,
-                slots: canonicalSlots,
-                markers: canonicalMarkers,
-                wizard: canonicalWizard,
-              },
-            },
+            cytometerPanels: canonicalCytometerPanels,
             wizard: canonicalWizard,
           }
           const panel = await createPanelProject(
