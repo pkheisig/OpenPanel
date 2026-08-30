@@ -20,18 +20,18 @@ describe('browser imports and exports', () => {
     expect(detectImportedPanelRows(
       '"Notes","Fluorophore","Marker"\n"keep","Alexa Fluor 488","CD3, gamma"\n"","Alexa Fluor 647","CD19"\n',
       payload.fluorophores,
-    )).toEqual([
+    ).rows).toEqual([
       { fluor: 'Alexa Fluor 488', marker: 'CD3, gamma' },
       { fluor: 'Alexa Fluor 647', marker: 'CD19' },
     ])
     expect(detectImportedPanelRows(
       'Target\tDye\nCD4\tAlexa Fluor 488\n',
       payload.fluorophores,
-    )).toEqual([{ fluor: 'Alexa Fluor 488', marker: 'CD4' }])
+    ).rows).toEqual([{ fluor: 'Alexa Fluor 488', marker: 'CD4' }])
     expect(detectImportedPanelRows(
       'Alexa Fluor 488;CD8\n',
       payload.fluorophores,
-    )).toEqual([{ fluor: 'Alexa Fluor 488', marker: 'CD8' }])
+    ).rows).toEqual([{ fluor: 'Alexa Fluor 488', marker: 'CD8' }])
     expect(detectImportedPanelRows(
       'Marker,Fluorophore\nLive,LIVE/DEAD Fixable Near-IR\n',
       [{
@@ -40,7 +40,7 @@ describe('browser imports and exports', () => {
         peak_laser: 'Red',
         peak_color: '#ff0000',
       }],
-    )).toEqual([{ fluor: 'LIVE DEAD NIR', marker: 'Live' }])
+    ).rows).toEqual([{ fluor: 'LIVE DEAD NIR', marker: 'Live' }])
   })
 
   test('creates a local multi-page PDF containing the report labels', async () => {

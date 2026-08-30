@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildPanelPayload,
+  PanelSelectionValidationError,
   resetSpectralEngineForTests,
   validateBundledDataRows,
 } from '../src/spectralEngine'
@@ -220,6 +221,16 @@ describe('conventional spectral engine defensive paths', () => {
       mapping_confidence: 'curated',
     })
     expect(result.spectra[1]['450/50-V-A']).toBeGreaterThan(0)
+  })
+
+  test('rejects unrecognized requested fluorophores instead of returning a partial payload', async () => {
+    vi.stubGlobal('fetch', customFetch())
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'Unknown dye'], true))
+      .rejects.toBeInstanceOf(PanelSelectionValidationError)
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l', ['Unknown dye'], true))
+      .rejects.toMatchObject({
+        diagnostics: [{ requested: 'Unknown dye', status: 'unrecognized' }],
+      })
   })
 
   test('matches pinned detectors when a bundled detector omits the acquisition suffix', async () => {

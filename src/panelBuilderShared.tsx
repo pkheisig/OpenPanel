@@ -261,6 +261,43 @@ type ImportedPanelRow = {
     marker: string;
 };
 
+type PanelImportDiagnostic = {
+    sourceRow: number;
+    rawFluorophore: string;
+    canonicalFluorophore: string | null;
+    status: 'accepted' | 'duplicate' | 'unsupported' | 'invalid';
+    reason: string;
+};
+
+type ImportedPanelRows = {
+    rows: ImportedPanelRow[];
+    diagnostics: PanelImportDiagnostic[];
+};
+
+class PanelImportValidationError extends Error {
+    rows: ImportedPanelRow[];
+    diagnostics: PanelImportDiagnostic[];
+
+    constructor(message: string, result: ImportedPanelRows) {
+        super(message);
+        this.name = 'PanelImportValidationError';
+        this.rows = result.rows;
+        this.diagnostics = result.diagnostics;
+    }
+}
+
+type PanelFluorophoreDiagnostic = {
+    requested: string;
+    canonicalFluorophore: string | null;
+    status: 'unrecognized' | 'unavailable';
+    reason: string;
+};
+
+type PanelFluorophoreValidation = {
+    accepted: string[];
+    diagnostics: PanelFluorophoreDiagnostic[];
+};
+
 const laserOrder = ['DeepUV', 'UV', 'Violet', 'Blue', 'YellowGreen', 'Red', 'IR', 'Other'];
 const emptySlots = 18;
 
@@ -392,10 +429,11 @@ const csvEscape = (value: string) => `"${value.replace(/"/g, '""')}"`;
 const normalizeImportToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 const parseDelimitedRows = (text: string, delimiter: string) => {
-    const rows: string[][] = [];
+    const rows: Array<{ values: string[]; sourceRow: number }> = [];
     let row: string[] = [];
     let cell = '';
     let quoted = false;
+    let sourceRow = 1;
 
     for (let i = 0; i < text.length; i += 1) {
         const char = text[i];
@@ -414,8 +452,9 @@ const parseDelimitedRows = (text: string, delimiter: string) => {
         } else if ((char === '\n' || char === '\r') && !quoted) {
             row.push(cell.trim());
             cell = '';
-            if (row.some(value => value.length > 0)) rows.push(row);
+            if (row.some(value => value.length > 0)) rows.push({ values: row, sourceRow });
             row = [];
+            sourceRow += 1;
             if (char === '\r' && next === '\n') i += 1;
         } else {
             cell += char;
@@ -423,8 +462,8 @@ const parseDelimitedRows = (text: string, delimiter: string) => {
     }
 
     row.push(cell.trim());
-    if (row.some(value => value.length > 0)) rows.push(row);
-    if (rows.length > 0 && rows[0].length > 0) rows[0][0] = rows[0][0].replace(/^\uFEFF/, '');
+    if (row.some(value => value.length > 0)) rows.push({ values: row, sourceRow });
+    if (rows.length > 0 && rows[0].values.length > 0) rows[0].values[0] = rows[0].values[0].replace(/^\uFEFF/, '');
     return rows;
 };
 
@@ -432,8 +471,8 @@ const parseCsvLikeRows = (text: string) => {
     const delimiters = [',', '\t', ';'];
     const parsed = delimiters.map(delimiter => {
         const rows = parseDelimitedRows(text, delimiter);
-        const multiColumnRows = rows.filter(row => row.length > 1).length;
-        const totalCells = rows.reduce((sum, row) => sum + row.length, 0);
+        const multiColumnRows = rows.filter(row => row.values.length > 1).length;
+        const totalCells = rows.reduce((sum, row) => sum + row.values.length, 0);
         return { delimiter, rows, score: multiColumnRows * 1000 + totalCells };
     });
     parsed.sort((a, b) => b.score - a.score);
@@ -477,20 +516,20 @@ const matchImportedFluor = (value: string, lookup: Map<string, string>) => {
     return '';
 };
 
-const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]) => {
+const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]): ImportedPanelRows => {
     const rows = parseCsvLikeRows(text);
     if (rows.length === 0) throw new Error('The imported CSV file is empty.');
 
     const lookup = buildFluorLookup(fluorophores);
-    const firstRow = rows[0];
+    const firstRow = rows[0].values;
     const firstRowHasFluor = firstRow.some(value => !!matchImportedFluor(value, lookup));
     const hasHeader = rowHasHeaderWords(firstRow) || (!firstRowHasFluor && rows.length > 1);
     const headers = hasHeader ? firstRow.map(normalizeImportToken) : [];
     const dataRows = hasHeader ? rows.slice(1) : rows;
-    const maxCols = Math.max(...rows.map(row => row.length));
+    const maxCols = Math.max(...rows.map(row => row.values.length));
 
     const fluorScores = Array.from({ length: maxCols }, (_, colIndex) => {
-        const valueMatches = dataRows.reduce((count, row) => count + (matchImportedFluor(row[colIndex] || '', lookup) ? 1 : 0), 0);
+        const valueMatches = dataRows.reduce((count, row) => count + (matchImportedFluor(row.values[colIndex] || '', lookup) ? 1 : 0), 0);
         const header = headers[colIndex] || '';
         const headerBonus = ['fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent'].includes(header) ? 2 : 0;
         return valueMatches + headerBonus;
@@ -508,21 +547,99 @@ const detectImportedPanelRows = (text: string, fluorophores: FluorInfo[]) => {
         : undefined);
 
     const imported: ImportedPanelRow[] = [];
+    const diagnostics: PanelImportDiagnostic[] = [];
     const seen = new Set<string>();
+    const firstSourceRowByFluor = new Map<string, number>();
     dataRows.forEach(row => {
-        const fluor = matchImportedFluor(row[fluorCol] || '', lookup);
-        if (!fluor || seen.has(fluor)) return;
+        const rawFluorophore = (row.values[fluorCol] || '').trim();
+        if (!rawFluorophore) {
+            diagnostics.push({
+                sourceRow: row.sourceRow,
+                rawFluorophore,
+                canonicalFluorophore: null,
+                status: 'invalid',
+                reason: 'The fluorophore cell is empty.',
+            });
+            return;
+        }
+        const fluor = matchImportedFluor(rawFluorophore, lookup);
+        if (!fluor) {
+            diagnostics.push({
+                sourceRow: row.sourceRow,
+                rawFluorophore,
+                canonicalFluorophore: null,
+                status: 'unsupported',
+                reason: 'The fluorophore is not available for the selected cytometer configuration.',
+            });
+            return;
+        }
+        if (seen.has(fluor)) {
+            diagnostics.push({
+                sourceRow: row.sourceRow,
+                rawFluorophore,
+                canonicalFluorophore: fluor,
+                status: 'duplicate',
+                reason: `This fluorophore duplicates row ${firstSourceRowByFluor.get(fluor)}.`,
+            });
+            return;
+        }
         seen.add(fluor);
+        firstSourceRowByFluor.set(fluor, row.sourceRow);
+        diagnostics.push({
+            sourceRow: row.sourceRow,
+            rawFluorophore,
+            canonicalFluorophore: fluor,
+            status: 'accepted',
+            reason: 'Recognized fluorophore.',
+        });
         imported.push({
             fluor,
-            marker: markerCol === undefined ? '' : (row[markerCol] || '').trim(),
+            marker: markerCol === undefined ? '' : (row.values[markerCol] || '').trim(),
         });
     });
 
+    const result = { rows: imported, diagnostics };
+    const rejected = diagnostics.filter(diagnostic => diagnostic.status !== 'accepted');
+    const details = rejected.map(diagnostic => (
+        `row ${diagnostic.sourceRow} "${diagnostic.rawFluorophore || '(blank)'}": ${diagnostic.reason}`
+    )).join('; ');
+    if (imported.length === 0 && rejected.length > 0) {
+        throw new PanelImportValidationError(
+            `No known fluorophores were recognized in the imported CSV for the selected cytometer. ${details}`,
+            result,
+        );
+    }
+    if (rejected.length > 0) {
+        throw new PanelImportValidationError(`Panel CSV import rejected ${rejected.length} row(s): ${details}`, result);
+    }
     if (imported.length === 0) {
         throw new Error('No known fluorophores were recognized in the imported CSV for the selected cytometer.');
     }
-    return imported;
+    return result;
+};
+
+const validatePanelFluorophores = (
+    requested: string[],
+    fluorophores: FluorInfo[],
+): PanelFluorophoreValidation => {
+    const lookup = buildFluorLookup(fluorophores);
+    const accepted: string[] = [];
+    const diagnostics: PanelFluorophoreDiagnostic[] = [];
+    requested.filter(Boolean).forEach((value) => {
+        const requestedFluorophore = value.trim();
+        const canonical = matchImportedFluor(requestedFluorophore, lookup);
+        if (!canonical) {
+            diagnostics.push({
+                requested: requestedFluorophore,
+                canonicalFluorophore: null,
+                status: 'unrecognized',
+                reason: 'The fluorophore is not available for the selected cytometer configuration.',
+            });
+            return;
+        }
+        accepted.push(canonical);
+    });
+    return { accepted, diagnostics };
 };
 
 const getCytometerName = (val: unknown): string => {
@@ -568,6 +685,7 @@ export {
     toSimilarityValue,
     unique,
     unboxGuiState,
+    validatePanelFluorophores,
     wavelengthToColor,
     isResponseMatrixProvenance,
     responseMatrixProvenance,
@@ -585,11 +703,16 @@ export type {
     DetectorInfo,
     FluorInfo,
     ImportedPanelRow,
+    ImportedPanelRows,
     LibraryInfo,
     NumericRow,
+    PanelFluorophoreDiagnostic,
+    PanelFluorophoreValidation,
+    PanelImportDiagnostic,
     PanelMeasurementMode,
     PanelPayload,
     ResponseMatrixProvenance,
     ResponseMatrixProvenanceClass,
     TabId,
 };
+export { PanelImportValidationError };

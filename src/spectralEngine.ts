@@ -867,6 +867,31 @@ type PanelConfigurationBase = {
   lookup: Map<string, number>
 }
 
+export type RequestedFluorophoreDiagnostic = {
+  requested: string
+  canonicalFluorophore: string | null
+  status: 'unrecognized' | 'unavailable'
+  reason: string
+}
+
+export type RequestedFluorophoreValidation = {
+  accepted: string[]
+  diagnostics: RequestedFluorophoreDiagnostic[]
+}
+
+export class PanelSelectionValidationError extends Error {
+  diagnostics: RequestedFluorophoreDiagnostic[]
+
+  constructor(diagnostics: RequestedFluorophoreDiagnostic[]) {
+    const details = diagnostics.map((diagnostic) => (
+      `"${diagnostic.requested}": ${diagnostic.reason}`
+    )).join('; ')
+    super(`Panel selection rejected ${diagnostics.length} fluorophore(s): ${details}`)
+    this.name = 'PanelSelectionValidationError'
+    this.diagnostics = diagnostics
+  }
+}
+
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
@@ -2544,6 +2569,55 @@ function configurationBase(
   return base
 }
 
+function validateRequestedFromBase(
+  requestedFluorophores: string[],
+  library: SpectralLibrary,
+  base: PanelConfigurationBase,
+): RequestedFluorophoreValidation {
+  const accepted: string[] = []
+  const diagnostics: RequestedFluorophoreDiagnostic[] = []
+  requestedFluorophores.forEach((requested) => {
+    const libraryIndex = base.lookup.get(normalizeToken(requested))
+    if (libraryIndex === undefined) {
+      diagnostics.push({
+        requested,
+        canonicalFluorophore: null,
+        status: 'unrecognized',
+        reason: 'The fluorophore is not recognized by the bundled library.',
+      })
+      return
+    }
+    const canonicalFluorophore = library.fluorophores[libraryIndex]
+    if (base.retainedSignal[libraryIndex] < 0.02) {
+      diagnostics.push({
+        requested,
+        canonicalFluorophore,
+        status: 'unavailable',
+        reason: 'The fluorophore has no retained signal in the selected configuration.',
+      })
+      return
+    }
+    accepted.push(requested)
+  })
+  return { accepted, diagnostics }
+}
+
+export async function validateRequestedFluorophores(
+  cytometer: unknown = 'aurora',
+  configuration?: unknown,
+  requestedFluorophores: string[] = [],
+): Promise<RequestedFluorophoreValidation> {
+  const id = resolveCytometer(cytometer)
+  const config = resolveConfiguration(id, configuration)
+  await initializeCytometer(id)
+  const library = requireSpectralLibrary(libraries.get(id), id)
+  return validateRequestedFromBase(
+    Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean))),
+    library,
+    configurationBase(id, config, library),
+  )
+}
+
 export function requireSpectralLibrary(
   library: SpectralLibrary | undefined,
   cytometer: CytometerId,
@@ -2565,12 +2639,18 @@ export async function buildPanelPayload(
   cytometer: unknown = 'aurora',
   configuration?: unknown,
   requestedFluorophores: string[] = [],
+  rejectInvalidRequested = false,
 ): Promise<PanelPayload> {
   const id = resolveCytometer(cytometer)
   const config = resolveConfiguration(id, configuration)
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
   const uniqueRequested = Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean)))
+  const base = configurationBase(id, config, library)
+  const validation = validateRequestedFromBase(uniqueRequested, library, base)
+  if (rejectInvalidRequested && validation.diagnostics.length > 0) {
+    throw new PanelSelectionValidationError(validation.diagnostics)
+  }
   const payloadCacheKey = `${id}:${config}:${uniqueRequested.join('\u0000')}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
   if (cachedPayload) {
@@ -2579,7 +2659,6 @@ export async function buildPanelPayload(
     return cachedPayload
   }
 
-  const base = configurationBase(id, config, library)
   const selectedLabels: string[] = []
   const selectedValues: number[][] = []
   uniqueRequested.forEach((requested) => {

@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest'
 import {
   PROJECT_FILE_KIND,
   PROJECT_FILE_VERSION,
+  PROJECT_RESOURCE_LIMITS,
+  ProjectResourceLimitError,
   parseProject,
   serializeProject,
 } from '../src/projectStore'
@@ -175,6 +177,44 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject('[]')).toThrow('does not contain')
     expect(() => parseProject('{"kind":"Elsewhere","version":1}')).toThrow('different application')
     expect(() => parseProject(`{"kind":"${PROJECT_FILE_KIND}","version":99}`)).toThrow('not supported')
+  })
+
+  test('rejects oversized project collections before normalization can drop data', () => {
+    const oversizedSlots = JSON.stringify({ ...project, slots: Array(PROJECT_RESOURCE_LIMITS.maxSlots + 1).fill('') })
+    expect(() => parseProject(oversizedSlots)).toThrow(ProjectResourceLimitError)
+
+    const oversizedMarkers = JSON.stringify({
+      ...project,
+      markers: Object.fromEntries(Array.from({ length: PROJECT_RESOURCE_LIMITS.maxMarkers + 1 }, (_, index) => [index, 'CD3'])),
+    })
+    expect(() => parseProject(oversizedMarkers)).toThrow('project.markers')
+
+    const oversizedPanels = JSON.stringify({
+      ...project,
+      cytometerPanels: Object.fromEntries(
+        Array.from({ length: PROJECT_RESOURCE_LIMITS.maxCytometerPanels + 1 }, (_, index) => [
+          `cytometer-${index}`,
+          { configuration: 'full', slots: [], markers: {}, wizard: null },
+        ]),
+      ),
+    })
+    expect(() => parseProject(oversizedPanels)).toThrow('project.cytometerPanels')
+  })
+
+  test('rejects oversized wizard collections and project text before rendering', () => {
+    const oversizedWizard = JSON.stringify({
+      ...project,
+      wizard: {
+        ...wizard,
+        markers: Array.from({ length: PROJECT_RESOURCE_LIMITS.maxWizardMarkers + 1 }, () => wizard.markers[0]),
+      },
+    })
+    expect(() => parseProject(oversizedWizard)).toThrow('project.wizard.markers')
+
+    const oversizedText = JSON.stringify({
+      padding: Array.from({ length: 1000 }, () => 'x'.repeat(7000)),
+    })
+    expect(() => parseProject(oversizedText)).toThrow(ProjectResourceLimitError)
   })
 
   test('drops malformed wizard and cytometer-panel records while preserving valid defaults', () => {

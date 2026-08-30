@@ -456,7 +456,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
         <div className="complexity-badge">{complexityLabel}: {formatMetric(payload.complexity_index)}</div>
     </div>
 
-    {error && <div className="error-state">{error}</div>}
+    {error && <div className="error-state" role="alert">{error}</div>}
 
     <section className="tab-content" ref={tabContentRef}>
         {tab === 'panel' && (

@@ -4,6 +4,7 @@ import {
   openTextFile,
   projectJsonFilename,
   projectNameFromFilename,
+  readTextFileWithinLimit,
   saveBlob,
 } from '../src/browserFiles'
 import { createRefreshSequence } from '../src/refreshSequence'
@@ -24,6 +25,15 @@ const fileOptions = {
 }
 
 describe('browser file helpers', () => {
+  test('rejects declared and actual files above the read limit', async () => {
+    const declaredTooLarge = { size: 11, text: vi.fn(async () => 'small') } as unknown as File
+    await expect(readTextFileWithinLimit(declaredTooLarge, 10, 'OpenPanel project')).rejects.toThrow('too large')
+
+    const actualTooLarge = { size: 0, text: vi.fn(async () => '0123456789a') } as unknown as File
+    await expect(readTextFileWithinLimit(actualTooLarge, 10, 'OpenPanel project')).rejects.toThrow('too large')
+    expect(actualTooLarge.text).toHaveBeenCalledTimes(1)
+  })
+
   test('sanitizes project filenames and recovers project names', () => {
     expect(projectJsonFilename('  Panel:/one?  ')).toBe('Panel__one__OpenPanel.json')
     expect(projectJsonFilename('\u0000   ')).toBe('Untitled panel_OpenPanel.json')

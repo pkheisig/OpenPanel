@@ -8,7 +8,7 @@ import { ModuleLoadingState } from './ModuleLoadingState';
 import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
-import { openTextFile, projectJsonFilename, saveBlob } from './browserFiles';
+import { openTextFile, projectJsonFilename, readTextFileWithinLimit, saveBlob } from './browserFiles';
 import { writeLocalStorage } from './browserStorage';
 import { buildPanelPayload } from './spectralEngine';
 import {
@@ -16,6 +16,7 @@ import {
     DEFAULT_PLOT_SCALE,
     MAX_PLOT_SCALE,
     MIN_PLOT_SCALE,
+    PROJECT_RESOURCE_LIMITS,
     saveActiveProject,
     savePanelProject,
     serializeProject,
@@ -32,6 +33,7 @@ import {
     laserOrder,
     mapDetectorToEmission,
     unique,
+    validatePanelFluorophores,
 } from './panelBuilderShared';
 import { createRefreshSequence } from './refreshSequence';
 import { readThemePreference, saveThemePreference } from './themePreference';
@@ -584,19 +586,21 @@ const PanelBuilder = ({
         nextCytometer: string,
         nextConfiguration: string,
         nextSelected: string[],
-    ) => buildPanelPayload(nextCytometer, nextConfiguration, nextSelected), []);
+        rejectInvalidRequested = false,
+    ) => buildPanelPayload(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested), []);
 
     const fetchPanel = async (
         nextCytometer: string,
         nextConfiguration: string,
         nextSelected: string[],
         showLoading = false,
+        rejectInvalidRequested = false,
     ): Promise<PanelPayload | null> => {
         const requestSequence = panelRequestSequenceRef.current.begin();
         setError('');
         if (showLoading) setLoading(true);
         try {
-            const nextPayload = await requestPanel(nextCytometer, nextConfiguration, nextSelected);
+            const nextPayload = await requestPanel(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested);
             if (!nextPayload) return null;
             if (!panelRequestSequenceRef.current.isCurrent(requestSequence)) return null;
             setPayload(nextPayload);
@@ -1013,16 +1017,23 @@ const PanelBuilder = ({
         setError('');
         setImporting(true);
         try {
-            const text = await file.text();
+            const text = await readTextFileWithinLimit(
+                file,
+                PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
+                'Panel CSV',
+            );
             const imported = detectImportedPanelRows(text, payload.fluorophores);
-            if (imported.length > payload.max_panel_size) {
-                throw new Error(`The imported panel contains ${imported.length} colors, but this configuration supports at most ${payload.max_panel_size} colors (${payload.max_panel_size} detectors).`);
+            if (imported.rows.length > payload.max_panel_size) {
+                throw new Error(`The imported panel contains ${imported.rows.length} colors, but this configuration supports at most ${payload.max_panel_size} colors (${payload.max_panel_size} detectors).`);
             }
+            const nextFluorophores = imported.rows.map(row => row.fluor);
+            const nextPayload = await fetchPanel(cytometer, configuration, nextFluorophores, false, true);
+            if (!nextPayload) return;
             recordPanelEdit();
-            const nextSlots = imported.map(row => row.fluor);
+            const nextSlots = nextFluorophores;
             while (nextSlots.length < emptySlots) nextSlots.push('');
             const nextMarkers: Record<number, string> = {};
-            imported.forEach((row, index) => {
+            imported.rows.forEach((row, index) => {
                 if (row.marker) nextMarkers[index] = row.marker;
             });
             slotsRef.current = nextSlots;
@@ -1035,7 +1046,6 @@ const PanelBuilder = ({
             writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
             setQueries({});
             setActiveSlot(null);
-            await fetchPanel(cytometer, configuration, imported.map(row => row.fluor));
         } catch (err) {
             setError(panelErrorMessage(err, 'Could not import panel CSV.'));
         } finally {
@@ -1069,17 +1079,27 @@ const PanelBuilder = ({
         setError('');
         setImporting(true);
         try {
-            const state = parseProject(await file.text());
+            const state = parseProject(await readTextFileWithinLimit(
+                file,
+                PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
+                'OpenPanel project',
+            ));
             const nextPayload = await fetchPanel(
                 state.cytometer,
                 state.configuration,
                 state.slots.filter(Boolean),
                 true,
+                true,
             );
             if (!nextPayload) return;
-            clearPanelHistory();
-            const available = new Set(nextPayload.fluorophores.map((item) => item.fluorophore));
-            const nextSlots = state.slots.map((fluorophore) => available.has(fluorophore) ? fluorophore : '');
+            const fluorophoreValidation = validatePanelFluorophores(state.slots, nextPayload.fluorophores);
+            if (fluorophoreValidation.diagnostics.length > 0) {
+                const details = fluorophoreValidation.diagnostics.map((diagnostic) => (
+                    `"${diagnostic.requested}": ${diagnostic.reason}`
+                )).join('; ');
+                throw new Error(`OpenPanel project import rejected ${fluorophoreValidation.diagnostics.length} fluorophore(s): ${details}`);
+            }
+            const nextSlots = [...state.slots];
             const nextColorCount = new Set(nextSlots.filter(Boolean)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
@@ -1087,6 +1107,7 @@ const PanelBuilder = ({
             const nextMarkers = Object.fromEntries(
                 Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
             ) as Record<number, string>;
+            clearPanelHistory();
             slotsRef.current = nextSlots;
             markersRef.current = nextMarkers;
             wizardStateRef.current = state.wizard;

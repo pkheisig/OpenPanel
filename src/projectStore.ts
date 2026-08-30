@@ -21,6 +21,28 @@ export const DEFAULT_PLOT_SCALE = 80
 export const MIN_PLOT_SCALE = 40
 export const MAX_PLOT_SCALE = 180
 
+export const PROJECT_RESOURCE_LIMITS = {
+  maxProjectFileBytes: 5 * 1024 * 1024,
+  maxStringLength: 8192,
+  maxArrayItems: 4096,
+  maxObjectEntries: 4096,
+  maxResourceNodes: 100000,
+  maxSlots: 256,
+  maxMarkers: 256,
+  maxCytometerPanels: 64,
+  maxWizardMarkers: 256,
+  maxCoexpressionEntries: 16384,
+  maxWizardResultRows: 512,
+  maxWizardAlternatives: 512,
+} as const
+
+export class ProjectResourceLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProjectResourceLimitError'
+  }
+}
+
 export type CytometerPanelState = {
   configuration: string
   slots: string[]
@@ -88,10 +110,109 @@ function isAntigenDensity(value: unknown): value is AntigenDensity {
   return value === 'low' || value === 'medium' || value === 'high'
 }
 
+function utf8ByteLength(text: string): number {
+  return typeof TextEncoder === 'undefined' ? text.length : new TextEncoder().encode(text).byteLength
+}
+
+export function assertProjectTextWithinLimit(text: string): void {
+  if (utf8ByteLength(text) > PROJECT_RESOURCE_LIMITS.maxProjectFileBytes) {
+    throw new ProjectResourceLimitError(
+      `OpenPanel project is too large. Maximum size is ${PROJECT_RESOURCE_LIMITS.maxProjectFileBytes / (1024 * 1024)} MB.`,
+    )
+  }
+}
+
+type ResourceTraversalState = { nodes: number }
+
+function assertProjectResourceTree(
+  value: unknown,
+  path = 'project',
+  seen = new WeakSet<object>(),
+  traversal: ResourceTraversalState = { nodes: 0 },
+): void {
+  traversal.nodes += 1
+  if (traversal.nodes > PROJECT_RESOURCE_LIMITS.maxResourceNodes) {
+    throw new ProjectResourceLimitError(`OpenPanel project contains too many nested values near ${path}.`)
+  }
+  if (typeof value === 'string') {
+    if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
+      throw new ProjectResourceLimitError(`${path} exceeds the maximum string length.`)
+    }
+    return
+  }
+  if (!value || typeof value !== 'object') return
+  if (seen.has(value)) return
+  seen.add(value)
+  if (Array.isArray(value)) {
+    if (value.length > PROJECT_RESOURCE_LIMITS.maxArrayItems) {
+      throw new ProjectResourceLimitError(`${path} contains too many items.`)
+    }
+    value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, seen, traversal))
+    return
+  }
+  const record = value as Record<string, unknown>
+  const entries = Object.entries(record)
+  if (entries.length > PROJECT_RESOURCE_LIMITS.maxObjectEntries) {
+    throw new ProjectResourceLimitError(`${path} contains too many entries.`)
+  }
+  entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, seen, traversal))
+}
+
+function assertArrayLimit(value: unknown, limit: number, label: string): void {
+  if (Array.isArray(value) && value.length > limit) {
+    throw new ProjectResourceLimitError(`${label} contains ${value.length} items; maximum is ${limit}.`)
+  }
+}
+
+function assertRecordLimit(value: unknown, limit: number, label: string): void {
+  if (isRecord(value) && Object.keys(value).length > limit) {
+    throw new ProjectResourceLimitError(`${label} contains ${Object.keys(value).length} entries; maximum is ${limit}.`)
+  }
+}
+
+function assertWizardResourceLimits(value: unknown, path: string): void {
+  if (!isRecord(value)) return
+  assertArrayLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxWizardMarkers, `${path}.markers`)
+  assertRecordLimit(value.coexpression, PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries, `${path}.coexpression`)
+  const desiredSize = Number(value.desiredSize)
+  if (Number.isFinite(desiredSize) && desiredSize > PROJECT_RESOURCE_LIMITS.maxSlots) {
+    throw new ProjectResourceLimitError(
+      `${path}.desiredSize exceeds the maximum of ${PROJECT_RESOURCE_LIMITS.maxSlots}.`,
+    )
+  }
+  if (!isRecord(value.results)) return
+  for (const [resultName, result] of [['recommended', value.results.recommended], ['bestFit', value.results.bestFit]] as const) {
+    if (!isRecord(result)) continue
+    assertArrayLimit(result.rows, PROJECT_RESOURCE_LIMITS.maxWizardResultRows, `${path}.results.${resultName}.rows`)
+    assertArrayLimit(result.alternatives, PROJECT_RESOURCE_LIMITS.maxWizardAlternatives, `${path}.results.${resultName}.alternatives`)
+  }
+}
+
+function assertPanelStateResourceLimits(value: unknown, path: string): void {
+  if (!isRecord(value)) return
+  assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, `${path}.slots`)
+  assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, `${path}.markers`)
+  assertWizardResourceLimits(value.wizard, `${path}.wizard`)
+}
+
+function assertProjectResourceLimits(value: unknown): void {
+  assertProjectResourceTree(value)
+  if (!isRecord(value)) return
+  assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, 'project.slots')
+  assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, 'project.markers')
+  assertRecordLimit(value.cytometerPanels, PROJECT_RESOURCE_LIMITS.maxCytometerPanels, 'project.cytometerPanels')
+  assertWizardResourceLimits(value.wizard, 'project.wizard')
+  if (isRecord(value.cytometerPanels)) {
+    Object.entries(value.cytometerPanels).forEach(([key, panel]) => assertPanelStateResourceLimits(panel, `project.cytometerPanels.${key}`))
+  }
+}
+
 export function normalizeWizardPanelResult(value: unknown): WizardPanelResult | null {
   if (!isRecord(value)) return null
   if (value.kind !== 'recommended' && value.kind !== 'best-fit') return null
   if (!Array.isArray(value.rows) || !Array.isArray(value.alternatives)) return null
+  assertArrayLimit(value.rows, PROJECT_RESOURCE_LIMITS.maxWizardResultRows, 'wizard result rows')
+  assertArrayLimit(value.alternatives, PROJECT_RESOURCE_LIMITS.maxWizardAlternatives, 'wizard result alternatives')
   const validRows = value.rows.every((row) => (
     isRecord(row)
     && typeof row.markerId === 'string'
@@ -267,6 +388,7 @@ function normalizeCytometerPanel(
 }
 
 export function serializeProject(state: ProjectState): string {
+  assertProjectResourceLimits(state)
   const project: OpenPanelProject = {
     kind: PROJECT_FILE_KIND,
     version: PROJECT_FILE_VERSION,
@@ -278,6 +400,7 @@ export function serializeProject(state: ProjectState): string {
 }
 
 function normalizeState(value: Record<string, unknown>): ProjectState {
+  assertProjectResourceLimits(value)
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
   const theme = scalar(value.theme) === 'dark' ? 'dark' : 'light'
@@ -335,6 +458,7 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
 }
 
 export function parseProject(text: string): ProjectState {
+  assertProjectTextWithinLimit(text)
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -344,6 +468,7 @@ export function parseProject(text: string): ProjectState {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('This project file does not contain an OpenPanel project.')
   }
+  assertProjectResourceLimits(value)
   const record = value as Record<string, unknown>
   if (record.kind !== undefined && record.kind !== PROJECT_FILE_KIND) {
     throw new Error('This JSON file belongs to a different application.')
@@ -373,10 +498,11 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
 }
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
   try {
-    await (await database()).put(PROJECT_STORE, state, ACTIVE_PROJECT_KEY)
+    await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
   } catch {
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(state))
+    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(normalizedState))
   }
 }
 
@@ -391,13 +517,19 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   if (!record.state || typeof record.state !== 'object' || Array.isArray(record.state)) return null
   const createdAt = typeof record.createdAt === 'string' ? record.createdAt : new Date(0).toISOString()
   const updatedAt = typeof record.updatedAt === 'string' ? record.updatedAt : createdAt
+  let state: ProjectState
+  try {
+    state = normalizeState(record.state as Record<string, unknown>)
+  } catch {
+    return null
+  }
   return {
     id: record.id,
     name: normalizePanelName(record.name),
     createdAt,
     updatedAt,
     archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
-    state: normalizeState(record.state as Record<string, unknown>),
+    state,
   }
 }
 

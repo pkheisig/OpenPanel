@@ -28,6 +28,8 @@ import {
   unboxGuiState,
   wavelengthToColor,
   PdfIcon,
+  PanelImportValidationError,
+  validatePanelFluorophores,
 } from '../src/panelBuilderShared'
 import type { DetectorInfo, FluorInfo, NumericRow } from '../src/panelBuilderShared'
 
@@ -115,15 +117,17 @@ describe('panel rendering helpers', () => {
   })
 
   test('detects common delimited panel exports and rejects unusable files', () => {
-    expect(detectImportedPanelRows('Marker,Fluorophore\nCD3,Alexa Fluor 488\nCD19,PE (R-phycoerythrin)', fluorophores)).toEqual([
+    const valid = detectImportedPanelRows('Marker,Fluorophore\nCD3,Alexa Fluor 488\nCD19,PE (R-phycoerythrin)', fluorophores)
+    expect(valid.rows).toEqual([
       { marker: 'CD3', fluor: 'Alexa Fluor 488' },
       { marker: 'CD19', fluor: 'PE (R-phycoerythrin)' },
     ])
-    expect(detectImportedPanelRows('Alexa Fluor 488\nPE', fluorophores)).toEqual([
+    expect(valid.diagnostics.every(diagnostic => diagnostic.status === 'accepted')).toBe(true)
+    expect(detectImportedPanelRows('Alexa Fluor 488\nPE', fluorophores).rows).toEqual([
       { marker: '', fluor: 'Alexa Fluor 488' },
       { marker: '', fluor: 'PE (R-phycoerythrin)' },
     ])
-    expect(detectImportedPanelRows('\uFEFFTarget\tColor\r\nCD3\tAlexa Fluor 488\r\nCD4\tLIVE/DEAD Fixable Near-IR', fluorophores)).toEqual([
+    expect(detectImportedPanelRows('\uFEFFTarget\tColor\r\nCD3\tAlexa Fluor 488\r\nCD4\tLIVE/DEAD Fixable Near-IR', fluorophores).rows).toEqual([
       { marker: 'CD3', fluor: 'Alexa Fluor 488' },
       { marker: 'CD4', fluor: 'LIVE DEAD NIR' },
     ])
@@ -131,27 +135,65 @@ describe('panel rendering helpers', () => {
     expect(() => detectImportedPanelRows('Marker,Fluorophore\nCD3,Unknown', fluorophores)).toThrow('No known fluorophores')
     expect(() => detectImportedPanelRows('Fluorophore\n', fluorophores)).toThrow('No known fluorophores')
     expect(() => detectImportedPanelRows('foo,bar\nbaz,qux', fluorophores)).toThrow('No known fluorophores')
-    expect(detectImportedPanelRows('Fluorophore,Marker\nAlexa Fluor 488', fluorophores)).toEqual([
+    expect(detectImportedPanelRows('Fluorophore,Marker\nAlexa Fluor 488', fluorophores).rows).toEqual([
       { marker: '', fluor: 'Alexa Fluor 488' },
     ])
     expect(() => detectImportedPanelRows('Fluorophore\n;PE', fluorophores)).toThrow('No known fluorophores')
     expect(matchImportedFluor(';Alexa Fluor 488', buildFluorLookup(fluorophores))).toBe('Alexa Fluor 488')
     expect(matchImportedFluor('', buildFluorLookup(fluorophores))).toBe('')
-    expect(detectImportedPanelRows('Fluorophore\nAlexa Fluor 488', fluorophores)).toEqual([
+    expect(detectImportedPanelRows('Fluorophore\nAlexa Fluor 488', fluorophores).rows).toEqual([
       { marker: '', fluor: 'Alexa Fluor 488' },
     ])
-    expect(detectImportedPanelRows('Fluorophore\n\nAlexa Fluor 488', fluorophores)).toEqual([
+    expect(detectImportedPanelRows('Fluorophore\n\nAlexa Fluor 488', fluorophores).rows).toEqual([
       { marker: '', fluor: 'Alexa Fluor 488' },
     ])
-    expect(detectImportedPanelRows('Fluorophore,Marker\nAlexa Fluor 488,', fluorophores)).toEqual([
+    expect(detectImportedPanelRows('Fluorophore,Marker\nAlexa Fluor 488,', fluorophores).rows).toEqual([
       { marker: '', fluor: 'Alexa Fluor 488' },
     ])
-    expect(detectImportedPanelRows('"Fluorophore"\n"PE (R-phycoerythrin)"', fluorophores)).toEqual([
+    expect(detectImportedPanelRows('"Fluorophore"\n"PE (R-phycoerythrin)"', fluorophores).rows).toEqual([
       { marker: '', fluor: 'PE (R-phycoerythrin)' },
     ])
-    expect(detectImportedPanelRows('"Fluorophore","Marker"\n"PE (R-phycoerythrin)","CD""4"', fluorophores)).toEqual([
+    expect(detectImportedPanelRows('"Fluorophore","Marker"\n"PE (R-phycoerythrin)","CD""4"', fluorophores).rows).toEqual([
       { marker: 'CD"4', fluor: 'PE (R-phycoerythrin)' },
     ])
     expect(() => detectImportedPanelRows('Marker,Fluorophore\nCD3,Unknown', [])).toThrow('No known fluorophores')
+  })
+
+  test('reports every rejected panel row without mutating accepted rows', () => {
+    let error: unknown
+    try {
+      detectImportedPanelRows(
+        'Marker,Fluorophore\nCD3,Alexa Fluor 488\nCD4,Unknown dye\nCD8,Alexa Fluor 488',
+        fluorophores,
+      )
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toBeInstanceOf(PanelImportValidationError)
+    expect(error).toMatchObject({
+      rows: [{ marker: 'CD3', fluor: 'Alexa Fluor 488' }],
+      diagnostics: [
+        { sourceRow: 2, status: 'accepted' },
+        { sourceRow: 3, rawFluorophore: 'Unknown dye', status: 'unsupported' },
+        { sourceRow: 4, rawFluorophore: 'Alexa Fluor 488', status: 'duplicate' },
+      ],
+    })
+    expect((error as Error).message).toContain('row 3')
+    expect((error as Error).message).toContain('row 4')
+  })
+
+  test('identifies project fluorophores unavailable to a selected payload', () => {
+    expect(validatePanelFluorophores(
+      ['Alexa Fluor 488', 'Unknown dye', ''],
+      fluorophores,
+    )).toEqual({
+      accepted: ['Alexa Fluor 488'],
+      diagnostics: [{
+        requested: 'Unknown dye',
+        canonicalFluorophore: null,
+        status: 'unrecognized',
+        reason: 'The fluorophore is not available for the selected cytometer configuration.',
+      }],
+    })
   })
 })

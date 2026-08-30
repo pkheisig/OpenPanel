@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   saveBlob: vi.fn(async () => undefined),
   createPanelOverviewPdf: vi.fn(() => new Blob(['pdf'], { type: 'application/pdf' })),
   openTextFile: vi.fn(),
+  readTextFileWithinLimit: vi.fn(async (file: File) => file.text()),
   writeLocalStorage: vi.fn(),
   readThemePreference: vi.fn(() => 'light'),
   saveThemePreference: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
   MIN_PLOT_SCALE: 40,
   MAX_PLOT_SCALE: 180,
+  PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024 },
   saveActiveProject: mocks.saveActiveProject,
   savePanelProject: mocks.savePanelProject,
   serializeProject: mocks.serializeProject,
@@ -33,6 +35,7 @@ vi.mock('../src/projectStore', () => ({
 vi.mock('../src/browserFiles', () => ({
   saveBlob: mocks.saveBlob,
   openTextFile: mocks.openTextFile,
+  readTextFileWithinLimit: mocks.readTextFileWithinLimit,
   projectJsonFilename: (name: string) => `${name || 'Untitled'}_OpenPanel.json`,
 }))
 vi.mock('../src/pdfExport', () => ({ createPanelOverviewPdf: mocks.createPanelOverviewPdf }))
@@ -429,6 +432,17 @@ describe('PanelBuilder', () => {
     mocks.openTextFile.mockResolvedValueOnce(fileWithText('Marker,Fluorophore\nCD3,A\nCD4,B\n'))
     fireEvent.click(screen.getByRole('menuitem', { name: /Import panel/ }))
     await waitFor(() => expect(screen.getByText(/imported panel contains/)).not.toBeNull())
+  })
+
+  test('rejects a project with an unavailable fluorophore without applying partial state', async () => {
+    render(<PanelBuilder initialProject={{ ...project, slots: ['A', ''] }} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['A', 'Unknown dye'], markers: { 0: 'CD3', 1: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText(/OpenPanel project import rejected/)).not.toBeNull())
+    expect(document.body.textContent).toContain('1 color')
   })
 
   test('covers conventional rendering, embedded persistence, no-op actions, and empty exports', async () => {
