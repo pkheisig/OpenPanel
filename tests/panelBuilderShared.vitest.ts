@@ -142,6 +142,7 @@ describe('panel rendering helpers', () => {
     ])
     expect(() => detectImportedPanelRows('', fluorophores)).toThrow('empty')
     expect(() => detectImportedPanelRows('Marker,Fluorophore\nCD3,Unknown', fluorophores)).toThrow('No known fluorophores')
+    expect(() => detectImportedPanelRows('Group,Unknown\nGroup-2,Alexa Fluor 488', fluorophores)).toThrow('row 1')
     expect(() => detectImportedPanelRows('Unknown,CD3\nAlexa Fluor 488,CD4', fluorophores)).toThrow('row 1')
     expect(() => detectImportedPanelRows('Fluorophore\n', fluorophores)).toThrow('No known fluorophores')
     expect(() => detectImportedPanelRows('foo,bar\nbaz,qux', fluorophores)).toThrow('No known fluorophores')

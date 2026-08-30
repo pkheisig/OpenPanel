@@ -213,6 +213,40 @@ describe('App surface restoration and handoff', () => {
     fixtures.project.state = originalState
   })
 
+  test('validates the imported active cytometer panel before canonical replacement', async () => {
+    fixtures.surface = 'landing'
+    const originalState = fixtures.project.state
+    fixtures.project.state = {
+      ...fixtures.project.state,
+      cytometerPanels: {
+        aurora: {
+          configuration: '5l_uv_v_b_yg_r',
+          slots: ['Unknown'],
+          markers: {},
+          wizard: null,
+        },
+      },
+    }
+    vi.mocked(validateRequestedFluorophores)
+      .mockResolvedValueOnce({ accepted: [], diagnostics: [] })
+      .mockResolvedValueOnce({ accepted: [], diagnostics: [] })
+      .mockResolvedValueOnce({
+        accepted: [],
+        diagnostics: [{
+          requested: 'Unknown',
+          canonicalFluorophore: null,
+          status: 'unrecognized',
+          reason: 'Unknown fluorophore.',
+        }],
+      })
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'import blocked' }))
+    await waitFor(() => expect(fixtures.calls.some((call) => call.startsWith('import-error:'))).toBe(true))
+    expect(vi.mocked(createPanelProject)).not.toHaveBeenCalled()
+    fixtures.project.state = originalState
+  })
+
   test('passes configured slots and handles callbacks for the active landing panel', async () => {
     fixtures.restored = fixtures.project
     fixtures.list = [fixtures.project]

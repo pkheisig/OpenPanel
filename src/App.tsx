@@ -188,8 +188,8 @@ export default function App() {
             payload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
           )
           const canonicalCytometerPanels: Record<string, CytometerPanelState> = {}
+          const seenPanelCytometers = new Map<string, string>()
           for (const [panelCytometer, panelState] of Object.entries(state.cytometerPanels)) {
-            if (panelCytometer === state.cytometer) continue
             const panelConfiguration = resolveKnownConfiguration(panelCytometer, panelState.configuration)
             if (!panelConfiguration) {
               throw new Error(`OpenPanel project uses an unsupported configuration '${panelState.configuration}' for '${panelCytometer}'.`)
@@ -208,7 +208,12 @@ export default function App() {
               panelValidation.accepted,
               true,
             )
-            if ((panelPayload.cytometer || panelCytometer) === canonicalCytometer) continue
+            const canonicalPanelCytometer = panelPayload.cytometer || panelCytometer
+            const previousPanelCytometer = seenPanelCytometers.get(canonicalPanelCytometer)
+            if (previousPanelCytometer) {
+              throw new Error(`OpenPanel project contains cytometer panels '${previousPanelCytometer}' and '${panelCytometer}' that both resolve to '${canonicalPanelCytometer}'.`)
+            }
+            seenPanelCytometers.set(canonicalPanelCytometer, panelCytometer)
             if (panelValidation.accepted.length > panelPayload.max_panel_size) {
               throw new Error(`Panel '${panelCytometer}' has ${panelValidation.accepted.length} colors, but its configuration has only ${panelPayload.max_panel_size} detectors.`)
             }
@@ -233,7 +238,8 @@ export default function App() {
               panelSlots,
               panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
             )
-            canonicalCytometerPanels[panelPayload.cytometer || panelCytometer] = {
+            if (canonicalPanelCytometer === canonicalCytometer) continue
+            canonicalCytometerPanels[canonicalPanelCytometer] = {
               ...panelState,
               configuration: panelPayload.configuration || panelConfiguration,
               slots: panelSlots,

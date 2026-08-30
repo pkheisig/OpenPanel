@@ -501,10 +501,15 @@ const parseCsvLikeRows = (text: string) => {
     return parsed[0].rows;
 };
 
-const rowHasHeaderWords = (row: string[]) => row.some(value => {
-    const key = normalizeImportToken(value);
-    return ['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent', 'sample', 'sampleid', 'well', 'wellid', 'id', 'name', 'names', 'group', 'groups', 'channel', 'channels', 'file', 'filename', 'notes', 'conjugate', 'panel', 'panels', 'label', 'labels', 'metadata', 'source'].includes(key);
-});
+const strongHeaderWords = new Set(['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent']);
+const genericHeaderWords = new Set(['sample', 'sampleid', 'well', 'wellid', 'id', 'name', 'names', 'group', 'groups', 'channel', 'channels', 'file', 'filename', 'notes', 'conjugate', 'panel', 'panels', 'label', 'labels', 'metadata', 'source']);
+
+const rowHasHeaderWords = (row: string[]) => {
+    const keys = row.map(normalizeImportToken);
+    const strongCount = keys.filter(key => strongHeaderWords.has(key)).length;
+    const genericCount = keys.filter(key => genericHeaderWords.has(key)).length;
+    return strongCount >= 2 || genericCount >= 2 || (row.length === 1 && strongCount === 1);
+};
 
 const buildFluorLookup = (fluorophores: FluorInfo[]) => {
     const lookup = new Map<string, string>();
