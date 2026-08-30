@@ -160,6 +160,7 @@ function assertProjectResourceTree(
   value: unknown,
   path = 'project',
   ancestors = new WeakSet<object>(),
+  seenObjects = new WeakSet<object>(),
   traversal: ResourceTraversalState = { nodes: 0 },
   depth = 0,
 ): void {
@@ -171,6 +172,8 @@ function assertProjectResourceTree(
     if (ancestors.has(objectValue)) {
       throw new ProjectValidationError(`${path} contains a circular reference.`)
     }
+    if (seenObjects.has(objectValue)) return
+    seenObjects.add(objectValue)
     ancestors.add(objectValue)
   }
   try {
@@ -189,7 +192,7 @@ function assertProjectResourceTree(
       if (value.length > PROJECT_RESOURCE_LIMITS.maxArrayItems) {
         throw new ProjectResourceLimitError(`${path} contains too many items.`)
       }
-      value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, ancestors, traversal, depth + 1))
+      value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, ancestors, seenObjects, traversal, depth + 1))
       return
     }
     const record = value as Record<string, unknown>
@@ -200,7 +203,7 @@ function assertProjectResourceTree(
     if (entries.length > objectLimit) {
       throw new ProjectResourceLimitError(`${path} contains too many entries.`)
     }
-    entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, ancestors, traversal, depth + 1))
+    entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, ancestors, seenObjects, traversal, depth + 1))
   } finally {
     if (objectValue) ancestors.delete(objectValue)
   }
@@ -806,6 +809,7 @@ function recoveryClearedValues(
 
 function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: string): string[] {
   const discarded: string[] = []
+  if (isRecord(value.wizard)) discarded.push('wizard state')
   if (Array.isArray(value.slots)) {
     const cleared = value.slots
       .map((slot, index) => (typeof slot !== 'string' || slot.length > PROJECT_RESOURCE_LIMITS.maxStringLength ? String(index) : null))
@@ -845,6 +849,7 @@ function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: s
         if (summary) discarded.push(summary)
       }
       if (isRecord(panel.markers)) recoveryClearedValues(panel.markers, 'marker values cleared', `${panelKey}.markers`, discarded)
+      if (isRecord(panel.wizard)) discarded.push(`wizard state for '${panelKey}'`)
     })
   }
   return discarded

@@ -357,6 +357,19 @@ describe('OpenPanel project files', () => {
     expect(() => serializeProject(cyclic as ProjectState)).toThrow('circular reference')
   })
 
+  test('does not double-count shared project subtrees during resource validation', () => {
+    const sharedPanel = project.cytometerPanels.aurora
+    const sharedState = {
+      ...project,
+      cytometerPanels: {
+        aurora: sharedPanel,
+        duplicateReference: sharedPanel,
+      },
+    }
+
+    expect(() => serializeProject(sharedState)).not.toThrow()
+  })
+
   test('allows coexpression maps up to their dedicated resource limit', () => {
     const coexpression = Object.fromEntries(
       Array.from({ length: PROJECT_RESOURCE_LIMITS.maxObjectEntries + 1 }, (_, index) => [`pair-${index}`, 2]),

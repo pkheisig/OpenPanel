@@ -335,7 +335,7 @@ describe('IndexedDB fallback error paths', () => {
     localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
 
     await expect(loadPanelProject(rawPanel.id)).resolves.toMatchObject({
-      loadError: 'project.wizard.markers contains 257 items; maximum is 256.',
+      loadError: "project.wizard.markers contains 257 items; maximum is 256. Recovery retained a bounded view and discarded wizard state.",
       state: { slots: ['FITC'], markers: { 0: 'CD3' }, wizard: null },
     })
   })
