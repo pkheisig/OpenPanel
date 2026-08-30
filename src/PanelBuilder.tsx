@@ -405,7 +405,12 @@ async function canonicalizeImportedInactivePanels(
             throw new Error(`OpenPanel project contains cytometer panels '${previousPanelCytometer}' and '${panelCytometer}' that both resolve to '${canonicalPanelCytometer}'.`);
         }
         seenPanelCytometers.set(canonicalPanelCytometer, panelCytometer);
-        if (canonicalPanelCytometer === activeCytometer) continue;
+        if (canonicalPanelCytometer === activeCytometer) {
+            if (panelCytometer !== state.cytometer) {
+                throw new Error(`OpenPanel project contains cytometer panels '${state.cytometer}' and '${panelCytometer}' that both resolve to '${activeCytometer}'.`);
+            }
+            continue;
+        }
         canonicalPanels[canonicalPanelCytometer] = {
             ...panelState,
             configuration: panelPayload.configuration,

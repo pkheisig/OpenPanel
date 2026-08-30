@@ -240,7 +240,12 @@ export default function App() {
               panelSlots,
               panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
             )
-            if (canonicalPanelCytometer === canonicalCytometer) continue
+            if (canonicalPanelCytometer === canonicalCytometer) {
+              if (panelCytometer !== state.cytometer) {
+                throw new Error(`OpenPanel project contains cytometer panels '${state.cytometer}' and '${panelCytometer}' that both resolve to '${canonicalCytometer}'.`)
+              }
+              continue
+            }
             canonicalCytometerPanels[canonicalPanelCytometer] = {
               ...panelState,
               configuration: panelPayload.configuration || panelConfiguration,
