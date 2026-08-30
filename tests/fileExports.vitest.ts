@@ -29,6 +29,10 @@ describe('browser imports and exports', () => {
       payload.fluorophores,
     ).rows).toEqual([{ fluor: 'Alexa Fluor 488', marker: 'CD4' }])
     expect(detectImportedPanelRows(
+      'Sample,Conjugate\nwell-1,Alexa Fluor 488\n',
+      payload.fluorophores,
+    ).rows).toEqual([{ fluor: 'Alexa Fluor 488', marker: 'well-1' }])
+    expect(detectImportedPanelRows(
       'Alexa Fluor 488;CD8\n',
       payload.fluorophores,
     ).rows).toEqual([{ fluor: 'Alexa Fluor 488', marker: 'CD8' }])

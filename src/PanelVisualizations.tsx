@@ -308,7 +308,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
 
     return (
 <main
-    className="main-panel"
+    className={`main-panel${error ? ' has-error' : ''}`}
     style={{
         '--plot-zoom': plotZoom,
         '--spectrum-display-width': spectrumDisplayWidth,

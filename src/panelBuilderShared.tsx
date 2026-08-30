@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- shared panel primitives intentionally colocate the PDF glyph with pure helpers */
 import { mapDetectorToEmission, wavelengthToColor } from './detectorAxis';
-import { canonicalizeFluorophoreName, resolveBundledFluorophoreKey } from './fluorophoreNames';
+import { canonicalizeFluorophoreName, fluorophoreIdentity, resolveBundledFluorophoreKey } from './fluorophoreNames';
 
 const unboxGuiState = (value: unknown): unknown => {
     if (Array.isArray(value)) {
@@ -490,7 +490,7 @@ const parseCsvLikeRows = (text: string) => {
 
 const rowHasHeaderWords = (row: string[]) => row.some(value => {
     const key = normalizeImportToken(value);
-    return ['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent'].includes(key);
+    return ['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent', 'sample', 'sampleid', 'well', 'id', 'notes', 'conjugate'].includes(key);
 });
 
 const buildFluorLookup = (fluorophores: FluorInfo[]) => {
@@ -663,7 +663,8 @@ const validatePanelFluorophores = (
             });
             return;
         }
-        const firstRequested = seen.get(canonical);
+        const identity = fluorophoreIdentity(canonical);
+        const firstRequested = seen.get(identity);
         if (firstRequested) {
             diagnostics.push({
                 requested: requestedFluorophore,
@@ -673,7 +674,7 @@ const validatePanelFluorophores = (
             });
             return;
         }
-        seen.set(canonical, requestedFluorophore);
+        seen.set(identity, requestedFluorophore);
         accepted.push(canonical);
     });
     return { accepted, diagnostics };

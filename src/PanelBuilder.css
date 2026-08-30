@@ -1000,6 +1000,10 @@
   overscroll-behavior: contain;
 }
 
+.main-panel.has-error .tab-content {
+  padding-bottom: calc(min(30vh, 220px) + 48px);
+}
+
 .panel-matrix-wrap,
 .similarity-wrap,
 .signatures-wrap {
