@@ -55,6 +55,18 @@ export class ProjectValidationError extends Error {
   }
 }
 
+function attachRawProjectValue(
+  error: ProjectResourceLimitError | ProjectValidationError,
+  rawValue: Record<string, unknown>,
+): void {
+  Object.defineProperty(error, 'rawValue', {
+    configurable: true,
+    enumerable: false,
+    value: rawValue,
+    writable: true,
+  })
+}
+
 export type CytometerPanelState = {
   configuration: string
   slots: string[]
@@ -145,6 +157,10 @@ function assertProjectResourceTree(
   seen = new WeakSet<object>(),
   traversal: ResourceTraversalState = { nodes: 0 },
 ): void {
+  if (value && typeof value === 'object') {
+    if (seen.has(value)) return
+    seen.add(value)
+  }
   traversal.nodes += 1
   if (traversal.nodes > PROJECT_RESOURCE_LIMITS.maxResourceNodes) {
     throw new ProjectResourceLimitError(`OpenPanel project contains too many nested values near ${path}.`)
@@ -156,8 +172,6 @@ function assertProjectResourceTree(
     return
   }
   if (!value || typeof value !== 'object') return
-  if (seen.has(value)) return
-  seen.add(value)
   if (Array.isArray(value)) {
     if (value.length > PROJECT_RESOURCE_LIMITS.maxArrayItems) {
       throw new ProjectResourceLimitError(`${path} contains too many items.`)
@@ -591,7 +605,7 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
     assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
     return normalized
   } catch (error) {
-    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) error.rawValue = legacyConfig
+    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) attachRawProjectValue(error, legacyConfig)
     throw error
   }
 }
@@ -618,7 +632,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
         }
         return normalized
       } catch (error) {
-        if ((error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) && isRecord(stored)) error.rawValue = stored
+        if ((error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) && isRecord(stored)) attachRawProjectValue(error, stored)
         throw error
       }
     }
