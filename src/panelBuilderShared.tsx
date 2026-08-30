@@ -520,7 +520,10 @@ const rowHasHeaderWords = (row: string[]) => {
     const keys = row.map(normalizeImportToken);
     const strongCount = keys.filter(key => strongHeaderWords.has(key)).length;
     const genericCount = keys.filter(key => genericHeaderWords.has(key)).length;
-    return strongCount >= 2 || genericCount >= 2 || (row.length === 1 && strongCount === 1);
+    return strongCount >= 2
+        || genericCount >= 2
+        || (strongCount >= 1 && genericCount >= 1)
+        || (row.length === 1 && strongCount === 1);
 };
 
 const buildFluorLookup = (fluorophores: FluorInfo[]) => {

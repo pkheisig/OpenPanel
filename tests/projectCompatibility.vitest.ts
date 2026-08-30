@@ -253,6 +253,12 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject(oversizedText)).toThrow(ProjectResourceLimitError)
   })
 
+  test('rejects circular project state before JSON serialization', () => {
+    const cyclic = { ...project, self: undefined } as unknown as Record<string, unknown>
+    cyclic.self = cyclic
+    expect(() => serializeProject(cyclic as ProjectState)).toThrow('circular reference')
+  })
+
   test('allows coexpression maps up to their dedicated resource limit', () => {
     const coexpression = Object.fromEntries(
       Array.from({ length: PROJECT_RESOURCE_LIMITS.maxObjectEntries + 1 }, (_, index) => [`pair-${index}`, 2]),

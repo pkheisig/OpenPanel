@@ -2576,9 +2576,6 @@ export async function buildPanelPayload(
     : uniqueRequested.map(requestedLibraryKey)
   const payloadCacheKey = `${rejectInvalidRequested ? 'strict' : 'lenient'}:${id}:${config}:${JSON.stringify(cacheRequested)}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
-  if (cachedPayload && !rejectInvalidRequested) {
-    return cachedPayload
-  }
   if (rejectInvalidRequested) {
     const validation = validateRequestedFromBase(
       normalizedRequested,

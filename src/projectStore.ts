@@ -159,7 +159,9 @@ function assertProjectResourceTree(
 ): void {
   const objectValue = value !== null && typeof value === 'object' ? value : undefined
   if (objectValue) {
-    if (ancestors.has(objectValue)) return
+    if (ancestors.has(objectValue)) {
+      throw new ProjectValidationError(`${path} contains a circular reference.`)
+    }
     ancestors.add(objectValue)
   }
   try {

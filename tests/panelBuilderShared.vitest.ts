@@ -162,6 +162,9 @@ describe('panel rendering helpers', () => {
     expect(detectImportedPanelRows('Fluorophore,Marker\nAlexa Fluor 488,', fluorophores).rows).toEqual([
       { marker: '', fluor: 'Alexa Fluor 488' },
     ])
+    expect(detectImportedPanelRows('Sample,Fluorophore\nwell-1,Alexa Fluor 488', fluorophores).rows).toEqual([
+      { marker: 'well-1', fluor: 'Alexa Fluor 488' },
+    ])
     expect(detectImportedPanelRows('Fluorophore,Clone\nAlexa Fluor 488,UCHT1', fluorophores).rows).toEqual([
       { marker: 'UCHT1', fluor: 'Alexa Fluor 488' },
     ])
