@@ -71,20 +71,29 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   document.text(`${complexityLabel}: ${payload.complexity_index?.toFixed(2) ?? 'NA'}`, width - 12, 14, { align: 'right' })
   document.setFont('helvetica', 'bold')
   document.setFontSize(8)
-  document.text(
+  const provenanceWidth = width - 24
+  const lineHeight = () => document.getLineHeight() / document.internal.scaleFactor
+  const sourceLines = document.splitTextToSize(
     `${responseProvenance.label} · ${responseProvenance.method} · Source: ${responseProvenance.source}`,
-    12,
-    27,
-    { maxWidth: width - 24 },
+    provenanceWidth,
   )
+  let contentY = 27
+  document.text(sourceLines, 12, contentY)
+  contentY += sourceLines.length * lineHeight() + 1
   document.setFont('helvetica', 'normal')
   document.setFontSize(7)
-  document.text(responseProvenance.limitation, 12, 32, { maxWidth: width - 24 })
+  const limitationLines = document.splitTextToSize(responseProvenance.limitation, provenanceWidth)
+  document.text(limitationLines, 12, contentY)
+  contentY += limitationLines.length * lineHeight() + 1
   if (responseProvenanceWarning) {
     document.setTextColor(180, 40, 30)
-    document.text(`Warning: ${responseProvenanceWarning}`, 12, 37, { maxWidth: width - 24 })
+    const warningLines = document.splitTextToSize(`Warning: ${responseProvenanceWarning}`, provenanceWidth)
+    document.text(warningLines, 12, contentY)
+    contentY += warningLines.length * lineHeight() + 1
     document.setTextColor(0)
   }
+
+  const contentStartY = Math.max(45, contentY)
 
   if (rows.length < 2) {
     document.text(
@@ -94,7 +103,7 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
           ? 'Add at least two fluorophores to calculate pairwise detector-response similarity.'
           : 'Add at least two fluorophores to calculate pairwise spectral similarity.',
       12,
-      45,
+      contentStartY,
     )
     return
   }
@@ -105,7 +114,7 @@ function addSimilarityPage(document: jsPDF, payload: PanelPayload, rows: PanelRe
   const availableWidth = width - 24 - labelWidth
   const cell = Math.min(15, availableWidth / names.length, 120 / names.length)
   const startX = 12 + labelWidth
-  const startY = 45
+  const startY = contentStartY
   const fontSize = Math.max(4, Math.min(8, cell * 0.55))
 
   names.forEach((name, rowIndex) => {

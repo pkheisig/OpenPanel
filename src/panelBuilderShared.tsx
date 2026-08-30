@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- shared panel primitives intentionally colocate the PDF glyph with pure helpers */
 import { mapDetectorToEmission, wavelengthToColor } from './detectorAxis';
 import { canonicalizeFluorophoreName } from './fluorophoreNames';
+import { CYTOMETER_ALIASES } from './cytometerAliases';
 
 const unboxGuiState = (value: unknown): unknown => {
     if (Array.isArray(value)) {
@@ -81,9 +82,9 @@ const responseMatrixProvenance = (
 
 const FULL_SPECTRUM_CYTOMETER_KEYS = ['aurora', 'discover', 'id7000', 'xenith'];
 const CONVENTIONAL_CYTOMETER_KEYS = [
-    'symphony', 'fortessa', 'celesta', 'attunenxt', 'accuri', 'calibur', 'canto', 'lyric',
-    'ze5', 'cytpix', 'quanteon', 'macsquant', 'facsverse', 'lsrii', 'cytoflex', 'navios',
-    'dxflex', 'facsaria',
+    'symphony', 'fortessa', 'celesta', 'attunenxt', 'accuric6plus', 'facscalibur', 'canto', 'lyric',
+    'ze5', 'cytpix', 'quanteon', 'macsquant', 'facsverse', 'lsrii', 'cytoflexlx', 'navios',
+    'dxflex', 'facsariafusion',
 ];
 
 const RESPONSE_LIBRARY_SOURCES: Record<string, string> = {
@@ -98,18 +99,22 @@ const normalizedCytometerKey = (cytometer: string): string => (
     String(cytometer ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
 );
 
-const responseMeasurementModeForCytometer = (cytometer: string): PanelMeasurementMode => {
+const responseCytometerFamily = (cytometer: string): string | undefined => {
     const normalizedCytometer = normalizedCytometerKey(cytometer);
-    if (!normalizedCytometer) return 'spectral';
-    return FULL_SPECTRUM_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
-        ? 'spectral'
-        : 'conventional';
+    const canonical = CYTOMETER_ALIASES[normalizedCytometer];
+    return canonical ? normalizedCytometerKey(canonical) : undefined;
+};
+
+const responseMeasurementModeForCytometer = (cytometer: string): PanelMeasurementMode => {
+    const family = responseCytometerFamily(cytometer);
+    if (!normalizedCytometerKey(cytometer)) return 'spectral';
+    if (!family) return 'conventional';
+    return CONVENTIONAL_CYTOMETER_KEYS.includes(family) ? 'conventional' : 'spectral';
 };
 
 const responseSourceForCytometer = (cytometer: string): string | undefined => {
-    const normalizedCytometer = normalizedCytometerKey(cytometer);
-    const sourceKey = Object.keys(RESPONSE_LIBRARY_SOURCES).find((name) => normalizedCytometer.includes(name));
-    return sourceKey ? RESPONSE_LIBRARY_SOURCES[sourceKey] : undefined;
+    const family = responseCytometerFamily(cytometer);
+    return family ? RESPONSE_LIBRARY_SOURCES[family] : undefined;
 };
 
 const responseProvenanceForCytometer = (
@@ -117,21 +122,29 @@ const responseProvenanceForCytometer = (
     measurementMode: PanelMeasurementMode,
     source?: string,
 ): ResponseMatrixProvenance => {
-    const normalizedCytometer = normalizedCytometerKey(cytometer);
-    if (!normalizedCytometer) {
+    const family = responseCytometerFamily(cytometer);
+    if (!family) {
+        if (normalizedCytometerKey(cytometer)) {
+            // An unrecognized instrument must never inherit measured-response semantics.
+            return responseMatrixProvenance('synthetic_filter_proxy', source ? { source } : {});
+        }
         return responseMatrixProvenance(
             measurementMode === 'spectral' ? 'measured_full_spectrum' : 'synthetic_filter_proxy',
             source ? { source } : {},
         );
     }
-    const provenanceClass: ResponseMatrixProvenanceClass = normalizedCytometer.includes('symphony')
+    const provenanceClass: ResponseMatrixProvenanceClass = family === 'symphony'
         ? 'measured_detector_response'
-        : FULL_SPECTRUM_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+        : FULL_SPECTRUM_CYTOMETER_KEYS.includes(family)
             ? 'measured_full_spectrum'
-        : CONVENTIONAL_CYTOMETER_KEYS.some((name) => normalizedCytometer.includes(name))
+        : CONVENTIONAL_CYTOMETER_KEYS.includes(family)
             ? 'synthetic_filter_proxy'
         : 'synthetic_filter_proxy';
     return responseMatrixProvenance(provenanceClass, source ? { source } : {});
+};
+
+const isKnownCytometerIdentity = (cytometer: string): boolean => {
+    return responseCytometerFamily(cytometer) !== undefined;
 };
 
 const responseProvenanceForMeasurementMode = (measurementMode: PanelMeasurementMode): ResponseMatrixProvenance => (
@@ -167,37 +180,37 @@ const responseProvenanceMatchesPayload = (
     );
     return isResponseMatrixProvenance(provided)
         && provided.class === expected.class
-        && provided.label === expected.label
-        && provided.method === expected.method
         && provided.version === expected.version
-        && provided.source === expected.source
-        && provided.limitation === expected.limitation;
+        && provided.source === expected.source;
 };
 
 const responseProvenanceForPayload = (
     cytometer: string,
     measurementMode: PanelMeasurementMode,
-    provided?: unknown,
+    _provided?: unknown,
 ): ResponseMatrixProvenance => {
+    void _provided;
     const expected = responseProvenanceForCytometer(
         cytometer,
         measurementMode,
         responseSourceForCytometer(cytometer),
     );
-    return responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
-        ? provided
-        : expected;
+    // Display copy is not identity; always render the canonical contract.
+    return { ...expected };
 };
 
 const responseProvenanceWarningForPayload = (
     cytometer: string,
     measurementMode: PanelMeasurementMode,
     provided?: unknown,
-): string | null => (
-    provided === undefined || provided === null || responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
+): string | null => {
+    if (normalizedCytometerKey(cytometer) && !isKnownCytometerIdentity(cytometer)) {
+        return 'The instrument identity was not recognized; a synthetic planning proxy was used conservatively.';
+    }
+    return provided === undefined || provided === null || responseProvenanceMatchesPayload(cytometer, measurementMode, provided)
         ? null
-        : 'Supplied response provenance did not match the selected instrument; the selected instrument contract was used.'
-);
+        : 'Supplied response provenance did not match the selected instrument; the selected instrument contract was used.';
+};
 
 type LibraryInfo = {
     id: string;
