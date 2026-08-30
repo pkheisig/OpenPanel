@@ -216,7 +216,7 @@ export default function App() {
             const panelWizard = alignWizardFluorophores(
               panelState.wizard,
               panelSlots,
-              panelWizardValidation.accepted,
+              panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
             )
             const panelMarkers = Object.fromEntries(
               Object.entries(panelState.markers).filter(([index]) => panelSlots[Number(index)]),
