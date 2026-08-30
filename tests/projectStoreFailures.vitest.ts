@@ -246,6 +246,25 @@ describe('IndexedDB fallback error paths', () => {
     expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('"abc":"CD4"')
   })
 
+  test('rejects non-canonical marker keys before numeric coercion can merge them', async () => {
+    const rawState = { ...state, markers: { 0: 'CD3', ' 0': 'CD4' } }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('invalid marker slot " 0"')
+    await expect(loadLastPanelProject()).resolves.toMatchObject({
+      state: { markers: { 0: 'CD3' } },
+      loadError: 'project.markers contains invalid marker slot " 0". Marker slots must be nonnegative integers.',
+    })
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('" 0":"CD4"')
+  })
+
+  test('rejects excessively nested project data with a resource error', () => {
+    let nested: Record<string, unknown> = {}
+    for (let depth = 0; depth < 2050; depth += 1) nested = { nested }
+
+    expect(() => parseProject(JSON.stringify(nested))).toThrow('maximum nesting depth')
+  })
+
   test('keeps a bounded subset of oversized cytometer panels during recovery', async () => {
     const rawPanel = {
       id: 'many-panels',

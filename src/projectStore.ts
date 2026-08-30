@@ -42,6 +42,8 @@ export const PROJECT_RESOURCE_LIMITS = {
   maxWizardAlternatives: 512,
 } as const
 
+const MAX_PROJECT_NESTING_DEPTH = 2048
+
 export class ProjectResourceLimitError extends Error {
   rawValue?: Record<string, unknown>
 
@@ -159,7 +161,11 @@ function assertProjectResourceTree(
   path = 'project',
   ancestors = new WeakSet<object>(),
   traversal: ResourceTraversalState = { nodes: 0 },
+  depth = 0,
 ): void {
+  if (depth > MAX_PROJECT_NESTING_DEPTH) {
+    throw new ProjectResourceLimitError(`${path} exceeds the maximum nesting depth of ${MAX_PROJECT_NESTING_DEPTH}.`)
+  }
   const objectValue = value !== null && typeof value === 'object' ? value : undefined
   if (objectValue) {
     if (ancestors.has(objectValue)) {
@@ -183,7 +189,7 @@ function assertProjectResourceTree(
       if (value.length > PROJECT_RESOURCE_LIMITS.maxArrayItems) {
         throw new ProjectResourceLimitError(`${path} contains too many items.`)
       }
-      value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, ancestors, traversal))
+      value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, ancestors, traversal, depth + 1))
       return
     }
     const record = value as Record<string, unknown>
@@ -194,7 +200,7 @@ function assertProjectResourceTree(
     if (entries.length > objectLimit) {
       throw new ProjectResourceLimitError(`${path} contains too many entries.`)
     }
-    entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, ancestors, traversal))
+    entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, ancestors, traversal, depth + 1))
   } finally {
     if (objectValue) ancestors.delete(objectValue)
   }
@@ -215,7 +221,7 @@ function assertRecordLimit(value: unknown, limit: number, label: string): void {
 function assertMarkerKeys(value: unknown, path: string): void {
   if (!isRecord(value)) return
   const invalidKey = Object.keys(value)
-    .find((key) => key.trim() === '' || !Number.isInteger(Number(key)) || Number(key) < 0)
+    .find((key) => !/^(0|[1-9]\d*)$/.test(key) || !Number.isSafeInteger(Number(key)))
   if (invalidKey !== undefined) {
     throw new ProjectValidationError(
       `${path} contains invalid marker slot ${JSON.stringify(invalidKey)}. Marker slots must be nonnegative integers.`,
@@ -739,7 +745,7 @@ function recoverStoredProjectState(value: Record<string, unknown>): ProjectState
     if (!isRecord(candidate)) return {}
     return Object.fromEntries(
       Object.entries(candidate)
-        .filter(([key]) => key.trim() !== '' && Number.isInteger(Number(key)) && Number(key) >= 0)
+        .filter(([key]) => /^(0|[1-9]\d*)$/.test(key) && Number.isSafeInteger(Number(key)))
         .slice(0, PROJECT_RESOURCE_LIMITS.maxMarkers)
         .map(([key, marker]) => [
           key,

@@ -227,6 +227,8 @@ describe('panel rendering helpers', () => {
   test('rejects malformed marker slot keys instead of silently dropping them', () => {
     expect(() => assertPanelMarkersWithinCapacity({ '-1': 'CD3' }, 18)).toThrow('invalid marker slot "-1"')
     expect(() => assertPanelMarkersWithinCapacity({ '1.5': 'CD4' }, 18)).toThrow('invalid marker slot "1.5"')
+    expect(() => assertPanelMarkersWithinCapacity({ ' 1': 'CD4' }, 18)).toThrow('invalid marker slot " 1"')
+    expect(() => assertPanelMarkersWithinCapacity({ '01': 'CD4' }, 18)).toThrow('invalid marker slot "01"')
     expect(() => assertPanelMarkersWithinCapacity({ invalid: 'CD8' }, 18)).toThrow('invalid marker slot "invalid"')
   })
 

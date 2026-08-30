@@ -325,7 +325,7 @@ const assertPanelSlotsWithinCapacity = (slots: string[], maxPanelSize: number): 
 
 const assertPanelMarkersWithinCapacity = (markers: Record<number, string>, maxPanelSize: number): void => {
     const invalidKey = Object.keys(markers)
-        .find(key => key.trim() === '' || !Number.isInteger(Number(key)) || Number(key) < 0);
+        .find(key => !/^(0|[1-9]\d*)$/.test(key) || !Number.isSafeInteger(Number(key)));
     if (invalidKey !== undefined) {
         throw new Error(
             `The imported panel contains invalid marker slot ${JSON.stringify(invalidKey)}. Marker slots must be nonnegative integers.`,
