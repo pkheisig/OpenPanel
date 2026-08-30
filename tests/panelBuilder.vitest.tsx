@@ -667,12 +667,38 @@ describe('PanelBuilder', () => {
     await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
     fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
-    await waitFor(() => expect(mocks.alignWizardFluorophores).toHaveBeenCalledWith(wizard, ['B', '']))
+    await waitFor(() => expect(mocks.alignWizardFluorophores).toHaveBeenCalledWith(
+      wizard,
+      ['B', ''],
+      basePayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+    ))
     await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledWith(
       'panel-1',
       'My panel',
       expect.objectContaining({ wizard: alignedWizard }),
     ))
+  })
+
+  test('rejects unsupported wizard fluorophores during project import', async () => {
+    const unsupportedWizard: NonNullable<ProjectState['wizard']> = {
+      desiredSize: 1,
+      markers: [{ id: 'm1', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'Unknown dye' }],
+      coexpression: {},
+      coexpressionVisited: false,
+      coexpressionCompleted: false,
+      inputsChanged: true,
+      activeTab: 'frequency',
+      results: null,
+      resultMode: 'recommended',
+      resultSort: 'recommended',
+    }
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['B', ''], wizard: unsupportedWizard })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={project} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText(/project wizard import rejected/)).not.toBeNull())
   })
 
   test('covers idle preloading, update/clear fallback errors, and null project imports', async () => {

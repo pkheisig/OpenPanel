@@ -1138,7 +1138,21 @@ const PanelBuilder = ({
             const nextSlots = state.slots.map((slot) => (
                 slot.trim() ? fluorophoreValidation.accepted[acceptedIndex++] : ''
             ));
-            const nextWizard = alignWizardFluorophores(state.wizard, nextSlots);
+            const wizardValidation = validatePanelFluorophores(
+                state.wizard?.markers.map((marker) => marker.currentFluorophore).filter(Boolean) ?? [],
+                nextPayload.fluorophores,
+            );
+            if (wizardValidation.diagnostics.length > 0) {
+                const details = wizardValidation.diagnostics.map((diagnostic) => (
+                    `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
+                )).join('; ');
+                throw new Error(`OpenPanel project wizard import rejected ${wizardValidation.diagnostics.length} fluorophore(s): ${details}`);
+            }
+            const nextWizard = alignWizardFluorophores(
+                state.wizard,
+                nextSlots,
+                nextPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+            );
             const nextColorCount = new Set(nextSlots.filter(Boolean).map(fluorophoreIdentity)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));

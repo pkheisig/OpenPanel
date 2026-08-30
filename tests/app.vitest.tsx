@@ -57,6 +57,7 @@ vi.mock('../src/spectralEngine', () => ({
 vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
   PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024 },
+  alignWizardFluorophores: vi.fn((wizard) => wizard),
   archivePanelProject: vi.fn(async (panel) => { fixtures.calls.push('archive'); return panel }),
   createPanelProject: vi.fn(async (name, state) => ({ ...fixtures.project, name, state })),
   deletePanelProject: vi.fn(async () => { fixtures.calls.push('delete') }),

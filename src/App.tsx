@@ -14,6 +14,7 @@ import { assertPanelSlotsWithinCapacity } from './panelBuilderShared'
 import {
   DEFAULT_PLOT_SCALE,
   PROJECT_RESOURCE_LIMITS,
+  alignWizardFluorophores,
   archivePanelProject,
   createPanelProject,
   deletePanelProject,
@@ -151,11 +152,27 @@ export default function App() {
           if (validation.accepted.length > payload.max_panel_size) {
             throw new Error(`This panel has ${validation.accepted.length} colors, but the selected configuration has only ${payload.max_panel_size} detectors.`)
           }
+          const wizardRequested = state.wizard?.markers
+            .map((marker) => marker.currentFluorophore)
+            .filter(Boolean) ?? []
+          const wizardValidation = await validateRequestedFluorophores(
+            state.cytometer,
+            configuration,
+            wizardRequested,
+          )
+          if (wizardValidation.diagnostics.length > 0) {
+            throw new PanelSelectionValidationError(wizardValidation.diagnostics)
+          }
           let acceptedIndex = 0
           const canonicalSlots = state.slots.map((slot) => (
             slot.trim() ? validation.accepted[acceptedIndex++] : ''
           ))
           assertPanelSlotsWithinCapacity(canonicalSlots, payload.max_panel_size)
+          const canonicalWizard = alignWizardFluorophores(
+            state.wizard,
+            canonicalSlots,
+            wizardValidation.accepted,
+          )
           const canonicalMarkers = Object.fromEntries(
             Object.entries(state.markers).filter(([index]) => canonicalSlots[Number(index)]),
           ) as Record<number, string>
@@ -167,13 +184,14 @@ export default function App() {
             cytometerPanels: {
               ...state.cytometerPanels,
               [state.cytometer]: {
-                ...(activeCytometerPanel ?? { configuration, wizard: state.wizard }),
+                ...(activeCytometerPanel ?? { configuration, wizard: canonicalWizard }),
                 configuration,
                 slots: canonicalSlots,
                 markers: canonicalMarkers,
-                wizard: state.wizard,
+                wizard: canonicalWizard,
               },
             },
+            wizard: canonicalWizard,
           }
           const panel = await createPanelProject(
             projectNameFromFilename(file.name),

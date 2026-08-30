@@ -386,10 +386,11 @@ function projectSlotIdentity(value: string): string { return fluorophoreIdentity
 export function alignWizardFluorophores(
   wizard: WizardProjectState | null,
   slots: string[],
+  availableFluorophores = slots,
 ): WizardProjectState | null {
   if (!wizard) return null
   const canonicalByIdentity = new Map(
-    slots.filter(Boolean).map((slot) => [projectSlotIdentity(slot), slot] as const),
+    availableFluorophores.filter(Boolean).map((fluorophore) => [projectSlotIdentity(fluorophore), fluorophore] as const),
   )
   return {
     ...wizard,
