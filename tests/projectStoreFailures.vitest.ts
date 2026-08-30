@@ -184,7 +184,7 @@ describe('IndexedDB fallback error paths', () => {
       name: 'Unreadable',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-      state: { ...state, slots: Array(257).fill('FITC') },
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
     }
     localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
 
@@ -197,7 +197,7 @@ describe('IndexedDB fallback error paths', () => {
   })
 
   test('surfaces an oversized legacy active record as a recoverable panel', async () => {
-    const rawState = { ...state, slots: Array(257).fill('FITC') }
+    const rawState = { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) }
     localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
 
     await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')

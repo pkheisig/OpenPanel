@@ -146,6 +146,21 @@ describe('OpenPanel project files', () => {
     expect(migrated.wizard?.markers[0].currentFluorophore).toBe('LIVE DEAD NIR')
   })
 
+  test('aligns imported wizard fluorophore aliases with canonical panel slots', () => {
+    const imported = {
+      ...project,
+      slots: ['Alexa Fluor 488', '', ''],
+      wizard: {
+        ...wizard,
+        markers: [{ ...wizard.markers[0], currentFluorophore: 'AF488' }],
+      },
+      cytometerPanels: undefined,
+    }
+
+    expect(parseProject(JSON.stringify(imported)).wizard?.markers[0].currentFluorophore)
+      .toBe('Alexa Fluor 488')
+  })
+
   test('migrates former frequency and cell-type marker settings to antigen density', () => {
     const legacy = JSON.parse(serializeProject(project)) as Record<string, unknown>
     legacy.wizard = {

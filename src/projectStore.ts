@@ -370,6 +370,23 @@ function normalizeProjectSlot(value: unknown): string {
 
 function projectSlotIdentity(value: string): string { return fluorophoreIdentity(value) }
 
+function alignWizardFluorophores(
+  wizard: WizardProjectState | null,
+  slots: string[],
+): WizardProjectState | null {
+  if (!wizard) return null
+  const canonicalByIdentity = new Map(
+    slots.filter(Boolean).map((slot) => [projectSlotIdentity(slot), slot] as const),
+  )
+  return {
+    ...wizard,
+    markers: wizard.markers.map((marker) => {
+      const canonical = canonicalByIdentity.get(projectSlotIdentity(marker.currentFluorophore))
+      return canonical ? { ...marker, currentFluorophore: canonical } : marker
+    }),
+  }
+}
+
 function assertNoDuplicateSlots(value: Record<string, unknown>): void {
   const check = (slots: unknown, path: string) => {
     if (!Array.isArray(slots)) return
@@ -396,13 +413,13 @@ function assertNoDuplicateSlots(value: Record<string, unknown>): void {
   }
 }
 
-function normalizeSlots(value: unknown): string[] {
+function normalizeSlots(value: unknown, dedupe = true): string[] {
   if (!Array.isArray(value)) return Array(18).fill('')
   const seen = new Set<string>()
   return value.map((slot) => {
     const fluorophore = normalizeProjectSlot(slot)
     const identity = projectSlotIdentity(fluorophore)
-    if (!fluorophore || seen.has(identity)) return ''
+    if (!fluorophore || (dedupe && seen.has(identity))) return ''
     seen.add(identity)
     return fluorophore
   })
@@ -419,6 +436,7 @@ function normalizeCytometerPanel(
   value: unknown,
   fallbackConfiguration: string,
   cytometer: string,
+  dedupeSlots = true,
 ): CytometerPanelState | null {
   if (!isRecord(value)) return null
   const configuration = scalar(value.configuration)
@@ -430,11 +448,13 @@ function normalizeCytometerPanel(
     configuration: effectiveConfiguration,
     measurement_mode: responseMeasurementModeForCytometer(cytometer),
   }
+  const slots = normalizeSlots(value.slots, dedupeSlots)
+  const wizard = normalizeWizardState(value.wizard, expectedContext)
   return {
     configuration: effectiveConfiguration,
-    slots: normalizeSlots(value.slots),
+    slots,
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard, expectedContext),
+    wizard: alignWizardFluorophores(wizard, slots),
   }
 }
 
@@ -458,7 +478,11 @@ function serializeNormalizedProject(normalizedState: ProjectState): string {
   return `${JSON.stringify(project, null, 2)}\n`
 }
 
-function normalizeState(value: Record<string, unknown>, traverseResourceTree = true): ProjectState {
+function normalizeState(
+  value: Record<string, unknown>,
+  traverseResourceTree = true,
+  dedupeSlots = true,
+): ProjectState {
   assertProjectResourceLimits(value, false, traverseResourceTree)
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
@@ -467,22 +491,24 @@ function normalizeState(value: Record<string, unknown>, traverseResourceTree = t
   const savedConfiguration = scalar(value.configuration)
   const cytometer = typeof savedCytometer === 'string' ? savedCytometer : 'aurora'
   const configuration = typeof savedConfiguration === 'string' ? savedConfiguration : '5l_uv_v_b_yg_r'
+  const legacySlots = normalizeSlots(value.slots, dedupeSlots)
+  const legacyWizard = normalizeWizardState(value.wizard, {
+    cytometer,
+    configuration,
+    measurement_mode: responseMeasurementModeForCytometer(cytometer),
+  })
   const legacyPanel: CytometerPanelState = {
     configuration,
-    slots: normalizeSlots(value.slots),
+    slots: legacySlots,
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard, {
-      cytometer,
-      configuration,
-      measurement_mode: responseMeasurementModeForCytometer(cytometer),
-    }),
+    wizard: alignWizardFluorophores(legacyWizard, legacySlots),
   }
   const rawCytometerPanels = isRecord(value.cytometerPanels) ? value.cytometerPanels : {}
   const cytometerPanels = Object.fromEntries(
     Object.entries(rawCytometerPanels)
       .map(([key, panel]) => [
         key,
-        normalizeCytometerPanel(panel, key === cytometer ? configuration : '', key),
+        normalizeCytometerPanel(panel, key === cytometer ? configuration : '', key, dedupeSlots),
       ] as const)
       .filter((entry): entry is [string, CytometerPanelState] => entry[1] !== null),
   )
@@ -659,7 +685,7 @@ function recoverStoredProjectState(value: Record<string, unknown>): ProjectState
     plotScaleMode: 'fit-width',
     wizard: null,
     cytometerPanels: safeCytometerPanels,
-  })
+  }, true, false)
 }
 
 function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
@@ -672,6 +698,7 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   let state: ProjectState
   let loadError: string | undefined
   try {
+    assertNoDuplicateSlots(record.state as Record<string, unknown>)
     state = normalizeState(record.state as Record<string, unknown>)
     assertProjectTextWithinLimit(serializeNormalizedProject(state))
   } catch (error) {

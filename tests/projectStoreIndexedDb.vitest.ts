@@ -129,13 +129,30 @@ describe('IndexedDB project persistence', () => {
     expect((fakeDb.records.get('active') as ProjectState).slots).toEqual(['FITC', '', ''])
   })
 
+  test('keeps duplicate saved slots visible with a recovery error', async () => {
+    const rawPanel = {
+      id: 'duplicate',
+      name: 'Duplicate',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: ['FITC', 'fit-c'] },
+    }
+    fakeDb.records.set('panel:duplicate', rawPanel)
+
+    await expect(loadPanelProject('duplicate')).resolves.toMatchObject({
+      loadError: 'OpenPanel project contains duplicate fluorophore "fit-c" at project.slots[1] (first used at project.slots[0]).',
+      state: { slots: ['FITC', 'fit-c'] },
+    })
+    expect(fakeDb.records.get('panel:duplicate')).toEqual(rawPanel)
+  })
+
   test('keeps oversized saved panels visible with a recovery error', async () => {
     fakeDb.records.set('panel:oversized', {
       id: 'oversized',
       name: 'Oversized',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-      state: { ...state, slots: Array(257).fill('FITC') },
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
     })
 
     const panels = await listPanelProjects()
@@ -153,7 +170,7 @@ describe('IndexedDB project persistence', () => {
       name: 'Unreadable',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-      state: { ...state, slots: Array(257).fill('FITC') },
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
     }
     fakeDb.records.set('panel:unreadable', rawPanel)
 
@@ -166,7 +183,7 @@ describe('IndexedDB project persistence', () => {
   })
 
   test('surfaces an oversized active record as a recoverable panel', async () => {
-    const rawState = { ...state, slots: Array(257).fill('FITC') }
+    const rawState = { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) }
     fakeDb.records.set('active', rawState)
 
     await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')
