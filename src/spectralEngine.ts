@@ -870,7 +870,7 @@ type PanelConfigurationBase = {
 export type RequestedFluorophoreDiagnostic = {
   requested: string
   canonicalFluorophore: string | null
-  status: 'unrecognized' | 'unavailable'
+  status: 'unrecognized' | 'unavailable' | 'duplicate'
   reason: string
 }
 
@@ -2576,6 +2576,7 @@ function validateRequestedFromBase(
 ): RequestedFluorophoreValidation {
   const accepted: string[] = []
   const diagnostics: RequestedFluorophoreDiagnostic[] = []
+  const seen = new Map<string, string>()
   requestedFluorophores.forEach((requested) => {
     const libraryIndex = base.lookup.get(normalizeToken(requested))
     if (libraryIndex === undefined) {
@@ -2588,6 +2589,16 @@ function validateRequestedFromBase(
       return
     }
     const canonicalFluorophore = library.fluorophores[libraryIndex]
+    if (seen.has(canonicalFluorophore)) {
+      diagnostics.push({
+        requested,
+        canonicalFluorophore,
+        status: 'duplicate',
+        reason: `This fluorophore duplicates "${seen.get(canonicalFluorophore)}".`,
+      })
+      return
+    }
+    seen.set(canonicalFluorophore, requested)
     if (base.retainedSignal[libraryIndex] < 0.02) {
       diagnostics.push({
         requested,
@@ -2612,7 +2623,7 @@ export async function validateRequestedFluorophores(
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
   return validateRequestedFromBase(
-    Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean))),
+    requestedFluorophores.map((value) => value.trim()).filter(Boolean),
     library,
     configurationBase(id, config, library),
   )
@@ -2652,9 +2663,15 @@ export async function buildPanelPayload(
     return cachedPayload
   }
   const base = configurationBase(id, config, library)
-  const validation = validateRequestedFromBase(uniqueRequested, library, base)
-  if (rejectInvalidRequested && validation.diagnostics.length > 0) {
-    throw new PanelSelectionValidationError(validation.diagnostics)
+  if (rejectInvalidRequested) {
+    const validation = validateRequestedFromBase(
+      requestedFluorophores.map((value) => value.trim()).filter(Boolean),
+      library,
+      base,
+    )
+    if (validation.diagnostics.length > 0) {
+      throw new PanelSelectionValidationError(validation.diagnostics)
+    }
   }
   if (cachedPayload) {
     panelPayloadCache.delete(payloadCacheKey)
@@ -2668,7 +2685,7 @@ export async function buildPanelPayload(
     const libraryIndex = base.lookup.get(normalizeToken(requested))
     if (libraryIndex === undefined || base.retainedSignal[libraryIndex] < 0.02) return
     const values = base.normalizedRowsByLibraryIndex.get(libraryIndex)!
-    selectedLabels.push(requested)
+    selectedLabels.push(library.fluorophores[libraryIndex])
     selectedValues.push(values)
   })
 

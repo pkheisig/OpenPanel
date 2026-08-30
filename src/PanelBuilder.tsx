@@ -1097,11 +1097,14 @@ const PanelBuilder = ({
             const fluorophoreValidation = validatePanelFluorophores(state.slots, nextPayload.fluorophores);
             if (fluorophoreValidation.diagnostics.length > 0) {
                 const details = fluorophoreValidation.diagnostics.map((diagnostic) => (
-                    `"${diagnostic.requested}": ${diagnostic.reason}`
+                    `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
                 )).join('; ');
                 throw new Error(`OpenPanel project import rejected ${fluorophoreValidation.diagnostics.length} fluorophore(s): ${details}`);
             }
-            const nextSlots = [...state.slots];
+            let acceptedIndex = 0;
+            const nextSlots = state.slots.map((slot) => (
+                slot.trim() ? fluorophoreValidation.accepted[acceptedIndex++] : ''
+            ));
             const nextColorCount = new Set(nextSlots.filter(Boolean)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));

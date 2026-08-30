@@ -231,6 +231,10 @@ describe('conventional spectral engine defensive paths', () => {
       .rejects.toMatchObject({
         diagnostics: [{ requested: 'Unknown dye', status: 'unrecognized' }],
       })
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'FITC'], true))
+      .rejects.toMatchObject({
+        diagnostics: [{ requested: 'FITC', status: 'duplicate' }],
+      })
   })
 
   test('matches pinned detectors when a bundled detector omits the acquisition suffix', async () => {

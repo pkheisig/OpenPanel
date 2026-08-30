@@ -289,7 +289,7 @@ class PanelImportValidationError extends Error {
 type PanelFluorophoreDiagnostic = {
     requested: string;
     canonicalFluorophore: string | null;
-    status: 'unrecognized' | 'unavailable';
+    status: 'unrecognized' | 'unavailable' | 'duplicate';
     reason: string;
 };
 
@@ -626,8 +626,8 @@ const validatePanelFluorophores = (
     const lookup = buildFluorLookup(fluorophores);
     const accepted: string[] = [];
     const diagnostics: PanelFluorophoreDiagnostic[] = [];
-    requested.filter(Boolean).forEach((value) => {
-        const requestedFluorophore = value.trim();
+    const seen = new Map<string, string>();
+    requested.map(value => value.trim()).filter(Boolean).forEach((requestedFluorophore) => {
         const canonical = matchImportedFluor(requestedFluorophore, lookup);
         if (!canonical) {
             diagnostics.push({
@@ -638,6 +638,17 @@ const validatePanelFluorophores = (
             });
             return;
         }
+        const firstRequested = seen.get(canonical);
+        if (firstRequested) {
+            diagnostics.push({
+                requested: requestedFluorophore,
+                canonicalFluorophore: canonical,
+                status: 'duplicate',
+                reason: `This fluorophore duplicates "${firstRequested}".`,
+            });
+            return;
+        }
+        seen.set(canonical, requestedFluorophore);
         accepted.push(canonical);
     });
     return { accepted, diagnostics };

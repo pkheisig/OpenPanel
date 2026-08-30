@@ -3,6 +3,7 @@ import { LandingPage } from './LandingPage'
 import type { PanelLaunchSelection } from './LandingPage'
 import PanelBuilder from './PanelBuilder'
 import { projectJsonFilename, projectNameFromFilename, readTextFileWithinLimit, saveBlob } from './browserFiles'
+import { PanelSelectionValidationError, validateRequestedFluorophores } from './spectralEngine'
 import { readLocalStorage, writeLocalStorage } from './browserStorage'
 import {
   DEFAULT_PLOT_SCALE,
@@ -101,13 +102,18 @@ export default function App() {
           setShowLanding(false)
         }}
         onImport={async (file) => {
+          const state = parseProject(await readTextFileWithinLimit(
+            file,
+            PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
+            'OpenPanel project',
+          ))
+          const validation = await validateRequestedFluorophores(state.cytometer, state.configuration, state.slots)
+          if (validation.diagnostics.length > 0) {
+            throw new PanelSelectionValidationError(validation.diagnostics)
+          }
           const panel = await createPanelProject(
             projectNameFromFilename(file.name),
-            parseProject(await readTextFileWithinLimit(
-              file,
-              PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
-              'OpenPanel project',
-            )),
+            state,
           )
           await refreshPanels()
           setActivePanel(panel)

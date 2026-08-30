@@ -43,6 +43,11 @@ vi.mock('../src/PanelBuilder', () => ({
   ),
 }))
 
+vi.mock('../src/spectralEngine', () => ({
+  PanelSelectionValidationError: class PanelSelectionValidationError extends Error {},
+  validateRequestedFluorophores: vi.fn(async () => ({ accepted: [], diagnostics: [] })),
+}))
+
 vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
   PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024 },
@@ -76,6 +81,7 @@ vi.mock('../src/themePreference', () => ({ readThemePreference: vi.fn(() => 'lig
 import App from '../src/App'
 import { loadLastPanelProject } from '../src/projectStore'
 import { readTextFileWithinLimit } from '../src/browserFiles'
+import { validateRequestedFluorophores } from '../src/spectralEngine'
 
 afterEach(() => {
   cleanup()
@@ -117,6 +123,11 @@ describe('App surface restoration and handoff', () => {
       expect.objectContaining({ name: 'import.json' }),
       5 * 1024 * 1024,
       'OpenPanel project',
+    )
+    expect(vi.mocked(validateRequestedFluorophores)).toHaveBeenCalledWith(
+      'aurora',
+      '5l_uv_v_b_yg_r',
+      [],
     )
   })
 
