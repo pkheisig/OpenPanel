@@ -21,7 +21,10 @@ const mocks = vi.hoisted(() => ({
 
 let uniqueMarkerCounter = 0
 
-vi.mock('../src/spectralEngine', () => ({ buildPanelPayload: mocks.buildPanelPayload }))
+vi.mock('../src/spectralEngine', () => ({
+  buildPanelPayload: mocks.buildPanelPayload,
+  resolveKnownConfiguration: vi.fn(() => '5l_uv_v_b_yg_r'),
+}))
 vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
   MIN_PLOT_SCALE: 40,
@@ -229,6 +232,25 @@ afterEach(() => {
 })
 
 describe('PanelBuilder', () => {
+  test('does not autosave a recovered panel copy', async () => {
+    const onRequestExit = vi.fn()
+    render(
+      <PanelBuilder
+        initialProject={project}
+        projectId="recovery"
+        initialError="Saved panel needs attention."
+        recoveryMode
+        onRequestExit={onRequestExit}
+      />,
+    )
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    expect(screen.getByText('Saved panel needs attention.')).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open panel library' }))
+    await waitFor(() => expect(onRequestExit).toHaveBeenCalled())
+    expect(mocks.savePanelProject).not.toHaveBeenCalled()
+  })
+
   test('boots and exercises editing, history, resize, file actions, PDF, wizard, and clearing', async () => {
     const onRequestExit = vi.fn()
     render(<PanelBuilder initialProject={project} projectId="panel-1" projectName="My panel" onRequestExit={onRequestExit} />)

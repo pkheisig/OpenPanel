@@ -3,7 +3,12 @@ import { LandingPage } from './LandingPage'
 import type { PanelLaunchSelection } from './LandingPage'
 import PanelBuilder from './PanelBuilder'
 import { projectJsonFilename, projectNameFromFilename, readTextFileWithinLimit, saveBlob } from './browserFiles'
-import { PanelSelectionValidationError, buildPanelPayload, validateRequestedFluorophores } from './spectralEngine'
+import {
+  PanelSelectionValidationError,
+  buildPanelPayload,
+  resolveKnownConfiguration,
+  validateRequestedFluorophores,
+} from './spectralEngine'
 import { readLocalStorage, writeLocalStorage } from './browserStorage'
 import {
   DEFAULT_PLOT_SCALE,
@@ -110,13 +115,17 @@ export default function App() {
             PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
             'OpenPanel project',
           ))
-          const validation = await validateRequestedFluorophores(state.cytometer, state.configuration, state.slots)
+          const configuration = resolveKnownConfiguration(state.cytometer, state.configuration)
+          if (!configuration) {
+            throw new Error(`OpenPanel project uses an unsupported configuration '${state.configuration}'.`)
+          }
+          const validation = await validateRequestedFluorophores(state.cytometer, configuration, state.slots)
           if (validation.diagnostics.length > 0) {
             throw new PanelSelectionValidationError(validation.diagnostics)
           }
           const payload = await buildPanelPayload(
             state.cytometer,
-            state.configuration,
+            configuration,
             state.slots.filter(Boolean),
             true,
           )
@@ -138,8 +147,8 @@ export default function App() {
             cytometerPanels: {
               ...state.cytometerPanels,
               [state.cytometer]: {
-                ...(activePanel ?? { configuration: state.configuration, wizard: state.wizard }),
-                configuration: state.configuration,
+                ...(activePanel ?? { configuration, wizard: state.wizard }),
+                configuration,
                 slots: canonicalSlots,
                 markers: canonicalMarkers,
                 wizard: state.wizard,
@@ -190,8 +199,7 @@ export default function App() {
           await refreshPanels()
         }}
         onOpen={(panel) => {
-          if (panel.loadError) return
-          setActivePanelProject(panel.id)
+          if (!panel.loadError) setActivePanelProject(panel.id)
           setActivePanel(panel)
           rememberSurface('editor')
           setShowLanding(false)
@@ -207,6 +215,7 @@ export default function App() {
       projectName={activePanel.name}
       initialProject={activePanel.state}
       initialError={activePanel.loadError}
+      recoveryMode={Boolean(activePanel.loadError)}
       onRequestExit={async () => {
         rememberSurface('landing')
         setPanels(await listPanelProjects())

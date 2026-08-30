@@ -10,7 +10,7 @@ import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
 import { openTextFile, projectJsonFilename, readTextFileWithinLimit, saveBlob } from './browserFiles';
 import { writeLocalStorage } from './browserStorage';
-import { buildPanelPayload } from './spectralEngine';
+import { buildPanelPayload, resolveKnownConfiguration } from './spectralEngine';
 import { fluorophoreIdentity } from './fluorophoreNames';
 import {
     parseProject,
@@ -56,6 +56,7 @@ type PanelBuilderProps = {
     projectId?: string;
     projectName?: string;
     initialError?: string;
+    recoveryMode?: boolean;
     onRequestExit?: () => void | Promise<void>;
 };
 
@@ -323,6 +324,7 @@ const PanelBuilder = ({
     projectId,
     projectName = 'Untitled panel',
     initialError,
+    recoveryMode = false,
     onRequestExit,
 }: PanelBuilderProps) => {
     const [payload, setPayload] = useState<PanelPayload | null>(null);
@@ -458,6 +460,7 @@ const PanelBuilder = ({
     }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
+        if (recoveryMode) return;
         try {
             if (projectId) {
                 await savePanelProject(projectId, panelName, state);
@@ -469,7 +472,7 @@ const PanelBuilder = ({
             setPersistenceError(panelErrorMessage(persistError, 'Could not save this panel.'));
             throw persistError;
         }
-    }, [panelName, projectId, projectState]);
+    }, [panelName, projectId, projectState, recoveryMode]);
 
     const exitToPanelLibrary = useCallback(async () => {
         await persistProjectState();
@@ -1109,9 +1112,13 @@ const PanelBuilder = ({
                 PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
                 'OpenPanel project',
             ));
+            const configuration = resolveKnownConfiguration(state.cytometer, state.configuration);
+            if (!configuration) {
+                throw new Error(`OpenPanel project uses an unsupported configuration '${state.configuration}'.`);
+            }
             const nextPayload = await fetchPanel(
                 state.cytometer,
-                state.configuration,
+                configuration,
                 state.slots.filter(Boolean),
                 true,
                 true,
@@ -1537,7 +1544,7 @@ const PanelBuilder = ({
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
                     theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
-                    error={error || persistenceError}
+                    error={(recoveryMode ? initialError : error) || error || persistenceError}
                     plotScale={plotScale}
                     onPlotScaleChange={setPlotScale}
                 />

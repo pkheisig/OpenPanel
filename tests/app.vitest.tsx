@@ -46,6 +46,7 @@ vi.mock('../src/PanelBuilder', () => ({
 vi.mock('../src/spectralEngine', () => ({
   PanelSelectionValidationError: class PanelSelectionValidationError extends Error {},
   buildPanelPayload: vi.fn(async () => ({ max_panel_size: 18 })),
+  resolveKnownConfiguration: vi.fn(() => '5l_uv_v_b_yg_r'),
   validateRequestedFluorophores: vi.fn(async () => ({ accepted: [], diagnostics: [] })),
 }))
 

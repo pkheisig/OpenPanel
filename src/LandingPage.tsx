@@ -737,7 +737,6 @@ function ProjectCard({
   onMenu: (x: number, y: number) => void
 }) {
   const colors = panel.state.slots.filter(Boolean).length
-  const recoveryRequired = Boolean(panel.loadError)
   return (
     <article
       className={`panel-library-card ${archived ? 'archived' : ''}`}
@@ -750,7 +749,6 @@ function ProjectCard({
         type="button"
         className="panel-project-preview"
         onClick={onOpen}
-        disabled={recoveryRequired}
         aria-label={`Open ${panel.name}`}
       >
         <ProjectSpectrumPreview panel={panel} />
@@ -763,7 +761,7 @@ function ProjectCard({
         {panel.loadError && <span className="panel-library-error" role="status">Saved panel needs attention: {panel.loadError}</span>}
       </button>
       <div className="panel-library-content">
-        <button type="button" className="panel-project-title" onClick={onOpen} disabled={recoveryRequired}>
+        <button type="button" className="panel-project-title" onClick={onOpen}>
           <strong>{panel.name}</strong>
           <small>{formatUpdatedAt(panel.updatedAt)}</small>
         </button>
