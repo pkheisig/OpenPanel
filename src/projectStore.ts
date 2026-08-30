@@ -77,6 +77,7 @@ export type StoredPanelProject = {
   updatedAt: string
   archivedAt?: string
   state: ProjectState
+  loadError?: string
 }
 
 const DATABASE_NAME = 'openpanel'
@@ -435,6 +436,7 @@ function normalizeCytometerPanel(
 }
 
 export function serializeProject(state: ProjectState): string {
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
   assertProjectResourceLimits(normalizedState)
   const project: OpenPanelProject = {
@@ -576,6 +578,28 @@ function normalizePanelName(name: string): string {
   return name.trim().replace(/\s+/g, ' ') || 'Untitled panel'
 }
 
+function safeStoredProjectState(value: Record<string, unknown>): ProjectState {
+  const safeString = (candidate: unknown, fallback: string): string => (
+    typeof candidate === 'string' && candidate.length <= PROJECT_RESOURCE_LIMITS.maxStringLength
+      ? candidate
+      : fallback
+  )
+  return {
+    cytometer: safeString(scalar(value.cytometer), 'aurora'),
+    configuration: safeString(scalar(value.configuration), '5l_uv_v_b_yg_r'),
+    slots: Array(18).fill(''),
+    markers: {},
+    tab: 'panel',
+    theme: 'light',
+    sidebarWidth: 214,
+    sidebarCollapsed: false,
+    plotScale: DEFAULT_PLOT_SCALE,
+    plotScaleMode: 'fit-width',
+    wizard: null,
+    cytometerPanels: {},
+  }
+}
+
 function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
@@ -584,10 +608,12 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   const createdAt = typeof record.createdAt === 'string' ? record.createdAt : new Date(0).toISOString()
   const updatedAt = typeof record.updatedAt === 'string' ? record.updatedAt : createdAt
   let state: ProjectState
+  let loadError: string | undefined
   try {
     state = normalizeState(record.state as Record<string, unknown>)
-  } catch {
-    return null
+  } catch (error) {
+    state = safeStoredProjectState(record.state as Record<string, unknown>)
+    loadError = error instanceof Error ? error.message : 'Saved panel state could not be restored.'
   }
   return {
     id: record.id,
@@ -596,6 +622,7 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
     updatedAt,
     archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
     state,
+    ...(loadError ? { loadError } : {}),
   }
 }
 

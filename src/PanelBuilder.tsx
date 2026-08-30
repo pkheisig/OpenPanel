@@ -55,6 +55,7 @@ type PanelBuilderProps = {
     initialProject?: ProjectState;
     projectId?: string;
     projectName?: string;
+    initialError?: string;
     onRequestExit?: () => void | Promise<void>;
 };
 
@@ -321,6 +322,7 @@ const PanelBuilder = ({
     initialProject,
     projectId,
     projectName = 'Untitled panel',
+    initialError,
     onRequestExit,
 }: PanelBuilderProps) => {
     const [payload, setPayload] = useState<PanelPayload | null>(null);
@@ -345,7 +347,7 @@ const PanelBuilder = ({
     const [activeSlot, setActiveSlot] = useState<number | null>(null);
     const [tab, setTab] = useState<TabId>(initialProject?.tab ?? 'panel');
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(initialError ?? '');
     const [persistenceError, setPersistenceError] = useState('');
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
@@ -477,9 +479,7 @@ const PanelBuilder = ({
     useEffect(() => {
         if (!guiStateLoaded) return;
         const timer = window.setTimeout(() => {
-            void persistProjectState().catch((persistError) => {
-                setError(panelErrorMessage(persistError, 'Could not save this panel.'));
-            });
+            void persistProjectState().catch(() => undefined);
         }, 500);
         return () => window.clearTimeout(timer);
     }, [guiStateLoaded, persistProjectState]);

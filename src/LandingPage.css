@@ -388,6 +388,23 @@
   border: 0;
 }
 
+.panel-library-error {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  left: 12px;
+  z-index: 2;
+  padding: 6px 8px;
+  color: var(--launch-danger);
+  background: color-mix(in srgb, var(--launch-surface) 92%, var(--launch-danger));
+  border: 1px solid color-mix(in srgb, var(--launch-danger) 45%, var(--launch-border));
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+}
+
 .panel-library-content {
   position: relative;
   display: grid;

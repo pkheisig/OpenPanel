@@ -74,7 +74,7 @@ export default function App() {
       if (cancelled) return
       setActivePanel(restored)
       setPanels(storedPanels)
-      const landing = storedSurface() === 'landing' || restored === null
+      const landing = storedSurface() === 'landing' || restored === null || Boolean(restored?.loadError)
       setShowLanding(landing)
       rememberSurface(landing ? 'landing' : 'editor')
       setLoading(false)
@@ -167,6 +167,7 @@ export default function App() {
       projectId={activePanel.id}
       projectName={activePanel.name}
       initialProject={activePanel.state}
+      initialError={activePanel.loadError}
       onRequestExit={async () => {
         rememberSurface('landing')
         setPanels(await listPanelProjects())

@@ -93,6 +93,24 @@ describe('IndexedDB project persistence', () => {
     expect((fakeDb.records.get('active') as ProjectState).slots).toEqual(['FITC', '', ''])
   })
 
+  test('keeps oversized saved panels visible with a recovery error', async () => {
+    fakeDb.records.set('panel:oversized', {
+      id: 'oversized',
+      name: 'Oversized',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array(257).fill('FITC') },
+    })
+
+    const panels = await listPanelProjects()
+    expect(panels).toHaveLength(1)
+    expect(panels[0]).toMatchObject({
+      id: 'oversized',
+      loadError: 'project.slots contains 257 items; maximum is 256.',
+      state: { slots: Array(18).fill('') },
+    })
+  })
+
   test('keeps active project selection and ignores non-panel records', async () => {
     const panel = await createPanelProject('Active', state)
     fakeDb.records.set('other', { id: 'other', state })

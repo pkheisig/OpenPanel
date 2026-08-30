@@ -758,6 +758,7 @@ function ProjectCard({
         <span className="panel-preview-accessible-summary">
           {cytometer} {configuration}
         </span>
+        {panel.loadError && <span className="panel-library-error" role="status">Saved panel needs attention: {panel.loadError}</span>}
       </button>
       <div className="panel-library-content">
         <button type="button" className="panel-project-title" onClick={onOpen}>
