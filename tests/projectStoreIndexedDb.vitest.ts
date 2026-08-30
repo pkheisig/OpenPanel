@@ -86,6 +86,13 @@ describe('IndexedDB project persistence', () => {
     expect(await renamePanelProject('missing', 'Nope')).toBeNull()
   })
 
+  test('does not rewrite the active record while loading normalized state', async () => {
+    fakeDb.records.set('active', { ...state, tab: 'invalid' })
+
+    await expect(loadActiveProject()).resolves.toMatchObject({ tab: 'panel' })
+    expect(fakeDb.put).not.toHaveBeenCalled()
+  })
+
   test('rejects duplicate fluorophore aliases before database persistence', async () => {
     const duplicateState = { ...state, slots: ['FITC', 'fit-c'] }
 

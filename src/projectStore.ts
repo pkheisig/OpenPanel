@@ -628,13 +628,6 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
         assertNoDuplicateSlots(stored as unknown as Record<string, unknown>)
         const normalized = normalizeState(stored as unknown as Record<string, unknown>)
         assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
-        try {
-          if (JSON.stringify(stored) !== JSON.stringify(normalized)) {
-            await db.put(PROJECT_STORE, normalized, ACTIVE_PROJECT_KEY)
-          }
-        } catch {
-          // A read remains usable even when a best-effort healing write fails.
-        }
         return normalized
       } catch (error) {
         if ((error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) && isRecord(stored)) attachRawProjectValue(error, stored)
