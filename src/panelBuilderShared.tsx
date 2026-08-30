@@ -490,7 +490,7 @@ const parseCsvLikeRows = (text: string) => {
 
 const rowHasHeaderWords = (row: string[]) => row.some(value => {
     const key = normalizeImportToken(value);
-    return ['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent', 'sample', 'sampleid', 'well', 'id', 'notes', 'conjugate'].includes(key);
+    return ['marker', 'markers', 'antigen', 'target', 'targets', 'fluor', 'fluorophore', 'fluorochrome', 'dye', 'tag', 'color', 'colour', 'reagent', 'sample', 'sampleid', 'well', 'wellid', 'id', 'name', 'names', 'group', 'groups', 'channel', 'channels', 'file', 'filename', 'notes', 'conjugate', 'panel', 'panels', 'label', 'labels', 'metadata', 'source'].includes(key);
 });
 
 const buildFluorLookup = (fluorophores: FluorInfo[]) => {
@@ -537,10 +537,7 @@ const detectImportedPanelRows = (
 
     const lookup = buildFluorLookup(fluorophores);
     const firstRow = rows[0].values;
-    const firstRowHasFluor = firstRow.some(value => !!matchImportedFluor(value, lookup));
-    const looksLikeGenericHeader = firstRow.every(value => value.trim().length > 0 && !/\d/.test(value));
-    const hasHeader = rowHasHeaderWords(firstRow)
-        || (!firstRowHasFluor && rows.length > 1 && looksLikeGenericHeader);
+    const hasHeader = rowHasHeaderWords(firstRow);
     const headers = hasHeader ? firstRow.map(normalizeImportToken) : [];
     const dataRows = hasHeader ? rows.slice(1) : rows;
     const maxCols = Math.max(...rows.map(row => row.values.length));

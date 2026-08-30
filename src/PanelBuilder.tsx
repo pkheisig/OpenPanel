@@ -1132,7 +1132,9 @@ const PanelBuilder = ({
                 true,
                 false,
             );
-            if (!nextPayload) return;
+            if (!nextPayload) {
+                throw new Error('Panel data could not be loaded for the imported configuration.');
+            }
             const fluorophoreValidation = validatePanelFluorophores(state.slots, nextPayload.fluorophores);
             if (fluorophoreValidation.diagnostics.length > 0) {
                 const details = fluorophoreValidation.diagnostics.map((diagnostic) => (

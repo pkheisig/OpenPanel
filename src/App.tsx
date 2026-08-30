@@ -171,7 +171,7 @@ export default function App() {
           const canonicalWizard = alignWizardFluorophores(
             state.wizard,
             canonicalSlots,
-            wizardValidation.accepted,
+            payload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
           )
           const canonicalCytometerPanels: Record<string, CytometerPanelState> = {}
           for (const [panelCytometer, panelState] of Object.entries(state.cytometerPanels)) {
