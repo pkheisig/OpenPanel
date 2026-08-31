@@ -5,6 +5,22 @@ export type SaveFileOptions = {
   extensions: string[]
 }
 
+export async function readTextFileWithinLimit(
+  file: File,
+  maxBytes: number,
+  description: string,
+): Promise<string> {
+  const declaredSize = Number(file.size)
+  if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
+    throw new Error(`${description} is too large. Maximum size is ${Math.floor(maxBytes / (1024 * 1024))} MB.`)
+  }
+  const bytes = await file.slice(0, maxBytes + 1).arrayBuffer()
+  if (bytes.byteLength > maxBytes) {
+    throw new Error(`${description} is too large. Maximum size is ${Math.floor(maxBytes / (1024 * 1024))} MB.`)
+  }
+  return new TextDecoder().decode(bytes)
+}
+
 export function projectJsonFilename(projectName: string): string {
   const withoutControlCharacters = Array.from(projectName.trim())
     .filter((character) => (character.codePointAt(0) as number) >= 32)

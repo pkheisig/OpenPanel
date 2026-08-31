@@ -24,7 +24,7 @@ describe('browser storage guards', () => {
     vi.stubGlobal('window', { localStorage: storage })
 
     expect(readLocalStorage('missing')).toBeNull()
-    writeLocalStorage('theme', 'dark')
+    expect(writeLocalStorage('theme', 'dark')).toBe(true)
     expect(readLocalStorage('theme')).toBe('dark')
     removeLocalStorage('theme')
     expect(readLocalStorage('theme')).toBeNull()
@@ -38,14 +38,14 @@ describe('browser storage guards', () => {
     })
 
     expect(readLocalStorage('theme')).toBeNull()
-    expect(() => writeLocalStorage('theme', 'dark')).not.toThrow()
+    expect(writeLocalStorage('theme', 'dark')).toBe(false)
     expect(() => removeLocalStorage('theme')).not.toThrow()
   })
 
   test('handles missing window and per-operation storage failures', () => {
     vi.stubGlobal('window', undefined)
     expect(readLocalStorage('theme')).toBeNull()
-    expect(() => writeLocalStorage('theme', 'dark')).not.toThrow()
+    expect(writeLocalStorage('theme', 'dark')).toBe(false)
     expect(() => removeLocalStorage('theme')).not.toThrow()
 
     vi.stubGlobal('window', {
@@ -56,7 +56,7 @@ describe('browser storage guards', () => {
       },
     })
     expect(readLocalStorage('theme')).toBeNull()
-    expect(() => writeLocalStorage('theme', 'dark')).not.toThrow()
+    expect(writeLocalStorage('theme', 'dark')).toBe(false)
     expect(() => removeLocalStorage('theme')).not.toThrow()
   })
 })

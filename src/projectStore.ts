@@ -1,6 +1,11 @@
 import { openDB } from 'idb'
 import { readLocalStorage, removeLocalStorage, writeLocalStorage } from './browserStorage'
-import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import {
+  canonicalizeFluorophoreName,
+  fluorophoreIdentity,
+  normalizeFluorophoreToken,
+  resolveBundledFluorophoreKey,
+} from './fluorophoreNames'
 import {
   responseMeasurementModeForCytometer,
   responseProvenanceForPayload,
@@ -21,6 +26,53 @@ export const PROJECT_FILE_VERSION = 1
 export const DEFAULT_PLOT_SCALE = 80
 export const MIN_PLOT_SCALE = 40
 export const MAX_PLOT_SCALE = 180
+
+export const PROJECT_RESOURCE_LIMITS = {
+  maxProjectFileBytes: 5 * 1024 * 1024,
+  maxStringLength: 8192,
+  maxArrayItems: 4096,
+  maxObjectEntries: 4096,
+  maxResourceNodes: 100000,
+  maxSlots: 256,
+  maxMarkers: 256,
+  maxCytometerPanels: 64,
+  maxWizardMarkers: 256,
+  maxCoexpressionEntries: 16384,
+  maxWizardResultRows: 512,
+  maxWizardAlternatives: 512,
+} as const
+
+const MAX_PROJECT_NESTING_DEPTH = 256
+
+export class ProjectResourceLimitError extends Error {
+  rawValue?: Record<string, unknown>
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProjectResourceLimitError'
+  }
+}
+
+export class ProjectValidationError extends Error {
+  rawValue?: Record<string, unknown>
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProjectValidationError'
+  }
+}
+
+function attachRawProjectValue(
+  error: ProjectResourceLimitError | ProjectValidationError,
+  rawValue: Record<string, unknown>,
+): void {
+  Object.defineProperty(error, 'rawValue', {
+    configurable: true,
+    enumerable: false,
+    value: rawValue,
+    writable: true,
+  })
+}
 
 export type CytometerPanelState = {
   configuration: string
@@ -56,6 +108,7 @@ export type StoredPanelProject = {
   updatedAt: string
   archivedAt?: string
   state: ProjectState
+  loadError?: string
 }
 
 const DATABASE_NAME = 'openpanel'
@@ -89,10 +142,161 @@ function isAntigenDensity(value: unknown): value is AntigenDensity {
   return value === 'low' || value === 'medium' || value === 'high'
 }
 
+function utf8ByteLength(text: string): number {
+  return typeof TextEncoder === 'undefined' ? new Blob([text]).size : new TextEncoder().encode(text).byteLength
+}
+
+export function assertProjectTextWithinLimit(text: string): void {
+  if (utf8ByteLength(text) > PROJECT_RESOURCE_LIMITS.maxProjectFileBytes) {
+    throw new ProjectResourceLimitError(
+      `OpenPanel project is too large. Maximum size is ${PROJECT_RESOURCE_LIMITS.maxProjectFileBytes / (1024 * 1024)} MB.`,
+    )
+  }
+}
+
+type ResourceTraversalState = { nodes: number }
+
+function assertProjectResourceTree(
+  value: unknown,
+  path = 'project',
+  ancestors = new WeakSet<object>(),
+  seenObjects = new WeakSet<object>(),
+  traversal: ResourceTraversalState = { nodes: 0 },
+  depth = 0,
+): void {
+  if (depth > MAX_PROJECT_NESTING_DEPTH) {
+    throw new ProjectResourceLimitError(`${path} exceeds the maximum nesting depth of ${MAX_PROJECT_NESTING_DEPTH}.`)
+  }
+  const objectValue = value !== null && typeof value === 'object' ? value : undefined
+  if (objectValue) {
+    if (ancestors.has(objectValue)) {
+      throw new ProjectValidationError(`${path} contains a circular reference.`)
+    }
+    if (seenObjects.has(objectValue)) return
+    seenObjects.add(objectValue)
+    ancestors.add(objectValue)
+  }
+  try {
+    traversal.nodes += 1
+    if (traversal.nodes > PROJECT_RESOURCE_LIMITS.maxResourceNodes) {
+      throw new ProjectResourceLimitError(`OpenPanel project contains too many nested values near ${path}.`)
+    }
+    if (typeof value === 'string') {
+      if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
+        throw new ProjectResourceLimitError(`${path} exceeds the maximum string length.`)
+      }
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      if (value.length > PROJECT_RESOURCE_LIMITS.maxArrayItems) {
+        throw new ProjectResourceLimitError(`${path} contains too many items.`)
+      }
+      value.forEach((item, index) => assertProjectResourceTree(item, `${path}[${index}]`, ancestors, seenObjects, traversal, depth + 1))
+      return
+    }
+    const record = value as Record<string, unknown>
+    const entries = Object.entries(record)
+    const objectLimit = path.endsWith('.coexpression')
+      ? PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries
+      : PROJECT_RESOURCE_LIMITS.maxObjectEntries
+    if (entries.length > objectLimit) {
+      throw new ProjectResourceLimitError(`${path} contains too many entries.`)
+    }
+    entries.forEach(([key, item]) => assertProjectResourceTree(item, `${path}.${key}`, ancestors, seenObjects, traversal, depth + 1))
+  } finally {
+    if (objectValue) ancestors.delete(objectValue)
+  }
+}
+
+function assertArrayLimit(value: unknown, limit: number, label: string): void {
+  if (Array.isArray(value) && value.length > limit) {
+    throw new ProjectResourceLimitError(`${label} contains ${value.length} items; maximum is ${limit}.`)
+  }
+}
+
+function assertRecordLimit(value: unknown, limit: number, label: string): void {
+  if (isRecord(value) && Object.keys(value).length > limit) {
+    throw new ProjectResourceLimitError(`${label} contains ${Object.keys(value).length} entries; maximum is ${limit}.`)
+  }
+}
+
+function assertMarkerKeys(value: unknown, path: string): void {
+  if (!isRecord(value)) return
+  const invalidKey = Object.keys(value)
+    .find((key) => !/^(0|[1-9]\d*)$/.test(key) || !Number.isSafeInteger(Number(key)))
+  if (invalidKey !== undefined) {
+    throw new ProjectValidationError(
+      `${path} contains invalid marker slot ${JSON.stringify(invalidKey)}. Marker slots must be nonnegative integers.`,
+    )
+  }
+}
+
+function assertWizardResourceLimits(value: unknown, path: string, rejectOversizedResults = true): void {
+  if (!isRecord(value)) return
+  assertArrayLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxWizardMarkers, `${path}.markers`)
+  assertRecordLimit(value.coexpression, PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries, `${path}.coexpression`)
+  const desiredSize = Number(value.desiredSize)
+  if (Number.isFinite(desiredSize) && desiredSize > PROJECT_RESOURCE_LIMITS.maxSlots) {
+    throw new ProjectResourceLimitError(
+      `${path}.desiredSize exceeds the maximum of ${PROJECT_RESOURCE_LIMITS.maxSlots}.`,
+    )
+  }
+  if (!rejectOversizedResults || !isRecord(value.results)) return
+  for (const [resultName, result] of [['recommended', value.results.recommended], ['bestFit', value.results.bestFit]] as const) {
+    if (!isRecord(result)) continue
+    assertArrayLimit(result.rows, PROJECT_RESOURCE_LIMITS.maxWizardResultRows, `${path}.results.${resultName}.rows`)
+    assertArrayLimit(result.alternatives, PROJECT_RESOURCE_LIMITS.maxWizardAlternatives, `${path}.results.${resultName}.alternatives`)
+  }
+}
+
+function assertPanelStateResourceLimits(
+  value: unknown,
+  path: string,
+  rejectOversizedResults = true,
+  validateMarkerKeys = true,
+): void {
+  if (!isRecord(value)) return
+  assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, `${path}.slots`)
+  assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, `${path}.markers`)
+  if (validateMarkerKeys) assertMarkerKeys(value.markers, `${path}.markers`)
+  assertWizardResourceLimits(value.wizard, `${path}.wizard`, rejectOversizedResults)
+}
+
+function assertProjectResourceLimits(
+  value: unknown,
+  rejectOversizedWizardResults = true,
+  traverseResourceTree = true,
+  validateMarkerKeys = true,
+): void {
+  if (traverseResourceTree) assertProjectResourceTree(value)
+  if (!isRecord(value)) return
+  assertArrayLimit(value.slots, PROJECT_RESOURCE_LIMITS.maxSlots, 'project.slots')
+  assertRecordLimit(value.markers, PROJECT_RESOURCE_LIMITS.maxMarkers, 'project.markers')
+  if (validateMarkerKeys) assertMarkerKeys(value.markers, 'project.markers')
+  assertRecordLimit(value.cytometerPanels, PROJECT_RESOURCE_LIMITS.maxCytometerPanels, 'project.cytometerPanels')
+  assertWizardResourceLimits(value.wizard, 'project.wizard', rejectOversizedWizardResults)
+  if (isRecord(value.cytometerPanels)) {
+    Object.entries(value.cytometerPanels).forEach(([key, panel]) => assertPanelStateResourceLimits(
+      panel,
+      `project.cytometerPanels.${key}`,
+      rejectOversizedWizardResults,
+      validateMarkerKeys,
+    ))
+  }
+}
+
 export function normalizeWizardPanelResult(value: unknown): WizardPanelResult | null {
   if (!isRecord(value)) return null
   if (value.kind !== 'recommended' && value.kind !== 'best-fit') return null
   if (!Array.isArray(value.rows) || !Array.isArray(value.alternatives)) return null
+  try {
+    assertArrayLimit(value.rows, PROJECT_RESOURCE_LIMITS.maxWizardResultRows, 'wizard result rows')
+    assertArrayLimit(value.alternatives, PROJECT_RESOURCE_LIMITS.maxWizardAlternatives, 'wizard result alternatives')
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError) return null
+    throw error
+  }
   const validRows = value.rows.every((row) => (
     isRecord(row)
     && typeof row.markerId === 'string'
@@ -199,7 +403,7 @@ function normalizeWizardState(
     ? rawContext as WizardProjectState['coexpressionContext']
     : undefined
   const rawResults = normalizeWizardResults(value.results, expectedContext)
-  const resultsInvalidated = isRecord(value.results) && rawResults === null
+  const resultsInvalidated = value.resultsInvalidated === true || (isRecord(value.results) && rawResults === null)
   if (import.meta.env.DEV && isRecord(value.results) && rawResults === null) {
     const rawProvenance = isRecord(value.results.response_provenance)
       ? value.results.response_provenance
@@ -235,10 +439,121 @@ function normalizeWizardState(
   }
 }
 
-function normalizeSlots(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.map((slot) => canonicalizeFluorophoreName(String(scalar(slot) ?? '')))
-    : Array(18).fill('')
+function normalizeProjectSlot(value: unknown): string {
+  return canonicalizeFluorophoreName(String(scalar(value) ?? '')).trim()
+}
+
+function projectSlotIdentity(value: string): string { return fluorophoreIdentity(value) }
+
+export function alignWizardFluorophores(
+  wizard: WizardProjectState | null,
+  slots: string[],
+  availableFluorophores = slots,
+  invalidateUnalignedResults = false,
+): WizardProjectState | null {
+  if (!wizard) return null
+  const canonicalByToken = new Map<string, string>()
+  const canonicalByBundledKey = new Map<string, string>()
+  availableFluorophores.filter(Boolean).forEach((fluorophore) => {
+    const canonical = canonicalizeFluorophoreName(fluorophore).trim()
+    const token = normalizeFluorophoreToken(canonical)
+    if (token) canonicalByToken.set(token, fluorophore)
+    const bundledKey = resolveBundledFluorophoreKey(canonical)
+    if (bundledKey && !canonicalByBundledKey.has(bundledKey)) {
+      canonicalByBundledKey.set(bundledKey, fluorophore)
+    }
+  })
+  const resolveCanonical = (value: string): string | undefined => {
+    const requested = canonicalizeFluorophoreName(value).trim()
+    return canonicalByToken.get(normalizeFluorophoreToken(requested))
+      ?? canonicalByBundledKey.get(resolveBundledFluorophoreKey(requested) ?? '')
+  }
+  const alignResult = (result: WizardPanelResult): { result: WizardPanelResult; hasUnalignedFluorophore: boolean } => {
+    let hasUnalignedFluorophore = false
+    const alignValue = (value: string): string => {
+      if (!value.trim()) return value
+      const canonical = resolveCanonical(value)
+      if (!canonical) hasUnalignedFluorophore = true
+      return canonical ?? value
+    }
+    return {
+      result: {
+        ...result,
+        rows: result.rows.map((row) => ({
+          ...row,
+          fluorophore: alignValue(row.fluorophore),
+          ...(typeof row.closestFluorophore === 'string'
+            ? { closestFluorophore: alignValue(row.closestFluorophore) }
+            : {}),
+        })),
+        alternatives: result.alternatives.map((row) => ({
+          ...row,
+          fluorophore: alignValue(row.fluorophore),
+          ...(typeof row.closestFluorophore === 'string'
+            ? { closestFluorophore: alignValue(row.closestFluorophore) }
+            : {}),
+        })),
+      },
+      hasUnalignedFluorophore,
+    }
+  }
+  const alignedResults = wizard.results
+    ? (() => {
+      const recommended = alignResult(wizard.results.recommended)
+      const bestFit = alignResult(wizard.results.bestFit)
+      return invalidateUnalignedResults
+        && (recommended.hasUnalignedFluorophore || bestFit.hasUnalignedFluorophore)
+        ? null
+        : { ...wizard.results, recommended: recommended.result, bestFit: bestFit.result }
+    })()
+    : null
+  return {
+    ...wizard,
+    markers: wizard.markers.map((marker) => {
+      const canonical = resolveCanonical(marker.currentFluorophore)
+      return canonical ? { ...marker, currentFluorophore: canonical } : marker
+    }),
+    results: alignedResults,
+    ...(wizard.results && !alignedResults ? { resultsInvalidated: true } : {}),
+  }
+}
+
+function assertNoDuplicateSlots(value: Record<string, unknown>): void {
+  const check = (slots: unknown, path: string) => {
+    if (!Array.isArray(slots)) return
+    const firstIndexByFluorophore = new Map<string, number>()
+    slots.forEach((slot, index) => {
+      const fluorophore = normalizeProjectSlot(slot)
+      if (!fluorophore) return
+      const identity = projectSlotIdentity(fluorophore)
+      const firstIndex = firstIndexByFluorophore.get(identity)
+      if (firstIndex !== undefined) {
+        throw new ProjectValidationError(
+          `OpenPanel project contains duplicate fluorophore ${JSON.stringify(fluorophore)} at ${path}[${index}] (first used at ${path}[${firstIndex}]).`,
+        )
+      }
+      firstIndexByFluorophore.set(identity, index)
+    })
+  }
+
+  check(value.slots, 'project.slots')
+  if (isRecord(value.cytometerPanels)) {
+    Object.entries(value.cytometerPanels).forEach(([key, panel]) => {
+      if (isRecord(panel)) check(panel.slots, `project.cytometerPanels.${key}.slots`)
+    })
+  }
+}
+
+function normalizeSlots(value: unknown, dedupe = true): string[] {
+  if (!Array.isArray(value)) return Array(18).fill('')
+  const seen = new Set<string>()
+  return value.map((slot) => {
+    const fluorophore = normalizeProjectSlot(slot)
+    const identity = projectSlotIdentity(fluorophore)
+    if (!fluorophore || (dedupe && seen.has(identity))) return ''
+    seen.add(identity)
+    return fluorophore
+  })
 }
 
 function normalizeMarkers(value: unknown): Record<number, string> {
@@ -252,6 +567,7 @@ function normalizeCytometerPanel(
   value: unknown,
   fallbackConfiguration: string,
   cytometer: string,
+  dedupeSlots = true,
 ): CytometerPanelState | null {
   if (!isRecord(value)) return null
   const configuration = scalar(value.configuration)
@@ -263,26 +579,43 @@ function normalizeCytometerPanel(
     configuration: effectiveConfiguration,
     measurement_mode: responseMeasurementModeForCytometer(cytometer),
   }
+  const slots = normalizeSlots(value.slots, dedupeSlots)
+  const wizard = normalizeWizardState(value.wizard, expectedContext)
   return {
     configuration: effectiveConfiguration,
-    slots: normalizeSlots(value.slots),
+    slots,
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard, expectedContext),
+    wizard: alignWizardFluorophores(wizard, slots),
   }
 }
 
 export function serializeProject(state: ProjectState): string {
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  assertProjectResourceLimits(normalizedState)
+  const serialized = serializeNormalizedProject(normalizedState)
+  assertProjectTextWithinLimit(serialized)
+  return serialized
+}
+
+function serializeNormalizedProject(normalizedState: ProjectState): string {
   const project: OpenPanelProject = {
     kind: PROJECT_FILE_KIND,
     version: PROJECT_FILE_VERSION,
     savedAt: new Date().toISOString(),
-    ...state,
-    markers: Object.fromEntries(Object.entries(state.markers).map(([key, value]) => [Number(key), String(value)])),
+    ...normalizedState,
+    markers: Object.fromEntries(Object.entries(normalizedState.markers).map(([key, value]) => [Number(key), String(value)])),
   }
   return `${JSON.stringify(project, null, 2)}\n`
 }
 
-function normalizeState(value: Record<string, unknown>): ProjectState {
+function normalizeState(
+  value: Record<string, unknown>,
+  traverseResourceTree = true,
+  dedupeSlots = true,
+  validateMarkerKeys = true,
+): ProjectState {
+  assertProjectResourceLimits(value, false, traverseResourceTree, validateMarkerKeys)
   const savedTab = scalar(value.tab)
   const tab = savedTab === 'similarity' || savedTab === 'signatures' ? savedTab : 'panel'
   const theme = scalar(value.theme) === 'dark' ? 'dark' : 'light'
@@ -290,22 +623,24 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
   const savedConfiguration = scalar(value.configuration)
   const cytometer = typeof savedCytometer === 'string' ? savedCytometer : 'aurora'
   const configuration = typeof savedConfiguration === 'string' ? savedConfiguration : '5l_uv_v_b_yg_r'
+  const legacySlots = normalizeSlots(value.slots, dedupeSlots)
+  const legacyWizard = normalizeWizardState(value.wizard, {
+    cytometer,
+    configuration,
+    measurement_mode: responseMeasurementModeForCytometer(cytometer),
+  })
   const legacyPanel: CytometerPanelState = {
     configuration,
-    slots: normalizeSlots(value.slots),
+    slots: legacySlots,
     markers: normalizeMarkers(value.markers),
-    wizard: normalizeWizardState(value.wizard, {
-      cytometer,
-      configuration,
-      measurement_mode: responseMeasurementModeForCytometer(cytometer),
-    }),
+    wizard: alignWizardFluorophores(legacyWizard, legacySlots),
   }
   const rawCytometerPanels = isRecord(value.cytometerPanels) ? value.cytometerPanels : {}
   const cytometerPanels = Object.fromEntries(
     Object.entries(rawCytometerPanels)
       .map(([key, panel]) => [
         key,
-        normalizeCytometerPanel(panel, key === cytometer ? configuration : '', key),
+        normalizeCytometerPanel(panel, key === cytometer ? configuration : '', key, dedupeSlots),
       ] as const)
       .filter((entry): entry is [string, CytometerPanelState] => entry[1] !== null),
   )
@@ -339,7 +674,8 @@ function normalizeState(value: Record<string, unknown>): ProjectState {
   }
 }
 
-export function parseProject(text: string): ProjectState {
+function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectState {
+  assertProjectTextWithinLimit(text)
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -359,34 +695,284 @@ export function parseProject(text: string): ProjectState {
   const legacyConfig = record.config && typeof record.config === 'object' && !Array.isArray(record.config)
     ? record.config as Record<string, unknown>
     : record
-  return normalizeState(legacyConfig)
+  try {
+    assertProjectResourceLimits(value, false)
+    if (legacyConfig !== value) assertProjectResourceLimits(legacyConfig, false)
+    if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
+    const normalized = normalizeState(legacyConfig, false)
+    assertProjectResourceLimits(normalized, false)
+    assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
+    return normalized
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) attachRawProjectValue(error, legacyConfig)
+    throw error
+  }
+}
+
+export function parseProject(text: string): ProjectState {
+  return parseProjectText(text, true)
 }
 
 export async function loadActiveProject(): Promise<ProjectState | null> {
   try {
-    const stored = await (await database()).get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
-    if (stored) return normalizeState(stored as unknown as Record<string, unknown>)
-  } catch {
+    const db = await database()
+    const stored = await db.get(PROJECT_STORE, ACTIVE_PROJECT_KEY) as ProjectState | undefined
+    if (stored) {
+      try {
+        assertNoDuplicateSlots(stored as unknown as Record<string, unknown>)
+        const normalized = normalizeState(stored as unknown as Record<string, unknown>)
+        assertProjectTextWithinLimit(serializeNormalizedProject(normalized))
+        return normalized
+      } catch (error) {
+        if ((error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) && isRecord(stored)) attachRawProjectValue(error, stored)
+        throw error
+      }
+    }
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) throw error
     // IndexedDB can be unavailable in hardened/private contexts; migrate from localStorage below.
   }
   try {
     const legacy = readLocalStorage(LEGACY_STORAGE_KEY)
-    return legacy ? parseProject(legacy) : null
-  } catch {
+    return legacy ? parseProjectText(legacy, true) : null
+  } catch (error) {
+    if (error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError) throw error
     return null
   }
 }
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const serializedState = serializeProject(normalizedState)
   try {
-    await (await database()).put(PROJECT_STORE, state, ACTIVE_PROJECT_KEY)
+    await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
   } catch {
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(state))
+    if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
+      throw new Error('OpenPanel active project could not be persisted in local storage.')
+    }
   }
 }
 
 function normalizePanelName(name: string): string {
   return name.trim().replace(/\s+/g, ' ') || 'Untitled panel'
+}
+
+function safeStoredProjectState(value: Record<string, unknown>): ProjectState {
+  const safeString = (candidate: unknown, fallback: string): string => (
+    typeof candidate === 'string' && candidate.length <= PROJECT_RESOURCE_LIMITS.maxStringLength
+      ? candidate
+      : fallback
+  )
+  return {
+    cytometer: safeString(scalar(value.cytometer), 'aurora'),
+    configuration: safeString(scalar(value.configuration), '5l_uv_v_b_yg_r'),
+    slots: Array(18).fill(''),
+    markers: {},
+    tab: 'panel',
+    theme: 'light',
+    sidebarWidth: 214,
+    sidebarCollapsed: false,
+    plotScale: DEFAULT_PLOT_SCALE,
+    plotScaleMode: 'fit-width',
+    wizard: null,
+    cytometerPanels: {},
+  }
+}
+
+type RecoveredProjectState = {
+  state: ProjectState
+  discarded: string[]
+}
+
+function recoveryDiscardSummary(label: string, items: string[]): string | undefined {
+  if (items.length === 0) return undefined
+  const preview = items.slice(0, 5).map((item) => JSON.stringify(item)).join(', ')
+  const suffix = items.length > 5 ? ', ...' : ''
+  return `${label} ${items.length} item(s) [${preview}${suffix}]`
+}
+
+function recoveryClearedValues(
+  value: Record<string, unknown>,
+  label: string,
+  path: string,
+  discarded: string[],
+): void {
+  const summary = recoveryDiscardSummary(
+    label,
+    Object.entries(value)
+      .filter(([, item]) => typeof item !== 'string' || item.length > PROJECT_RESOURCE_LIMITS.maxStringLength)
+      .map(([key]) => `${path}.${key}`),
+  )
+  if (summary) discarded.push(summary)
+}
+
+function recoveryDiscardedItems(value: Record<string, unknown>, safeCytometer: string): string[] {
+  const discarded: string[] = []
+  const recordWizardDrops = (candidate: unknown, label: string): void => {
+    if (!isRecord(candidate)) return
+    if (!Array.isArray(candidate.markers) || candidate.markers.length === 0) {
+      discarded.push(`${label} discarded`)
+    } else if (candidate.markers.length > PROJECT_RESOURCE_LIMITS.maxWizardMarkers) {
+      const summary = recoveryDiscardSummary(
+        `${label} marker entries`,
+        Array.from(
+          { length: candidate.markers.length - PROJECT_RESOURCE_LIMITS.maxWizardMarkers },
+          (_, index) => String(index + PROJECT_RESOURCE_LIMITS.maxWizardMarkers),
+        ),
+      )
+      if (summary) discarded.push(summary)
+    }
+    if (isRecord(candidate.coexpression) && Object.keys(candidate.coexpression).length > PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries) {
+      const summary = recoveryDiscardSummary(
+        `${label} coexpression entries`,
+        Object.keys(candidate.coexpression).slice(PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries),
+      )
+      if (summary) discarded.push(summary)
+    }
+    if (isRecord(candidate.results)) discarded.push(`${label} results`)
+  }
+  recordWizardDrops(value.wizard, 'wizard')
+  if (Array.isArray(value.slots)) {
+    const cleared = value.slots
+      .map((slot, index) => (typeof slot !== 'string' || slot.length > PROJECT_RESOURCE_LIMITS.maxStringLength ? String(index) : null))
+      .filter((entry): entry is string => entry !== null)
+    const clearedSummary = recoveryDiscardSummary('slot values cleared at indices', cleared)
+    if (clearedSummary) discarded.push(clearedSummary)
+    if (value.slots.length > PROJECT_RESOURCE_LIMITS.maxSlots) {
+      const summary = recoveryDiscardSummary(
+        'slots at indices',
+        Array.from({ length: value.slots.length - PROJECT_RESOURCE_LIMITS.maxSlots }, (_, index) => String(index + PROJECT_RESOURCE_LIMITS.maxSlots)),
+      )
+      if (summary) discarded.push(summary)
+    }
+  }
+  if (isRecord(value.markers)) {
+    recoveryClearedValues(value.markers, 'marker values cleared', 'project.markers', discarded)
+    const validKeys = Object.keys(value.markers)
+      .filter((key) => /^(0|[1-9]\d*)$/.test(key) && Number.isSafeInteger(Number(key)))
+    if (validKeys.length > PROJECT_RESOURCE_LIMITS.maxMarkers) {
+      discarded.push(recoveryDiscardSummary('marker slots', validKeys.slice(PROJECT_RESOURCE_LIMITS.maxMarkers)) as string)
+    }
+  }
+  if (isRecord(value.cytometerPanels)) {
+    const panelKeys = Object.keys(value.cytometerPanels).filter((key) => key !== safeCytometer)
+    const retainedPanelLimit = PROJECT_RESOURCE_LIMITS.maxCytometerPanels - 1
+    if (panelKeys.length > retainedPanelLimit) {
+      const summary = recoveryDiscardSummary('cytometer panels', panelKeys.slice(retainedPanelLimit))
+      if (summary) discarded.push(summary)
+    }
+    Object.entries(value.cytometerPanels).forEach(([panelKey, panel]) => {
+      if (!isRecord(panel)) return
+      if (Array.isArray(panel.slots)) {
+        const cleared = panel.slots
+          .map((slot, index) => (typeof slot !== 'string' || slot.length > PROJECT_RESOURCE_LIMITS.maxStringLength ? `${panelKey}.slots[${index}]` : null))
+          .filter((entry): entry is string => entry !== null)
+        const summary = recoveryDiscardSummary('slot values cleared', cleared)
+        if (summary) discarded.push(summary)
+      }
+      if (isRecord(panel.markers)) recoveryClearedValues(panel.markers, 'marker values cleared', `${panelKey}.markers`, discarded)
+      recordWizardDrops(panel.wizard, `wizard state for '${panelKey}'`)
+    })
+  }
+  return discarded
+}
+
+function recoveryLoadError(message: string, discarded: string[]): string {
+  return discarded.length > 0
+    ? `${message} Recovery retained a bounded view and discarded ${discarded.join('; ')}.`
+    : message
+}
+
+function recoverStoredProjectState(value: Record<string, unknown>): RecoveredProjectState {
+  const safeString = (candidate: unknown, fallback: string): string => (
+    typeof candidate === 'string' && candidate.length <= PROJECT_RESOURCE_LIMITS.maxStringLength
+      ? candidate
+      : fallback
+  )
+  const safeSlots = (candidate: unknown): string[] => (
+    Array.isArray(candidate)
+      ? candidate.slice(0, PROJECT_RESOURCE_LIMITS.maxSlots).map((slot) => typeof slot === 'string' && slot.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? slot : '')
+      : Array(18).fill('')
+  )
+  const safeMarkers = (candidate: unknown): Record<string, string> => {
+    if (!isRecord(candidate)) return {}
+    return Object.fromEntries(
+      Object.entries(candidate)
+        .filter(([key]) => /^(0|[1-9]\d*)$/.test(key) && Number.isSafeInteger(Number(key)))
+        .slice(0, PROJECT_RESOURCE_LIMITS.maxMarkers)
+      .map(([key, marker]) => [
+          key,
+          typeof marker === 'string' && marker.length <= PROJECT_RESOURCE_LIMITS.maxStringLength ? marker : '',
+        ]),
+    )
+  }
+  const safeWizard = (candidate: unknown): Record<string, unknown> | null => {
+    if (!isRecord(candidate) || !Array.isArray(candidate.markers)) return null
+    const markers = candidate.markers
+      .slice(0, PROJECT_RESOURCE_LIMITS.maxWizardMarkers)
+      .filter(isRecord)
+      .map((marker, index) => ({
+        id: safeString(scalar(marker.id), `marker-${index}`),
+        slotIndex: Number.isFinite(Number(scalar(marker.slotIndex))) ? Number(scalar(marker.slotIndex)) : index,
+        name: safeString(scalar(marker.name), ''),
+        antigenDensity: isAntigenDensity(marker.antigenDensity)
+          ? marker.antigenDensity
+          : isAntigenDensity(marker.frequency) ? marker.frequency : 'medium',
+        currentFluorophore: safeString(scalar(marker.currentFluorophore), ''),
+      }))
+    if (markers.length === 0) return null
+    const coexpression = isRecord(candidate.coexpression)
+      ? Object.fromEntries(Object.entries(candidate.coexpression).slice(0, PROJECT_RESOURCE_LIMITS.maxCoexpressionEntries))
+      : {}
+    return {
+      desiredSize: candidate.desiredSize,
+      markers,
+      coexpression,
+      coexpressionScale: candidate.coexpressionScale === 5 ? 5 : undefined,
+      coexpressionVisited: candidate.coexpressionVisited === true,
+      coexpressionCompleted: candidate.coexpressionCompleted === true,
+      inputsChanged: candidate.inputsChanged === true,
+      activeTab: candidate.activeTab,
+      results: null,
+      resultsInvalidated: isRecord(candidate.results),
+      resultMode: candidate.resultMode,
+      resultSort: candidate.resultSort,
+    }
+  }
+  const safeCytometer = safeString(value.cytometer, 'aurora')
+  const safeCytometerPanels: Record<string, Record<string, unknown>> = {}
+  if (isRecord(value.cytometerPanels)) {
+    Object.entries(value.cytometerPanels)
+      .filter(([key]) => key !== safeCytometer)
+      .slice(0, PROJECT_RESOURCE_LIMITS.maxCytometerPanels - 1)
+      .forEach(([key, panel]) => {
+      if (!isRecord(panel)) return
+      safeCytometerPanels[key] = {
+        configuration: safeString(panel.configuration, ''),
+        slots: safeSlots(panel.slots),
+        markers: safeMarkers(panel.markers),
+        wizard: safeWizard(panel.wizard),
+      }
+      })
+  }
+  return {
+    state: normalizeState({
+      cytometer: safeCytometer,
+      configuration: safeString(value.configuration, '5l_uv_v_b_yg_r'),
+      slots: safeSlots(value.slots),
+      markers: safeMarkers(value.markers),
+      tab: safeString(value.tab, 'panel'),
+      theme: safeString(value.theme, 'light'),
+      sidebarWidth: 214,
+      sidebarCollapsed: false,
+      plotScale: DEFAULT_PLOT_SCALE,
+      plotScaleMode: 'fit-width',
+      wizard: safeWizard(value.wizard),
+      cytometerPanels: safeCytometerPanels,
+    }, true, false, false),
+    discarded: recoveryDiscardedItems(value, safeCytometer),
+  }
 }
 
 function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
@@ -396,29 +982,64 @@ function normalizeStoredPanel(value: unknown): StoredPanelProject | null {
   if (!record.state || typeof record.state !== 'object' || Array.isArray(record.state)) return null
   const createdAt = typeof record.createdAt === 'string' ? record.createdAt : new Date(0).toISOString()
   const updatedAt = typeof record.updatedAt === 'string' ? record.updatedAt : createdAt
-  return {
+  let state: ProjectState
+  let loadError: string | undefined
+  try {
+    assertNoDuplicateSlots(record.state as Record<string, unknown>)
+    state = normalizeState(record.state as Record<string, unknown>)
+    assertProjectTextWithinLimit(serializeNormalizedProject(state))
+  } catch (error) {
+    try {
+      const recovered = recoverStoredProjectState(record.state as Record<string, unknown>)
+      state = recovered.state
+      loadError = recoveryLoadError(error instanceof Error ? error.message : 'Saved panel state could not be restored.', recovered.discarded)
+    } catch {
+      state = safeStoredProjectState(record.state as Record<string, unknown>)
+    }
+    if (!loadError) loadError = error instanceof Error ? error.message : 'Saved panel state could not be restored.'
+  }
+  const panel: StoredPanelProject = {
     id: record.id,
     name: normalizePanelName(record.name),
     createdAt,
     updatedAt,
     archivedAt: typeof record.archivedAt === 'string' ? record.archivedAt : undefined,
-    state: normalizeState(record.state as Record<string, unknown>),
+    state,
+    ...(loadError ? { loadError } : {}),
   }
+  return panel
 }
 
-function fallbackLibrary(): StoredPanelProject[] {
+function readFallbackRecords(): Record<string, unknown>[] {
   try {
     const parsed = JSON.parse(readLocalStorage(PANEL_LIBRARY_STORAGE_KEY) || '[]')
     return Array.isArray(parsed)
-      ? parsed.map(normalizeStoredPanel).filter((panel): panel is StoredPanelProject => panel !== null)
+      ? parsed.filter(isRecord)
       : []
   } catch {
     return []
   }
 }
 
+function fallbackLibrary(): StoredPanelProject[] {
+  return readFallbackRecords()
+    .map(normalizeStoredPanel)
+    .filter((panel): panel is StoredPanelProject => panel !== null)
+}
+
 function writeFallbackLibrary(panels: StoredPanelProject[]): void {
-  writeLocalStorage(PANEL_LIBRARY_STORAGE_KEY, JSON.stringify(panels))
+  const persistedById = new Map(
+    readFallbackRecords()
+      .filter((record): record is Record<string, unknown> & { id: string } => typeof record.id === 'string')
+      .map((record) => [record.id, record] as const),
+  )
+  const serialized = JSON.stringify(panels.map((panel) => (
+    (panel.loadError ? persistedById.get(panel.id) : undefined)
+    ?? panel
+  )))
+  if (!writeLocalStorage(PANEL_LIBRARY_STORAGE_KEY, serialized)) {
+    throw new Error('OpenPanel panel library could not be persisted in local storage.')
+  }
 }
 
 function createPanelId(): string {
@@ -459,13 +1080,16 @@ export async function createPanelProject(
   name: string,
   state: ProjectState,
 ): Promise<StoredPanelProject> {
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id: createPanelId(),
     name: normalizePanelName(name),
     createdAt: now,
     updatedAt: now,
-    state: normalizeState(state as unknown as Record<string, unknown>),
+    state: normalizedState,
   }
   try {
     const db = await database()
@@ -473,7 +1097,9 @@ export async function createPanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== panel.id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
+    if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
+      throw new Error('OpenPanel active project could not be persisted in local storage.')
+    }
   }
   setActivePanelProject(panel.id)
   return panel
@@ -485,14 +1111,18 @@ export async function savePanelProject(
   state: ProjectState,
 ): Promise<StoredPanelProject> {
   const existing = await loadPanelProject(id)
+  if (existing?.loadError) return existing
+  assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id,
     name: normalizePanelName(name),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     archivedAt: existing?.archivedAt,
-    state: normalizeState(state as unknown as Record<string, unknown>),
+    state: normalizedState,
   }
   try {
     const db = await database()
@@ -500,7 +1130,9 @@ export async function savePanelProject(
     await db.put(PROJECT_STORE, panel.state, ACTIVE_PROJECT_KEY)
   } catch {
     writeFallbackLibrary([panel, ...fallbackLibrary().filter((candidate) => candidate.id !== id)])
-    writeLocalStorage(LEGACY_STORAGE_KEY, serializeProject(panel.state))
+    if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
+      throw new Error('OpenPanel active project could not be persisted in local storage.')
+    }
   }
   setActivePanelProject(id)
   return panel
@@ -525,7 +1157,23 @@ export async function loadLastPanelProject(): Promise<StoredPanelProject | null>
   // Legacy single-state recovery must never resurrect an explicitly archived panel.
   if (panels.length > 0) return null
 
-  const legacy = await loadActiveProject()
+  let legacy: ProjectState | null
+  try {
+    legacy = await loadActiveProject()
+  } catch (error) {
+    if (!(error instanceof ProjectResourceLimitError || error instanceof ProjectValidationError)) return null
+    const recovered = error.rawValue
+      ? recoverStoredProjectState(error.rawValue)
+      : { state: safeStoredProjectState({}), discarded: [] }
+    return {
+      id: ACTIVE_PROJECT_KEY,
+      name: 'Recovered panel',
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      state: recovered.state,
+      loadError: recoveryLoadError(error.message, recovered.discarded),
+    }
+  }
   if (!legacy || !legacy.slots.some(Boolean)) return null
   return createPanelProject('Recovered panel', legacy)
 }
@@ -545,6 +1193,7 @@ export async function renamePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return panel
   return writeStoredPanel({
     ...panel,
     name: normalizePanelName(name),
@@ -557,6 +1206,7 @@ export async function duplicatePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return null
   const now = new Date().toISOString()
   const duplicate: StoredPanelProject = {
     ...panel,
@@ -575,6 +1225,7 @@ export async function archivePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return panel
   const archived = await writeStoredPanel({
     ...panel,
     archivedAt: new Date().toISOString(),
@@ -590,6 +1241,7 @@ export async function restorePanelProject(
 ): Promise<StoredPanelProject | null> {
   const panel = await loadPanelProject(id)
   if (!panel) return null
+  if (panel.loadError) return panel
   const restored = { ...panel }
   delete restored.archivedAt
   return writeStoredPanel({
@@ -599,6 +1251,16 @@ export async function restorePanelProject(
 }
 
 export async function deletePanelProject(id: string): Promise<void> {
+  if (id === ACTIVE_PROJECT_KEY) {
+    try {
+      await (await database()).delete(PROJECT_STORE, ACTIVE_PROJECT_KEY)
+    } catch {
+      // Continue below so deletion clears both storage backends.
+    }
+    removeLocalStorage(LEGACY_STORAGE_KEY)
+    removeLocalStorage(ACTIVE_PANEL_ID_STORAGE_KEY)
+    return
+  }
   try {
     await (await database()).delete(PROJECT_STORE, `${PANEL_KEY_PREFIX}${id}`)
   } catch {

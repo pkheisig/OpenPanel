@@ -22,7 +22,9 @@ vi.mock('../src/LandingPage', () => ({
     <section aria-label="mock landing">
       <button type="button" onClick={() => void props.onStart({ name: 'Started', cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' })}>start</button>
       <button type="button" onClick={() => void props.onStart({ name: 'Configured', cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r', slots: ['FITC'], markers: { 0: 'CD3' } })}>start configured</button>
+      <button type="button" onClick={() => void Promise.resolve(props.onStart({ name: 'Blocked', cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' })).catch((error: Error) => { fixtures.calls.push(`start-error:${error.message}`) })}>start blocked</button>
       <button type="button" onClick={() => void props.onImport({ name: 'import.json', text: async () => '{}' })}>import</button>
+      <button type="button" onClick={() => void Promise.resolve(props.onImport({ name: 'blocked.json', text: async () => '{}' })).catch((error: Error) => { fixtures.calls.push(`import-error:${error.message}`) })}>import blocked</button>
       <button type="button" onClick={() => void props.onExport(fixtures.project)}>export</button>
       <button type="button" onClick={() => void props.onRename(fixtures.project, 'Renamed')}>rename</button>
       <button type="button" onClick={() => void props.onDuplicate(fixtures.project)}>duplicate</button>
@@ -33,6 +35,8 @@ vi.mock('../src/LandingPage', () => ({
       <button type="button" onClick={() => void props.onArchive({ ...fixtures.project, id: 'other-panel' })}>archive other</button>
       <button type="button" onClick={() => void props.onDelete({ ...fixtures.project, id: 'other-panel' })}>delete other</button>
       <button type="button" onClick={() => props.onOpen(fixtures.project)}>open</button>
+      <button type="button" onClick={() => props.onOpen(fixtures.restored ?? fixtures.project)}>open recovery</button>
+      {Array.isArray(props.panels) && (props.panels as Array<{ id: string }>).some((panel) => panel.id === 'active') && <span data-testid="recovery-present" />}
     </section>
   ),
 }))
@@ -43,8 +47,17 @@ vi.mock('../src/PanelBuilder', () => ({
   ),
 }))
 
+vi.mock('../src/spectralEngine', () => ({
+  PanelSelectionValidationError: class PanelSelectionValidationError extends Error {},
+  buildPanelPayload: vi.fn(async () => ({ max_panel_size: 18, fluorophores: [] })),
+  resolveKnownConfiguration: vi.fn(() => '5l_uv_v_b_yg_r'),
+  validateRequestedFluorophores: vi.fn(async () => ({ accepted: [], diagnostics: [] })),
+}))
+
 vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
+  PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024 },
+  alignWizardFluorophores: vi.fn((wizard) => wizard),
   archivePanelProject: vi.fn(async (panel) => { fixtures.calls.push('archive'); return panel }),
   createPanelProject: vi.fn(async (name, state) => ({ ...fixtures.project, name, state })),
   deletePanelProject: vi.fn(async () => { fixtures.calls.push('delete') }),
@@ -61,6 +74,7 @@ vi.mock('../src/projectStore', () => ({
 vi.mock('../src/browserFiles', () => ({
   projectJsonFilename: vi.fn(() => 'panel.json'),
   projectNameFromFilename: vi.fn(() => 'Imported'),
+  readTextFileWithinLimit: vi.fn(async (file: File) => file.text()),
   saveBlob: vi.fn(async () => undefined),
 }))
 
@@ -72,7 +86,9 @@ vi.mock('../src/browserStorage', () => ({
 vi.mock('../src/themePreference', () => ({ readThemePreference: vi.fn(() => 'light') }))
 
 import App from '../src/App'
-import { loadLastPanelProject } from '../src/projectStore'
+import { createPanelProject, loadLastPanelProject } from '../src/projectStore'
+import { readTextFileWithinLimit } from '../src/browserFiles'
+import { validateRequestedFluorophores } from '../src/spectralEngine'
 
 afterEach(() => {
   cleanup()
@@ -110,6 +126,138 @@ describe('App surface restoration and handoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'archive other' }))
     fireEvent.click(screen.getByRole('button', { name: 'delete other' }))
     await waitFor(() => expect(fixtures.calls).toContain('archive'))
+    expect(vi.mocked(readTextFileWithinLimit)).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'import.json' }),
+      5 * 1024 * 1024,
+      'OpenPanel project',
+    )
+    expect(vi.mocked(validateRequestedFluorophores)).toHaveBeenCalledWith(
+      'aurora',
+      '5l_uv_v_b_yg_r',
+      [],
+    )
+  })
+
+  test('keeps a synthetic recovery panel visible after returning to the library', async () => {
+    fixtures.restored = { ...fixtures.project, id: 'active', loadError: 'project is oversized.' }
+    fixtures.surface = 'landing'
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'open recovery' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock editor' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'exit' }))
+    await waitFor(() => expect(screen.getByTestId('recovery-present')).not.toBeNull())
+  })
+
+  test('does not re-add a stale recovery panel after starting a project', async () => {
+    fixtures.restored = { ...fixtures.project, id: 'recovery', loadError: 'project is oversized.' }
+    fixtures.surface = 'landing'
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+
+    fireEvent.click(screen.getByRole('button', { name: 'start' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock editor' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'exit' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    expect(screen.queryByTestId('recovery-present')).toBeNull()
+  })
+
+  test('blocks new projects from overwriting a legacy recovery record', async () => {
+    fixtures.restored = { ...fixtures.project, id: 'active', loadError: 'project is oversized.' }
+    fixtures.surface = 'landing'
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'start blocked' }))
+    fireEvent.click(screen.getByRole('button', { name: 'import blocked' }))
+    await waitFor(() => expect(fixtures.calls).toEqual([
+      'start-error:Recover or delete the legacy panel before starting or importing another project.',
+      'import-error:Recover or delete the legacy panel before starting or importing another project.',
+    ]))
+    expect(vi.mocked(createPanelProject)).not.toHaveBeenCalled()
+    expect(vi.mocked(readTextFileWithinLimit)).not.toHaveBeenCalled()
+  })
+
+  test('canonicalizes accepted aliases before creating an imported panel', async () => {
+    fixtures.surface = 'landing'
+    const originalState = fixtures.project.state
+    fixtures.project.state = { ...fixtures.project.state, slots: ['Alias', ''], markers: { 0: 'CD3' } }
+    vi.mocked(validateRequestedFluorophores).mockResolvedValueOnce({ accepted: ['Canonical'], diagnostics: [] })
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'import' }))
+    await waitFor(() => expect(vi.mocked(createPanelProject)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ slots: ['Canonical', ''], markers: { 0: 'CD3' } }),
+    ))
+    fixtures.project.state = originalState
+  })
+
+  test('rejects invalid fluorophores in inactive imported cytometer panels', async () => {
+    fixtures.surface = 'landing'
+    const originalState = fixtures.project.state
+    fixtures.project.state = {
+      ...fixtures.project.state,
+      cytometerPanels: {
+        discover: {
+          configuration: '5l_uv_v_b_yg_r',
+          slots: ['Unknown'],
+          markers: {},
+          wizard: null,
+        },
+      },
+    }
+    vi.mocked(validateRequestedFluorophores)
+      .mockResolvedValueOnce({ accepted: [], diagnostics: [] })
+      .mockResolvedValueOnce({ accepted: [], diagnostics: [] })
+      .mockResolvedValueOnce({
+        accepted: [],
+        diagnostics: [{
+          requested: 'Unknown',
+          canonicalFluorophore: null,
+          status: 'unrecognized',
+          reason: 'Unknown fluorophore.',
+        }],
+      })
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'import blocked' }))
+    await waitFor(() => expect(fixtures.calls.some((call) => call.startsWith('import-error:'))).toBe(true))
+    expect(vi.mocked(createPanelProject)).not.toHaveBeenCalled()
+    fixtures.project.state = originalState
+  })
+
+  test('validates the imported active cytometer panel before canonical replacement', async () => {
+    fixtures.surface = 'landing'
+    const originalState = fixtures.project.state
+    fixtures.project.state = {
+      ...fixtures.project.state,
+      cytometerPanels: {
+        aurora: {
+          configuration: '5l_uv_v_b_yg_r',
+          slots: ['Unknown'],
+          markers: {},
+          wizard: null,
+        },
+      },
+    }
+    vi.mocked(validateRequestedFluorophores)
+      .mockResolvedValueOnce({ accepted: [], diagnostics: [] })
+      .mockResolvedValueOnce({ accepted: [], diagnostics: [] })
+      .mockResolvedValueOnce({
+        accepted: [],
+        diagnostics: [{
+          requested: 'Unknown',
+          canonicalFluorophore: null,
+          status: 'unrecognized',
+          reason: 'Unknown fluorophore.',
+        }],
+      })
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'import blocked' }))
+    await waitFor(() => expect(fixtures.calls.some((call) => call.startsWith('import-error:'))).toBe(true))
+    expect(vi.mocked(createPanelProject)).not.toHaveBeenCalled()
+    fixtures.project.state = originalState
   })
 
   test('passes configured slots and handles callbacks for the active landing panel', async () => {

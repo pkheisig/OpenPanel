@@ -98,6 +98,12 @@ describe('IndexedDB fallback error paths', () => {
     expect(unnamed.name).toBe('Untitled panel')
   })
 
+  test('reports fallback persistence failure when local storage is unavailable', async () => {
+    vi.stubGlobal('window', undefined)
+
+    await expect(saveActiveProject(state)).rejects.toThrow('active project could not be persisted')
+  })
+
   test('persists the active state and recovers or rejects malformed legacy data', async () => {
     await saveActiveProject(state)
     expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('OpenPanel project')
@@ -137,6 +143,41 @@ describe('IndexedDB fallback error paths', () => {
     expect(await savePanelProject('new-id', 'New panel', state)).toMatchObject({ id: 'new-id', name: 'New panel' })
   })
 
+  test('rejects duplicate fluorophore aliases before fallback persistence', async () => {
+    const duplicateState = { ...state, slots: ['FITC', 'fit-c'] }
+
+    await expect(createPanelProject('Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(localStorage.getItem('openpanel.panel-library.v1')).toBeNull()
+
+    const panel = await createPanelProject('Valid', state)
+    const storedBefore = localStorage.getItem('openpanel.panel-library.v1')
+    await expect(savePanelProject(panel.id, 'Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(localStorage.getItem('openpanel.panel-library.v1')).toBe(storedBefore)
+  })
+
+  test('preserves unreadable fallback records during unrelated writes', async () => {
+    const rawPanel = {
+      id: 'unreadable',
+      name: 'Unreadable',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    const created = await createPanelProject('New panel', state)
+    const stored = JSON.parse(localStorage.getItem('openpanel.panel-library.v1') ?? 'null') as unknown[]
+    expect(stored[1]).toEqual(rawPanel)
+
+    await savePanelProject(created.id, 'Updated panel', state)
+    const storedAfterSave = JSON.parse(localStorage.getItem('openpanel.panel-library.v1') ?? 'null') as unknown[]
+    expect(storedAfterSave[1]).toEqual(rawPanel)
+  })
+
   test('normalizes fallback records and respects active and archived selection', async () => {
     localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([
       null,
@@ -160,6 +201,143 @@ describe('IndexedDB fallback error paths', () => {
     expect(await listPanelProjects()).toEqual([])
     localStorage.setItem('openpanel.panel-library.v1', '{}')
     expect(await listPanelProjects()).toEqual([])
+  })
+
+  test('does not overwrite unreadable fallback panels through project actions', async () => {
+    const rawPanel = {
+      id: 'unreadable',
+      name: 'Unreadable',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    await expect(renamePanelProject('unreadable', 'Renamed')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(archivePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(restorePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(savePanelProject('unreadable', 'Saved', state)).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    expect(JSON.parse(localStorage.getItem('openpanel.panel-library.v1') ?? 'null')).toEqual([rawPanel])
+    await expect(duplicatePanelProject('unreadable')).resolves.toBeNull()
+  })
+
+  test('surfaces an oversized legacy active record as a recoverable panel', async () => {
+    const rawState = { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      loadError: 'project.slots contains 257 items; maximum is 256. Recovery retained a bounded view and discarded slots at indices 1 item(s) ["256"].',
+      state: { markers: { 0: 'CD3' } },
+    })
+    expect(recovered?.state.slots).toHaveLength(256)
+    expect(recovered?.state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
+    await deletePanelProject('active')
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toBeNull()
+  })
+
+  test('preserves valid marker keys while recovering malformed marker state', async () => {
+    const rawState = { ...state, markers: { 0: 'CD3', abc: 'CD4' } }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('invalid marker slot "abc"')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      state: { markers: { 0: 'CD3' } },
+      loadError: 'project.markers contains invalid marker slot "abc". Marker slots must be nonnegative integers.',
+    })
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('"abc":"CD4"')
+  })
+
+  test('rejects non-canonical marker keys before numeric coercion can merge them', async () => {
+    const rawState = { ...state, markers: { 0: 'CD3', ' 0': 'CD4' } }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('invalid marker slot " 0"')
+    await expect(loadLastPanelProject()).resolves.toMatchObject({
+      state: { markers: { 0: 'CD3' } },
+      loadError: 'project.markers contains invalid marker slot " 0". Marker slots must be nonnegative integers.',
+    })
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('" 0":"CD4"')
+  })
+
+  test('rejects excessively nested project data with a resource error', () => {
+    let nested: Record<string, unknown> = {}
+    for (let depth = 0; depth < 2050; depth += 1) nested = { nested }
+
+    expect(() => parseProject(JSON.stringify(nested))).toThrow('maximum nesting depth')
+  })
+
+  test('reports cleared oversized values in bounded recovery', async () => {
+    const rawState = { ...state, slots: ['x'.repeat(8193)], markers: { 0: 'y'.repeat(8193) } }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    const recovered = await loadLastPanelProject()
+    expect(recovered?.loadError).toContain('slot values cleared at indices 1 item(s) ["0"]')
+    expect(recovered?.loadError).toContain('marker values cleared 1 item(s) ["project.markers.0"]')
+    expect(recovered?.state).toMatchObject({ slots: [''], markers: { 0: '' } })
+  })
+
+  test('keeps a bounded subset of oversized cytometer panels during recovery', async () => {
+    const rawPanel = {
+      id: 'many-panels',
+      name: 'Many panels',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: {
+        ...state,
+        cytometerPanels: Object.fromEntries(Array.from({ length: 65 }, (_, index) => [
+          `panel-${index}`,
+          { configuration: state.configuration, slots: [], markers: {}, wizard: null },
+        ])),
+      },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    const recovered = await loadPanelProject(rawPanel.id)
+    expect(recovered).toMatchObject({
+      id: rawPanel.id,
+      loadError: 'project.cytometerPanels contains 65 entries; maximum is 64. Recovery retained a bounded view and discarded cytometer panels 2 item(s) ["panel-63", "panel-64"].',
+    })
+    expect(Object.keys(recovered?.state.cytometerPanels ?? {})).toHaveLength(64)
+    expect(recovered?.state.cytometerPanels['panel-0']).toBeDefined()
+    expect(recovered?.state.cytometerPanels['panel-62']).toBeDefined()
+  })
+
+  test('surfaces duplicate legacy active slots without normalizing them away', async () => {
+    const rawState = { ...state, slots: ['FITC', 'fit-c'] }
+    localStorage.setItem('openpanel.panel-builder.state.v1', JSON.stringify(rawState))
+
+    await expect(loadActiveProject()).rejects.toThrow('duplicate fluorophore "fit-c"')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      loadError: 'OpenPanel project contains duplicate fluorophore "fit-c" at project.slots[1] (first used at project.slots[0]).',
+      state: { slots: ['FITC', 'fit-c'] },
+    })
+    expect(localStorage.getItem('openpanel.panel-builder.state.v1')).toContain('fit-c')
+  })
+
+  test('preserves valid slots and markers when a saved wizard subtree is oversized', async () => {
+    const rawPanel = {
+      id: 'wizard-overflow',
+      name: 'Wizard overflow',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: {
+        ...state,
+        wizard: { markers: Array.from({ length: 257 }, (_, index) => ({ id: `m${index}` })) },
+      },
+    }
+    localStorage.setItem('openpanel.panel-library.v1', JSON.stringify([rawPanel]))
+
+    await expect(loadPanelProject(rawPanel.id)).resolves.toMatchObject({
+      loadError: 'project.wizard.markers contains 257 items; maximum is 256. Recovery retained a bounded view and discarded wizard marker entries 1 item(s) ["256"].',
+      state: { slots: ['FITC'], markers: { 0: 'CD3' }, wizard: { markers: expect.any(Array), results: null } },
+    })
   })
 
   test('recovers a populated legacy state only when the library is empty', async () => {

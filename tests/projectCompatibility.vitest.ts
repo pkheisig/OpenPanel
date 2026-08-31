@@ -2,6 +2,9 @@ import { describe, expect, test } from 'vitest'
 import {
   PROJECT_FILE_KIND,
   PROJECT_FILE_VERSION,
+  PROJECT_RESOURCE_LIMITS,
+  ProjectResourceLimitError,
+  alignWizardFluorophores,
   parseProject,
   serializeProject,
 } from '../src/projectStore'
@@ -144,6 +147,118 @@ describe('OpenPanel project files', () => {
     expect(migrated.wizard?.markers[0].currentFluorophore).toBe('LIVE DEAD NIR')
   })
 
+  test('aligns imported wizard fluorophore aliases with canonical panel slots', () => {
+    const imported = {
+      ...project,
+      slots: ['Alexa Fluor 488', '', ''],
+      wizard: {
+        ...wizard,
+        markers: [{ ...wizard.markers[0], currentFluorophore: 'AF488' }],
+      },
+      cytometerPanels: undefined,
+    }
+
+    expect(parseProject(JSON.stringify(imported)).wizard?.markers[0].currentFluorophore)
+      .toBe('Alexa Fluor 488')
+  })
+
+  test('resolves conventional wizard GFP aliases against the active panel slots', () => {
+    const imported = {
+      ...project,
+      slots: ['GFP', '', ''],
+      wizard: {
+        ...wizard,
+        markers: [{ ...wizard.markers[0], currentFluorophore: 'EGFP' }],
+      },
+      cytometerPanels: undefined,
+    }
+
+    expect(parseProject(JSON.stringify(imported)).wizard?.markers[0].currentFluorophore)
+      .toBe('GFP')
+    expect(alignWizardFluorophores(imported.wizard, ['GFP', 'EGFP'], ['GFP', 'EGFP'])?.markers[0].currentFluorophore)
+      .toBe('EGFP')
+  })
+
+  test('canonicalizes cached wizard result fluorophore aliases', () => {
+    const cachedResults = {
+      ...wizard.results!,
+      recommended: {
+        ...wizard.results!.recommended,
+        rows: [{
+          markerId: 'marker-0',
+          markerName: 'CD3',
+          slotIndex: 0,
+          antigenDensity: 'high' as const,
+          fluorophore: 'AF488',
+          brightnessLevel: 90,
+          isExisting: true,
+          peakLaser: 'blue',
+          spectralFit: 0.9,
+          recommendedScore: 0.9,
+          maxSimilarity: 0.1,
+          closestFluorophore: 'AF647',
+          complexityDelta: 0,
+          availabilityScore: 88,
+          availabilityTier: 'Common' as const,
+          availabilityConfidence: 'Curated' as const,
+        }],
+        alternatives: [{
+          fluorophore: 'AF647',
+          brightnessLevel: 90,
+          isExisting: false,
+          peakLaser: 'red',
+          spectralFit: 0.8,
+          recommendedScore: 0.8,
+          maxSimilarity: 0.2,
+          closestFluorophore: 'AF488',
+          complexityDelta: 0.1,
+          availabilityScore: 72,
+          availabilityTier: 'Common' as const,
+          availabilityConfidence: 'Curated' as const,
+        }],
+      },
+    }
+    const imported: WizardProjectState = {
+      ...wizard,
+      results: cachedResults,
+    }
+
+    const aligned = alignWizardFluorophores(
+      imported,
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      true,
+    )
+
+    expect(aligned?.results?.recommended.rows[0].fluorophore).toBe('Alexa Fluor 488')
+    expect(aligned?.results?.recommended.rows[0].closestFluorophore).toBe('Alexa Fluor 647')
+    expect(aligned?.results?.recommended.alternatives[0].fluorophore).toBe('Alexa Fluor 647')
+    expect(aligned?.results?.recommended.alternatives[0].closestFluorophore).toBe('Alexa Fluor 488')
+  })
+
+  test('invalidates cached wizard results with unaligned fluorophores', () => {
+    const imported: WizardProjectState = {
+      ...wizard,
+      results: {
+        ...wizard.results!,
+        recommended: {
+          ...wizard.results!.recommended,
+          rows: [{ fluorophore: 'Unknown dye' } as never],
+        },
+      },
+    }
+
+    const aligned = alignWizardFluorophores(
+      imported,
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      ['Alexa Fluor 488', 'Alexa Fluor 647'],
+      true,
+    )
+
+    expect(aligned?.results).toBeNull()
+    expect(aligned?.resultsInvalidated).toBe(true)
+  })
+
   test('migrates former frequency and cell-type marker settings to antigen density', () => {
     const legacy = JSON.parse(serializeProject(project)) as Record<string, unknown>
     legacy.wizard = {
@@ -175,6 +290,136 @@ describe('OpenPanel project files', () => {
     expect(() => parseProject('[]')).toThrow('does not contain')
     expect(() => parseProject('{"kind":"Elsewhere","version":1}')).toThrow('different application')
     expect(() => parseProject(`{"kind":"${PROJECT_FILE_KIND}","version":99}`)).toThrow('not supported')
+  })
+
+  test('rejects oversized project collections before normalization can drop data', () => {
+    const oversizedSlots = JSON.stringify({ ...project, slots: Array(PROJECT_RESOURCE_LIMITS.maxSlots + 1).fill('') })
+    expect(() => parseProject(oversizedSlots)).toThrow(ProjectResourceLimitError)
+
+    const oversizedMarkers = JSON.stringify({
+      ...project,
+      markers: Object.fromEntries(Array.from({ length: PROJECT_RESOURCE_LIMITS.maxMarkers + 1 }, (_, index) => [index, 'CD3'])),
+    })
+    expect(() => parseProject(oversizedMarkers)).toThrow('project.markers')
+
+    const oversizedPanels = JSON.stringify({
+      ...project,
+      cytometerPanels: Object.fromEntries(
+        Array.from({ length: PROJECT_RESOURCE_LIMITS.maxCytometerPanels + 1 }, (_, index) => [
+          `cytometer-${index}`,
+          { configuration: 'full', slots: [], markers: {}, wizard: null },
+        ]),
+      ),
+    })
+    expect(() => parseProject(oversizedPanels)).toThrow('project.cytometerPanels')
+  })
+
+  test('rechecks normalized project collections after restoring the active panel', () => {
+    const panelsWithoutActiveKey = Object.fromEntries(
+      Array.from({ length: PROJECT_RESOURCE_LIMITS.maxCytometerPanels }, (_, index) => [
+        `cytometer-${index}`,
+        { configuration: 'full', slots: [], markers: {}, wizard: null },
+      ]),
+    )
+    expect(() => parseProject(JSON.stringify({
+      ...project,
+      cytometerPanels: panelsWithoutActiveKey,
+    }))).toThrow('project.cytometerPanels contains 65 entries')
+  })
+
+  test('applies resource limits to the former R gui_state config envelope', () => {
+    const oversizedLegacy = JSON.stringify({
+      module: 'panel_builder',
+      config: { ...project, slots: Array(PROJECT_RESOURCE_LIMITS.maxSlots + 1).fill('') },
+    })
+    expect(() => parseProject(oversizedLegacy)).toThrow('project.slots contains 257 items')
+  })
+
+  test('rejects oversized wizard collections and project text before rendering', () => {
+    const oversizedWizard = JSON.stringify({
+      ...project,
+      wizard: {
+        ...wizard,
+        markers: Array.from({ length: PROJECT_RESOURCE_LIMITS.maxWizardMarkers + 1 }, () => wizard.markers[0]),
+      },
+    })
+    expect(() => parseProject(oversizedWizard)).toThrow('project.wizard.markers')
+
+    const oversizedText = JSON.stringify({
+      padding: Array.from({ length: 1000 }, () => 'x'.repeat(7000)),
+    })
+    expect(() => parseProject(oversizedText)).toThrow(ProjectResourceLimitError)
+  })
+
+  test('bounds arbitrary imported JSON values before normalization', () => {
+    let nested: Record<string, unknown> = { leaf: true }
+    for (let depth = 0; depth < 257; depth += 1) nested = { nested }
+
+    expect(() => parseProject(JSON.stringify({ ...project, extra: nested })))
+      .toThrow('maximum nesting depth')
+    expect(() => parseProject(JSON.stringify({ ...project, extra: Array.from({ length: 4097 }, () => true) })))
+      .toThrow('too many items')
+  })
+
+  test('rejects circular project state before JSON serialization', () => {
+    const cyclic = { ...project, self: undefined } as unknown as Record<string, unknown>
+    cyclic.self = cyclic
+    expect(() => serializeProject(cyclic as ProjectState)).toThrow('circular reference')
+  })
+
+  test('does not double-count shared project subtrees during resource validation', () => {
+    const sharedPanel = project.cytometerPanels.aurora
+    const sharedState = {
+      ...project,
+      cytometerPanels: {
+        aurora: sharedPanel,
+        duplicateReference: sharedPanel,
+      },
+    }
+
+    expect(() => serializeProject(sharedState)).not.toThrow()
+  })
+
+  test('allows coexpression maps up to their dedicated resource limit', () => {
+    const coexpression = Object.fromEntries(
+      Array.from({ length: PROJECT_RESOURCE_LIMITS.maxObjectEntries + 1 }, (_, index) => [`pair-${index}`, 2]),
+    )
+    const parsed = parseProject(JSON.stringify({ ...project, wizard: { ...wizard, coexpression } }))
+    expect(Object.keys(parsed.wizard?.coexpression ?? {})).toHaveLength(PROJECT_RESOURCE_LIMITS.maxObjectEntries + 1)
+  })
+
+  test('drops oversized wizard results while preserving the panel project', () => {
+    const oversizedResults = JSON.stringify({
+      ...project,
+      wizard: {
+        ...wizard,
+        results: {
+          ...wizard.results,
+          recommended: {
+            ...wizard.results!.recommended,
+            rows: Array.from({ length: PROJECT_RESOURCE_LIMITS.maxWizardResultRows + 1 }, () => ({})),
+          },
+        },
+      },
+    })
+    const parsed = parseProject(oversizedResults)
+    expect(parsed.slots).toEqual(project.slots)
+    expect(parsed.wizard?.results).toBeNull()
+    expect(parsed.wizard?.resultsInvalidated).toBe(true)
+    expect(() => serializeProject(parsed)).not.toThrow()
+    expect(JSON.parse(serializeProject(parsed)).wizard.results).toBeNull()
+  })
+
+  test('rejects duplicate fluorophores on import and export', () => {
+    const duplicate = {
+      ...project,
+      slots: ['Alexa Fluor 488', 'Alexa Fluor 488', ''],
+      cytometerPanels: {
+        aurora: { ...project.cytometerPanels.aurora, slots: ['Alexa Fluor 488', 'Alexa Fluor 488', ''] },
+      },
+    }
+    expect(() => parseProject(JSON.stringify(duplicate))).toThrow('duplicate fluorophore')
+    expect(() => serializeProject(duplicate)).toThrow('duplicate fluorophore')
   })
 
   test('drops malformed wizard and cytometer-panel records while preserving valid defaults', () => {

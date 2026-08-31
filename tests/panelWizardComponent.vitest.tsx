@@ -133,6 +133,32 @@ function renderWizard(overrides: Partial<React.ComponentProps<typeof PanelWizard
 }
 
 describe('PanelWizard component', () => {
+  test('rejects oversized custom marker names before updating wizard state', () => {
+    renderWizard()
+    fireEvent.click(screen.getByRole('combobox', { name: 'Marker 1 name' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search or enter marker' }), {
+      target: { value: 'x'.repeat(8193) },
+    })
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search or enter marker' }), { key: 'Enter' })
+
+    expect(screen.getByText('Marker names cannot exceed 8192 characters.')).not.toBeNull()
+  })
+
+  test('clears marker length errors after an accepted edit', () => {
+    renderWizard()
+    fireEvent.click(screen.getByRole('combobox', { name: 'Marker 1 name' }))
+    const searchbox = screen.getByRole('searchbox', { name: 'Search or enter marker' })
+    fireEvent.change(searchbox, { target: { value: 'x'.repeat(8193) } })
+    fireEvent.keyDown(searchbox, { key: 'Enter' })
+    expect(screen.getByText('Marker names cannot exceed 8192 characters.')).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Marker 1 name' }))
+    const correctedSearchbox = screen.getByRole('searchbox', { name: 'Search or enter marker' })
+    fireEvent.change(correctedSearchbox, { target: { value: 'CD4' } })
+    fireEvent.keyDown(correctedSearchbox, { key: 'Enter' })
+    expect(screen.queryByText('Marker names cannot exceed 8192 characters.')).toBeNull()
+  })
+
   test('walks marker setup, co-expression, recommendations, sorting, and applying', async () => {
     const { onApply, onClose } = renderWizard()
     await waitFor(() => expect(mocks.loadReferences).toHaveBeenCalled())

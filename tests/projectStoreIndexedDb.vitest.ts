@@ -86,6 +86,155 @@ describe('IndexedDB project persistence', () => {
     expect(await renamePanelProject('missing', 'Nope')).toBeNull()
   })
 
+  test('does not rewrite the active record while loading normalized state', async () => {
+    fakeDb.records.set('active', { ...state, tab: 'invalid' })
+
+    await expect(loadActiveProject()).resolves.toMatchObject({ tab: 'panel' })
+    expect(fakeDb.put).not.toHaveBeenCalled()
+  })
+
+  test('rejects malformed marker keys before database persistence', async () => {
+    const malformedState = { ...state, markers: { '-1': 'CD3' } }
+
+    await expect(createPanelProject('Malformed', malformedState)).rejects.toThrow('invalid marker slot "-1"')
+    expect(fakeDb.records).toEqual(new Map())
+
+    fakeDb.records.set('active', malformedState)
+    await expect(loadActiveProject()).rejects.toThrow('invalid marker slot "-1"')
+    await expect(loadLastPanelProject()).resolves.toMatchObject({
+      id: 'active',
+      state: { markers: {} },
+      loadError: 'project.markers contains invalid marker slot "-1". Marker slots must be nonnegative integers.',
+    })
+    expect(fakeDb.records.get('active')).toEqual(malformedState)
+  })
+
+  test('rejects duplicate fluorophore aliases before database persistence', async () => {
+    const duplicateState = { ...state, slots: ['FITC', 'fit-c'] }
+
+    await expect(createPanelProject('Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(fakeDb.records).toEqual(new Map())
+
+    const panel = await createPanelProject('Valid', state)
+    const recordsBefore = new Map(fakeDb.records)
+    await expect(savePanelProject(panel.id, 'Duplicate', duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(fakeDb.records).toEqual(recordsBefore)
+
+    await expect(saveActiveProject(duplicateState)).rejects.toThrow(
+      'duplicate fluorophore "fit-c" at project.slots[1]',
+    )
+    expect(fakeDb.records).toEqual(recordsBefore)
+  })
+
+  test('rejects oversized aggregate state before database persistence', async () => {
+    const oversizedState = {
+      ...state,
+      cytometerPanels: Object.fromEntries(
+        Array.from({ length: 63 }, (_, panelIndex) => [
+          `panel-${panelIndex}`,
+          {
+            configuration: state.configuration,
+            slots: Array(18).fill(''),
+            markers: Object.fromEntries(Array.from({ length: 256 }, (_, markerIndex) => [markerIndex, 'x'.repeat(512)])),
+            wizard: null,
+          },
+        ]),
+      ),
+    }
+
+    await expect(saveActiveProject(oversizedState)).rejects.toThrow('OpenPanel project is too large')
+    expect(fakeDb.records).toEqual(new Map())
+  })
+
+  test('surfaces duplicate active slots without normalizing them away', async () => {
+    const rawState = { ...state, slots: ['FITC', 'FITC', ''] }
+    fakeDb.records.set('active', rawState)
+
+    await expect(loadActiveProject()).rejects.toThrow('duplicate fluorophore "FITC"')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      loadError: 'OpenPanel project contains duplicate fluorophore "FITC" at project.slots[1] (first used at project.slots[0]).',
+      state: { slots: ['FITC', 'FITC', ''] },
+    })
+    expect(fakeDb.records.get('active')).toEqual(rawState)
+  })
+
+  test('keeps duplicate saved slots visible with a recovery error', async () => {
+    const rawPanel = {
+      id: 'duplicate',
+      name: 'Duplicate',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: ['FITC', 'fit-c'] },
+    }
+    fakeDb.records.set('panel:duplicate', rawPanel)
+
+    await expect(loadPanelProject('duplicate')).resolves.toMatchObject({
+      loadError: 'OpenPanel project contains duplicate fluorophore "fit-c" at project.slots[1] (first used at project.slots[0]).',
+      state: { slots: ['FITC', 'fit-c'] },
+    })
+    expect(fakeDb.records.get('panel:duplicate')).toEqual(rawPanel)
+  })
+
+  test('keeps oversized saved panels visible with a recovery error', async () => {
+    fakeDb.records.set('panel:oversized', {
+      id: 'oversized',
+      name: 'Oversized',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
+    })
+
+    const panels = await listPanelProjects()
+    expect(panels).toHaveLength(1)
+    expect(panels[0]).toMatchObject({
+      id: 'oversized',
+      loadError: 'project.slots contains 257 items; maximum is 256. Recovery retained a bounded view and discarded slots at indices 1 item(s) ["256"].',
+    })
+    expect(panels[0].state.slots).toHaveLength(256)
+    expect(panels[0].state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
+  })
+
+  test('does not overwrite unreadable saved panels through project actions', async () => {
+    const rawPanel = {
+      id: 'unreadable',
+      name: 'Unreadable',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      state: { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) },
+    }
+    fakeDb.records.set('panel:unreadable', rawPanel)
+
+    await expect(renamePanelProject('unreadable', 'Renamed')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(archivePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(restorePanelProject('unreadable')).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    await expect(savePanelProject('unreadable', 'Saved', state)).resolves.toMatchObject({ name: 'Unreadable', loadError: expect.any(String) })
+    expect(fakeDb.records.get('panel:unreadable')).toEqual(rawPanel)
+    await expect(duplicatePanelProject('unreadable')).resolves.toBeNull()
+  })
+
+  test('surfaces an oversized active record as a recoverable panel', async () => {
+    const rawState = { ...state, slots: Array.from({ length: 257 }, (_, index) => `Dye ${index}`) }
+    fakeDb.records.set('active', rawState)
+
+    await expect(loadActiveProject()).rejects.toThrow('project.slots contains 257 items')
+    const recovered = await loadLastPanelProject()
+    expect(recovered).toMatchObject({
+      id: 'active',
+      loadError: 'project.slots contains 257 items; maximum is 256. Recovery retained a bounded view and discarded slots at indices 1 item(s) ["256"].',
+    })
+    expect(recovered?.state.slots).toHaveLength(256)
+    expect(recovered?.state.slots.slice(0, 2)).toEqual(['Dye 0', 'Dye 1'])
+    expect(fakeDb.records.get('active')).toEqual(rawState)
+    await deletePanelProject('active')
+    expect(fakeDb.records.has('active')).toBe(false)
+  })
+
   test('keeps active project selection and ignores non-panel records', async () => {
     const panel = await createPanelProject('Active', state)
     fakeDb.records.set('other', { id: 'other', state })

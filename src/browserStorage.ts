@@ -15,11 +15,15 @@ export function readLocalStorage(key: string): string | null {
   }
 }
 
-export function writeLocalStorage(key: string, value: string): void {
+export function writeLocalStorage(key: string, value: string): boolean {
   try {
-    localStorageOrNull()?.setItem(key, value)
+    const storage = localStorageOrNull()
+    if (!storage) return false
+    storage.setItem(key, value)
+    return true
   } catch {
     // Current-session functionality must continue when persistence is restricted.
+    return false
   }
 }
 

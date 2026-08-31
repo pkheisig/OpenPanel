@@ -8,11 +8,13 @@ const mocks = vi.hoisted(() => ({
   buildPanelPayload: vi.fn(),
   saveActiveProject: vi.fn(async () => undefined),
   savePanelProject: vi.fn(async () => undefined),
+  alignWizardFluorophores: vi.fn((wizard: unknown) => wizard),
   serializeProject: vi.fn((state: unknown) => JSON.stringify(state)),
   parseProject: vi.fn(),
   saveBlob: vi.fn(async () => undefined),
   createPanelOverviewPdf: vi.fn(() => new Blob(['pdf'], { type: 'application/pdf' })),
   openTextFile: vi.fn(),
+  readTextFileWithinLimit: vi.fn(async (file: File) => file.text()),
   writeLocalStorage: vi.fn(),
   readThemePreference: vi.fn(() => 'light'),
   saveThemePreference: vi.fn(),
@@ -20,19 +22,25 @@ const mocks = vi.hoisted(() => ({
 
 let uniqueMarkerCounter = 0
 
-vi.mock('../src/spectralEngine', () => ({ buildPanelPayload: mocks.buildPanelPayload }))
+vi.mock('../src/spectralEngine', () => ({
+  buildPanelPayload: mocks.buildPanelPayload,
+  resolveKnownConfiguration: vi.fn(() => '5l_uv_v_b_yg_r'),
+}))
 vi.mock('../src/projectStore', () => ({
   DEFAULT_PLOT_SCALE: 80,
   MIN_PLOT_SCALE: 40,
   MAX_PLOT_SCALE: 180,
+  PROJECT_RESOURCE_LIMITS: { maxProjectFileBytes: 5 * 1024 * 1024, maxStringLength: 8192 },
   saveActiveProject: mocks.saveActiveProject,
   savePanelProject: mocks.savePanelProject,
+  alignWizardFluorophores: mocks.alignWizardFluorophores,
   serializeProject: mocks.serializeProject,
   parseProject: mocks.parseProject,
 }))
 vi.mock('../src/browserFiles', () => ({
   saveBlob: mocks.saveBlob,
   openTextFile: mocks.openTextFile,
+  readTextFileWithinLimit: mocks.readTextFileWithinLimit,
   projectJsonFilename: (name: string) => `${name || 'Untitled'}_OpenPanel.json`,
 }))
 vi.mock('../src/pdfExport', () => ({ createPanelOverviewPdf: mocks.createPanelOverviewPdf }))
@@ -46,17 +54,20 @@ vi.mock('../src/PanelVisualizations', () => ({
     setTab,
     onMarkerChange,
     error,
+    readOnly,
   }: {
     setTab: (tab: 'panel' | 'similarity' | 'signatures') => void
     onMarkerChange: (slot: number, value: string) => void
     error: string
+    readOnly?: boolean
   }) => (
     <div data-testid="mock-visualizations">
       <button type="button" onClick={() => setTab('similarity')}>Mock similarity</button>
       <button type="button" onClick={() => setTab('signatures')}>Mock signatures</button>
-      <button type="button" onClick={() => onMarkerChange(0, 'CD4')}>Mock marker</button>
-      <button type="button" onClick={() => onMarkerChange(0, '')}>Mock clear marker</button>
-      <button type="button" onClick={() => onMarkerChange(0, `CD${++uniqueMarkerCounter}`)}>Mock unique marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, 'CD4')}>Mock marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, 'x'.repeat(8193))}>Mock oversized marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, '')}>Mock clear marker</button>
+      <button type="button" disabled={readOnly} onClick={() => onMarkerChange(0, `CD${++uniqueMarkerCounter}`)}>Mock unique marker</button>
       <span>{error}</span>
     </div>
   ),
@@ -206,6 +217,8 @@ beforeEach(() => {
   mocks.createPanelOverviewPdf.mockImplementation(() => new Blob(['pdf'], { type: 'application/pdf' }))
   mocks.saveActiveProject.mockClear()
   mocks.savePanelProject.mockClear()
+  mocks.alignWizardFluorophores.mockReset()
+  mocks.alignWizardFluorophores.mockImplementation((wizard: unknown) => wizard)
   mocks.writeLocalStorage.mockClear()
   mocks.readThemePreference.mockReturnValue('light')
   HTMLElement.prototype.setPointerCapture = vi.fn()
@@ -225,6 +238,54 @@ afterEach(() => {
 })
 
 describe('PanelBuilder', () => {
+  test('blocks restore when payload canonicalization would merge distinct slots', async () => {
+    const conventional = {
+      ...basePayload,
+      cytometer: 'fortessa',
+      configuration: 'fortessa_3l',
+      measurement_mode: 'conventional' as const,
+      fluorophores: [{ ...basePayload.fluorophores[0], fluorophore: 'GFP' }],
+    }
+    mocks.buildPanelPayload.mockImplementationOnce(async () => conventional)
+    render(
+      <PanelBuilder
+        initialProject={{
+          ...project,
+          cytometer: 'fortessa',
+          configuration: 'fortessa_3l',
+          slots: ['GFP', 'EGFP'],
+        }}
+        projectId="panel-1"
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByText(/restore would merge/)).not.toBeNull())
+    expect(mocks.savePanelProject).not.toHaveBeenCalled()
+  })
+
+  test('does not autosave a recovered panel copy', async () => {
+    const onRequestExit = vi.fn()
+    render(
+      <PanelBuilder
+        initialProject={project}
+        projectId="recovery"
+        initialError="Saved panel needs attention."
+        recoveryMode
+        onRequestExit={onRequestExit}
+      />,
+    )
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Export overview PDF' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Mock marker' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getAllByPlaceholderText('Select fluorophore')[0] as HTMLInputElement).disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open panel library' }))
+    await waitFor(() => expect(onRequestExit).toHaveBeenCalled())
+    expect(mocks.savePanelProject).not.toHaveBeenCalled()
+  })
+
   test('boots and exercises editing, history, resize, file actions, PDF, wizard, and clearing', async () => {
     const onRequestExit = vi.fn()
     render(<PanelBuilder initialProject={project} projectId="panel-1" projectName="My panel" onRequestExit={onRequestExit} />)
@@ -240,6 +301,10 @@ describe('PanelBuilder', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mock oversized marker' }))
+    expect(screen.getByText('Marker names cannot exceed 8192 characters.')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Mock marker' }))
+    expect(screen.queryByText('Marker names cannot exceed 8192 characters.')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Mock clear marker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Mock similarity' }))
     const selectors = screen.getAllByPlaceholderText('Select fluorophore') as HTMLInputElement[]
@@ -431,6 +496,53 @@ describe('PanelBuilder', () => {
     await waitFor(() => expect(screen.getByText(/imported panel contains/)).not.toBeNull())
   })
 
+  test('rejects a project with an unavailable fluorophore without applying partial state', async () => {
+    render(<PanelBuilder initialProject={{ ...project, slots: ['A', ''] }} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['A', 'Unknown dye'], markers: { 0: 'CD3', 1: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText(/OpenPanel project import rejected/)).not.toBeNull())
+    expect(document.body.textContent).toContain('1 color')
+  })
+
+  test('preserves capacity-valid markers beyond a short imported slots array', async () => {
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['A'], markers: { 2: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={{ ...project, slots: ['A'] }} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    mocks.saveActiveProject.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(mocks.saveActiveProject).toHaveBeenLastCalledWith(
+      expect.objectContaining({ slots: ['A'], markers: { 2: 'CD4' } }),
+    ))
+  })
+
+  test('does not replace editor state when imported project persistence fails', async () => {
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['B', ''], markers: { 0: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={{ ...project, slots: ['A', ''] }} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    mocks.saveActiveProject.mockClear()
+    mocks.saveActiveProject.mockRejectedValueOnce(new Error('import persistence failed'))
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText('import persistence failed')).not.toBeNull())
+    expect((screen.getAllByPlaceholderText('Select fluorophore')[0] as HTMLInputElement).value).toBe('A')
+  })
+
+  test('rejects a project with an occupied slot beyond detector capacity', async () => {
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['', '', '', 'A'], markers: { 3: 'CD4' } })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={project} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText(/detector slot 4/)).not.toBeNull())
+  })
+
   test('covers conventional rendering, embedded persistence, no-op actions, and empty exports', async () => {
     const conventional = { ...basePayload, cytometer: 'fortessa', configuration: 'fortessa_3l', measurement_mode: 'conventional' as const,
       detectors: basePayload.detectors.map((detector, index) => ({ ...detector, emission: [530, 585, 670][index] })), max_panel_size: 3 }
@@ -591,6 +703,64 @@ describe('PanelBuilder', () => {
     await waitFor(() => expect(screen.getByText('PDF failed')).not.toBeNull())
   })
 
+  test('aligns wizard fluorophores when importing a project', async () => {
+    const wizard: NonNullable<ProjectState['wizard']> = {
+      desiredSize: 1,
+      markers: [{ id: 'm1', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'A' }],
+      coexpression: {},
+      coexpressionVisited: false,
+      coexpressionCompleted: false,
+      inputsChanged: true,
+      activeTab: 'frequency',
+      results: null,
+      resultMode: 'recommended',
+      resultSort: 'recommended',
+    }
+    const importedState = { ...project, slots: ['B', ''], markers: {}, wizard }
+    const alignedWizard = { ...wizard, markers: [{ ...wizard.markers[0], currentFluorophore: 'B' }] }
+    mocks.parseProject.mockReturnValueOnce(importedState)
+    mocks.alignWizardFluorophores.mockReturnValueOnce(wizard)
+    mocks.alignWizardFluorophores.mockReturnValueOnce(alignedWizard)
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={project} projectId="panel-1" projectName="My panel" />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(mocks.alignWizardFluorophores).toHaveBeenCalledWith(
+      wizard,
+      ['B', ''],
+      basePayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+      true,
+    ))
+    await waitFor(() => expect(mocks.savePanelProject).toHaveBeenCalledWith(
+      'panel-1',
+      'My panel',
+      expect.objectContaining({ wizard: alignedWizard }),
+    ))
+  })
+
+  test('rejects unsupported wizard fluorophores during project import', async () => {
+    const unsupportedWizard: NonNullable<ProjectState['wizard']> = {
+      desiredSize: 1,
+      markers: [{ id: 'm1', slotIndex: 0, name: 'CD3', antigenDensity: 'medium', currentFluorophore: 'Unknown dye' }],
+      coexpression: {},
+      coexpressionVisited: false,
+      coexpressionCompleted: false,
+      inputsChanged: true,
+      activeTab: 'frequency',
+      results: null,
+      resultMode: 'recommended',
+      resultSort: 'recommended',
+    }
+    mocks.parseProject.mockReturnValueOnce({ ...project, slots: ['B', ''], wizard: unsupportedWizard })
+    mocks.openTextFile.mockResolvedValueOnce(fileWithText('{}'))
+    render(<PanelBuilder initialProject={project} />)
+    await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Import project/ }))
+    await waitFor(() => expect(screen.getByText(/project wizard import rejected/)).not.toBeNull())
+  })
+
   test('covers idle preloading, update/clear fallback errors, and null project imports', async () => {
     const idleCallback = vi.fn((callback: IdleRequestCallback) => {
       callback({ didTimeout: false, timeRemaining: () => 1 } as IdleDeadline)
@@ -676,6 +846,15 @@ describe('PanelBuilder', () => {
     expect(createPanelBuilderProjectState(
       'aurora', 'config', 'light', ['A'], { 0: 'CD3' }, 'panel', 214, false, 80, null, {},
     )).toMatchObject({ cytometer: 'aurora', configuration: 'config', slots: ['A'], markers: { 0: 'CD3' } })
+    const collidingPanels = createPanelBuilderProjectState(
+      'aurora', 'config', 'light', ['A'], {}, 'panel', 214, false, 80, null,
+      {
+        AURORA: { configuration: 'config', slots: ['B'], markers: {}, wizard: null },
+        aurora: { configuration: 'config', slots: ['C'], markers: {}, wizard: null },
+      },
+    )
+    expect(collidingPanels.cytometerPanels.AURORA.slots).toEqual(['B'])
+    expect(collidingPanels.cytometerPanels.aurora.slots).toEqual(['A'])
     expect(synchronizeWizardPanelState(null, ['A'])).toBeNull()
     const wizard = {
       desiredSize: 3,
@@ -721,6 +900,8 @@ describe('PanelBuilder', () => {
     expect(shouldSkipSlotUpdate(['A', 'B'], 0, 'B')).toBe(true)
     expect(shouldSkipSlotUpdate(['A', 'B'], 0, 'A')).toBe(true)
     expect(shouldSkipSlotUpdate(['A', 'B'], 0, 'C')).toBe(false)
+    expect(shouldSkipSlotUpdate(['Alexa Fluor 488', ''], 1, 'AF488')).toBe(true)
+    expect(shouldSkipSlotUpdate(['fit-c'], 0, 'FITC')).toBe(true)
     expect(panelErrorMessage(new Error('message'), 'fallback')).toBe('message')
     expect(panelErrorMessage('unknown', 'fallback')).toBe('fallback')
     const history = [1]

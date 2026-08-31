@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildPanelPayload,
+  PanelSelectionValidationError,
   resetSpectralEngineForTests,
   validateBundledDataRows,
 } from '../src/spectralEngine'
@@ -222,6 +223,20 @@ describe('conventional spectral engine defensive paths', () => {
     expect(result.spectra[1]['450/50-V-A']).toBeGreaterThan(0)
   })
 
+  test('rejects unrecognized requested fluorophores instead of returning a partial payload', async () => {
+    vi.stubGlobal('fetch', customFetch())
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'Unknown dye'], true))
+      .rejects.toBeInstanceOf(PanelSelectionValidationError)
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l', ['Unknown dye'], true))
+      .rejects.toMatchObject({
+        diagnostics: [{ requested: 'Unknown dye', status: 'unrecognized' }],
+      })
+    await expect(buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'FITC'], true))
+      .rejects.toMatchObject({
+        diagnostics: [{ requested: 'FITC', status: 'duplicate' }],
+      })
+  })
+
   test('matches pinned detectors when a bundled detector omits the acquisition suffix', async () => {
     const bundledFetch = customFetch()
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
@@ -250,6 +265,12 @@ describe('conventional spectral engine defensive paths', () => {
     const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC'])
     expect(result.detectors).toHaveLength(detectorNames.length)
     expect(result.detectors.filter((detector) => detector.detector.startsWith('450/50-V'))).toHaveLength(1)
+  })
+
+  test('keeps the first requested spelling when interactive fluorophore aliases deduplicate', async () => {
+    vi.stubGlobal('fetch', customFetch())
+    const result = await buildPanelPayload('fortessa', 'fortessa_3l', ['FITC', 'fit-c'])
+    expect(result.selected).toEqual(['FITC'])
   })
 
   test('normalizes conventional cytometer scopes before constructing a library', async () => {

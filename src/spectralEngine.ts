@@ -1,5 +1,5 @@
 import { Matrix, SingularValueDecomposition } from 'ml-matrix'
-import { canonicalizeFluorophoreName } from './fluorophoreNames'
+import { canonicalizeFluorophoreName, fluorophoreIdentity, resolveBundledFluorophoreKey } from './fluorophoreNames'
 import {
   PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
   PINNED_CONVENTIONAL_ESTIMATE_FLUOROPHORE_KEYS,
@@ -23,6 +23,8 @@ import type {
 } from './panelBuilderShared'
 import { responseProvenanceForCytometer } from './panelBuilderShared'
 import { CYTOMETER_ALIASES, type CytometerId } from './cytometerAliases'
+
+export { resolveBundledFluorophoreKey } from './fluorophoreNames'
 
 type CsvRow = Record<string, string>
 
@@ -749,6 +751,31 @@ type PanelConfigurationBase = {
   retainedSignal: number[]
   normalizedRowsByLibraryIndex: Map<number, number[]>
   lookup: Map<string, number>
+}
+
+export type RequestedFluorophoreDiagnostic = {
+  requested: string
+  canonicalFluorophore: string | null
+  status: 'unrecognized' | 'unavailable' | 'duplicate'
+  reason: string
+}
+
+export type RequestedFluorophoreValidation = {
+  accepted: string[]
+  diagnostics: RequestedFluorophoreDiagnostic[]
+}
+
+export class PanelSelectionValidationError extends Error {
+  diagnostics: RequestedFluorophoreDiagnostic[]
+
+  constructor(diagnostics: RequestedFluorophoreDiagnostic[]) {
+    const details = diagnostics.map((diagnostic) => (
+      `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
+    )).join('; ')
+    super(`Panel selection rejected ${diagnostics.length} fluorophore(s): ${details}`)
+    this.name = 'PanelSelectionValidationError'
+    this.diagnostics = diagnostics
+  }
 }
 
 export function parseCsv(text: string): string[][] {
@@ -1822,10 +1849,6 @@ function normalizeToken(value: unknown): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
-export function resolveBundledFluorophoreKey(value: string): string | undefined {
-  return PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL[normalizeToken(canonicalizeFluorophoreName(value))]
-}
-
 function runtimeCytometerScope(value: unknown): string {
   const key = normalizeToken(value)
   return CYTOMETER_ALIASES[key] ?? key
@@ -2333,7 +2356,11 @@ function configurationDetectorIndices(library: SpectralLibrary, cytometer: Cytom
 
 function fluorophoreLookup(library: SpectralLibrary): Map<string, number> {
   const lookup = new Map<string, number>()
-  library.fluorophores.forEach((fluorophore, index) => lookup.set(normalizeToken(fluorophore), index))
+  library.fluorophores.forEach((fluorophore, index) => {
+    lookup.set(normalizeToken(fluorophore), index)
+    const bundledKey = resolveBundledFluorophoreKey(fluorophore)
+    if (bundledKey && !lookup.has(bundledKey)) lookup.set(bundledKey, index)
+  })
   fluorophoreDictionary.forEach((row) => {
     const canonicalIndex = lookup.get(normalizeToken(row.fluorophore))
     if (canonicalIndex === undefined) return
@@ -2344,6 +2371,12 @@ function fluorophoreLookup(library: SpectralLibrary): Map<string, number> {
     })
   })
   return lookup
+}
+
+function requestedLibraryIndex(requested: string, base: PanelConfigurationBase): number | undefined {
+  const directKey = normalizeToken(requested)
+  const bundledKey = resolveBundledFluorophoreKey(requested)
+  return base.lookup.get(directKey) ?? (bundledKey ? base.lookup.get(bundledKey) : undefined)
 }
 
 export function calculateSimilarityMatrix(values: number[][]): number[][] {
@@ -2428,6 +2461,66 @@ function configurationBase(
   return base
 }
 
+function validateRequestedFromBase(
+  requestedFluorophores: string[],
+  library: SpectralLibrary,
+  base: PanelConfigurationBase,
+): RequestedFluorophoreValidation {
+  const accepted: string[] = []
+  const diagnostics: RequestedFluorophoreDiagnostic[] = []
+  const seen = new Map<string, string>()
+  requestedFluorophores.forEach((requested) => {
+    const libraryIndex = requestedLibraryIndex(requested, base)
+    if (libraryIndex === undefined) {
+      diagnostics.push({
+        requested,
+        canonicalFluorophore: null,
+        status: 'unrecognized',
+        reason: 'The fluorophore is not recognized by the bundled library.',
+      })
+      return
+    }
+    const canonicalFluorophore = library.fluorophores[libraryIndex]
+    if (seen.has(canonicalFluorophore)) {
+      diagnostics.push({
+        requested,
+        canonicalFluorophore,
+        status: 'duplicate',
+        reason: `This fluorophore duplicates "${seen.get(canonicalFluorophore)}".`,
+      })
+      return
+    }
+    seen.set(canonicalFluorophore, requested)
+    if (base.retainedSignal[libraryIndex] < 0.02) {
+      diagnostics.push({
+        requested,
+        canonicalFluorophore,
+        status: 'unavailable',
+        reason: 'The fluorophore has no retained signal in the selected configuration.',
+      })
+      return
+    }
+    accepted.push(canonicalFluorophore)
+  })
+  return { accepted, diagnostics }
+}
+
+export async function validateRequestedFluorophores(
+  cytometer: unknown = 'aurora',
+  configuration?: unknown,
+  requestedFluorophores: string[] = [],
+): Promise<RequestedFluorophoreValidation> {
+  const id = resolveCytometer(cytometer)
+  const config = resolveConfiguration(id, configuration)
+  await initializeCytometer(id)
+  const library = requireSpectralLibrary(libraries.get(id), id)
+  return validateRequestedFromBase(
+    requestedFluorophores.map((value) => value.trim()).filter(Boolean),
+    library,
+    configurationBase(id, config, library),
+  )
+}
+
 export function requireSpectralLibrary(
   library: SpectralLibrary | undefined,
   cytometer: CytometerId,
@@ -2445,32 +2538,68 @@ function rememberPanelPayload(key: string, payload: PanelPayload): PanelPayload 
   return payload
 }
 
+/**
+ * Build a payload for interactive editing or an import.
+ *
+ * Import callers must pass `rejectInvalidRequested: true` so unresolved,
+ * unavailable, and duplicate requested fluorophores fail before a payload is
+ * returned. The default is intentionally lenient for interactive recalculation
+ * while a user changes cytometer or configuration.
+ */
 export async function buildPanelPayload(
   cytometer: unknown = 'aurora',
   configuration?: unknown,
   requestedFluorophores: string[] = [],
+  rejectInvalidRequested = false,
 ): Promise<PanelPayload> {
   const id = resolveCytometer(cytometer)
   const config = resolveConfiguration(id, configuration)
   await initializeCytometer(id)
   const library = requireSpectralLibrary(libraries.get(id), id)
-  const uniqueRequested = Array.from(new Set(requestedFluorophores.map((value) => value.trim()).filter(Boolean)))
-  const payloadCacheKey = `${id}:${config}:${uniqueRequested.join('\u0000')}`
+  const normalizedRequested = requestedFluorophores.map((value) => value.trim()).filter(Boolean)
+  const base = configurationBase(id, config, library)
+  const requestedLibraryKey = (requested: string): string => {
+    const libraryIndex = requestedLibraryIndex(requested, base)
+    return libraryIndex === undefined
+      ? `unknown:${fluorophoreIdentity(requested)}`
+      : `library:${libraryIndex}`
+  }
+  const uniqueRequested: string[] = []
+  const seenRequested = new Set<string>()
+  normalizedRequested.forEach((requested) => {
+    const libraryKey = requestedLibraryKey(requested)
+    if (seenRequested.has(libraryKey)) return
+    seenRequested.add(libraryKey)
+    uniqueRequested.push(requested)
+  })
+  const cacheRequested = rejectInvalidRequested
+    ? normalizedRequested.map(requestedLibraryKey)
+    : uniqueRequested.map(requestedLibraryKey)
+  const payloadCacheKey = `${rejectInvalidRequested ? 'strict' : 'lenient'}:${id}:${config}:${JSON.stringify(cacheRequested)}`
   const cachedPayload = panelPayloadCache.get(payloadCacheKey)
+  if (rejectInvalidRequested) {
+    const validation = validateRequestedFromBase(
+      normalizedRequested,
+      library,
+      base,
+    )
+    if (validation.diagnostics.length > 0) {
+      throw new PanelSelectionValidationError(validation.diagnostics)
+    }
+  }
   if (cachedPayload) {
     panelPayloadCache.delete(payloadCacheKey)
     panelPayloadCache.set(payloadCacheKey, cachedPayload)
     return cachedPayload
   }
 
-  const base = configurationBase(id, config, library)
   const selectedLabels: string[] = []
   const selectedValues: number[][] = []
   uniqueRequested.forEach((requested) => {
-    const libraryIndex = base.lookup.get(normalizeToken(requested))
+    const libraryIndex = requestedLibraryIndex(requested, base)
     if (libraryIndex === undefined || base.retainedSignal[libraryIndex] < 0.02) return
     const values = base.normalizedRowsByLibraryIndex.get(libraryIndex)!
-    selectedLabels.push(requested)
+    selectedLabels.push(library.fluorophores[libraryIndex])
     selectedValues.push(values)
   })
 

@@ -8,14 +8,18 @@ import { ModuleLoadingState } from './ModuleLoadingState';
 import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
-import { openTextFile, projectJsonFilename, saveBlob } from './browserFiles';
+import { openTextFile, projectJsonFilename, readTextFileWithinLimit, saveBlob } from './browserFiles';
 import { writeLocalStorage } from './browserStorage';
-import { buildPanelPayload } from './spectralEngine';
+import { buildPanelPayload, resolveKnownConfiguration } from './spectralEngine';
+import { fluorophoreIdentity } from './fluorophoreNames';
+import { CYTOMETER_ALIASES } from './cytometerAliases';
 import {
     parseProject,
     DEFAULT_PLOT_SCALE,
     MAX_PLOT_SCALE,
     MIN_PLOT_SCALE,
+    PROJECT_RESOURCE_LIMITS,
+    alignWizardFluorophores,
     saveActiveProject,
     savePanelProject,
     serializeProject,
@@ -24,14 +28,19 @@ import type { CytometerPanelState, ProjectState } from './projectStore';
 import type { WizardProjectState } from './panelWizardEngine';
 import {
     PdfIcon,
+    assertPanelMarkersWithinCapacity,
+    assertPanelSlotsWithinCapacity,
     binEmission,
+    buildFluorLookup,
     csvEscape,
     detectImportedPanelRows,
     emptySlots,
     getCytometerName,
     laserOrder,
     mapDetectorToEmission,
+    matchImportedFluor,
     unique,
+    validatePanelFluorophores,
 } from './panelBuilderShared';
 import { createRefreshSequence } from './refreshSequence';
 import { readThemePreference, saveThemePreference } from './themePreference';
@@ -52,6 +61,8 @@ type PanelBuilderProps = {
     initialProject?: ProjectState;
     projectId?: string;
     projectName?: string;
+    initialError?: string;
+    recoveryMode?: boolean;
     onRequestExit?: () => void | Promise<void>;
 };
 
@@ -65,8 +76,11 @@ const panelCapacityMessage = (colorCount: number, detectorCount: number) => (
 );
 
 export function shouldSkipSlotUpdate(currentSlots: string[], index: number, fluor: string): boolean {
-    return Boolean(fluor && currentSlots.some((existing, slotIndex) => slotIndex !== index && existing === fluor))
-        || currentSlots[index] === fluor;
+    const requestedIdentity = fluorophoreIdentity(fluor);
+    return Boolean(fluor && currentSlots.some((existing, slotIndex) => (
+        slotIndex !== index && fluorophoreIdentity(existing) === requestedIdentity
+    )))
+        || fluorophoreIdentity(currentSlots[index]) === requestedIdentity;
 }
 
 export function panelErrorMessage(error: unknown, fallback: string): string {
@@ -80,8 +94,13 @@ export function filterPanelOptions(
     currentSlot: string,
 ): FluorInfo[] {
     if (!payload) return [];
+    const selectedIdentities = new Set(Array.from(selected, fluorophoreIdentity));
+    const currentIdentity = fluorophoreIdentity(currentSlot);
     const baseOptions = payload.fluorophores
-        .filter((fluorophore) => !selected.has(fluorophore.fluorophore) || currentSlot === fluorophore.fluorophore);
+        .filter((fluorophore) => {
+            const identity = fluorophoreIdentity(fluorophore.fluorophore);
+            return !selectedIdentities.has(identity) || currentIdentity === identity;
+        });
     return rankUiSelectOptions(
         baseOptions.map((option) => ({ value: option.fluorophore, label: option.fluorophore, option })),
         query,
@@ -139,7 +158,7 @@ export function trimInitialPanel(
     markers: Record<number, string>,
     maxPanelSize: number,
 ): { slots: string[]; markers: Record<number, string> } | null {
-    const colorCount = new Set(slots.filter(Boolean)).size;
+    const colorCount = new Set(slots.filter(Boolean).map(fluorophoreIdentity)).size;
     if (colorCount > maxPanelSize || slots.length <= maxPanelSize) return null;
     const nextSlots = slots.slice(0, maxPanelSize);
     const nextMarkers = Object.fromEntries(
@@ -178,6 +197,25 @@ export function createPanelBuilderProjectState(
         markers,
         wizard,
     };
+    const panelEntries = Object.entries(cytometerPanels);
+    const sourceKeysByCanonical = new Map<string, string[]>();
+    panelEntries.forEach(([panelCytometer]) => {
+        const canonical = CYTOMETER_ALIASES[panelCytometer.toLowerCase().replace(/[^a-z0-9]+/g, '')] ?? panelCytometer;
+        const sources = sourceKeysByCanonical.get(canonical) ?? [];
+        sources.push(panelCytometer);
+        sourceKeysByCanonical.set(canonical, sources);
+    });
+    const canonicalPanels: Record<string, CytometerPanelState> = {};
+    panelEntries.forEach(([panelCytometer, panel]) => {
+        const canonical = CYTOMETER_ALIASES[panelCytometer.toLowerCase().replace(/[^a-z0-9]+/g, '')] ?? panelCytometer;
+        // Imports reject these collisions before editor state is installed. If
+        // an older stored state still contains one, preserve both raw keys
+        // rather than silently overwriting one panel during autosave.
+        const key = (sourceKeysByCanonical.get(canonical)?.length ?? 0) > 1
+            ? panelCytometer
+            : canonical;
+        canonicalPanels[key] = panel;
+    });
     return {
         cytometer: activeCytometer,
         configuration: activePanel.configuration,
@@ -191,7 +229,7 @@ export function createPanelBuilderProjectState(
         plotScaleMode: 'fit-width',
         wizard,
         cytometerPanels: {
-            ...cytometerPanels,
+            ...canonicalPanels,
             [activeCytometer]: activePanel,
         },
     };
@@ -302,6 +340,115 @@ type PanelEditSnapshot = {
     wizard: WizardProjectState | null;
 };
 
+function canonicalizeSlotsForPayload(slots: string[], payload: PanelPayload): string[] {
+    const lookup = buildFluorLookup(payload.fluorophores);
+    const canonicalSlots = slots.map((slot) => {
+        const trimmed = slot.trim();
+        return trimmed ? (matchImportedFluor(trimmed, lookup) || trimmed) : '';
+    });
+    const firstIndexByIdentity = new Map<string, number>();
+    canonicalSlots.forEach((slot, index) => {
+        if (!slot) return;
+        const identity = fluorophoreIdentity(slot);
+        const firstIndex = firstIndexByIdentity.get(identity);
+        if (firstIndex !== undefined) {
+            throw new Error(
+                `OpenPanel project restore would merge fluorophore ${JSON.stringify(slots[index])} at detector slot ${index + 1} into ${JSON.stringify(slot)} already used by ${JSON.stringify(slots[firstIndex])} at detector slot ${firstIndex + 1}. Remove one slot before restoring this project.`,
+            );
+        }
+        firstIndexByIdentity.set(identity, index);
+    });
+    return canonicalSlots;
+}
+
+function preserveMarkersWithinSlots(
+    markers: Record<number, string>,
+    maxPanelSize: number,
+): Record<number, string> {
+    return Object.fromEntries(
+        Object.entries(markers).filter(([index]) => {
+            const slotIndex = Number(index);
+            return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < maxPanelSize;
+        }),
+    ) as Record<number, string>;
+}
+
+function panelValidationError(
+    context: string,
+    diagnostics: Array<{ requested: string; reason: string }>,
+): Error {
+    const details = diagnostics.map((diagnostic) => (
+        `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
+    )).join('; ');
+    return new Error(`OpenPanel project ${context} rejected ${diagnostics.length} fluorophore(s): ${details}`);
+}
+
+async function canonicalizeImportedInactivePanels(
+    state: ProjectState,
+    activeCytometer: string,
+): Promise<Record<string, CytometerPanelState>> {
+    const canonicalPanels: Record<string, CytometerPanelState> = {};
+    const seenPanelCytometers = new Map<string, string>();
+    for (const [panelCytometer, panelState] of Object.entries(state.cytometerPanels)) {
+        const panelConfiguration = resolveKnownConfiguration(panelCytometer, panelState.configuration);
+        if (!panelConfiguration) {
+            throw new Error(`OpenPanel project uses an unsupported configuration '${panelState.configuration}' for '${panelCytometer}'.`);
+        }
+        const panelPayload = await buildPanelPayload(
+            panelCytometer,
+            panelConfiguration,
+            panelState.slots.filter((slot) => slot.trim()),
+            true,
+        );
+        const panelValidation = validatePanelFluorophores(panelState.slots, panelPayload.fluorophores);
+        if (panelValidation.diagnostics.length > 0) {
+            throw panelValidationError(`inactive '${panelCytometer}' panel import`, panelValidation.diagnostics);
+        }
+        if (panelValidation.accepted.length > panelPayload.max_panel_size) {
+            throw new Error(`Panel '${panelCytometer}' has ${panelValidation.accepted.length} colors, but its configuration has only ${panelPayload.max_panel_size} detectors.`);
+        }
+        let acceptedIndex = 0;
+        const panelSlots = panelState.slots.map((slot) => (
+            slot.trim() ? panelValidation.accepted[acceptedIndex++] : ''
+        ));
+        assertPanelSlotsWithinCapacity(panelSlots, panelPayload.max_panel_size);
+        assertPanelMarkersWithinCapacity(panelState.markers, panelPayload.max_panel_size);
+        const panelWizardRequested = panelState.wizard?.markers
+            .map((marker) => marker.currentFluorophore)
+            .filter(Boolean) ?? [];
+        const panelWizardValidation = validatePanelFluorophores(panelWizardRequested, panelPayload.fluorophores);
+        if (panelWizardValidation.diagnostics.length > 0) {
+            throw panelValidationError(`inactive '${panelCytometer}' wizard import`, panelWizardValidation.diagnostics);
+        }
+        const panelWizard = alignWizardFluorophores(
+            panelState.wizard,
+            panelSlots,
+            panelPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+            true,
+        );
+        const canonicalPanelCytometer = panelPayload.cytometer;
+        const previousPanelCytometer = seenPanelCytometers.get(canonicalPanelCytometer);
+        if (previousPanelCytometer) {
+            throw new Error(`OpenPanel project contains cytometer panels '${previousPanelCytometer}' and '${panelCytometer}' that both resolve to '${canonicalPanelCytometer}'.`);
+        }
+        seenPanelCytometers.set(canonicalPanelCytometer, panelCytometer);
+        if (canonicalPanelCytometer === activeCytometer) {
+            if (panelCytometer !== state.cytometer) {
+                throw new Error(`OpenPanel project contains cytometer panels '${state.cytometer}' and '${panelCytometer}' that both resolve to '${activeCytometer}'.`);
+            }
+            continue;
+        }
+        canonicalPanels[canonicalPanelCytometer] = {
+            ...panelState,
+            configuration: panelPayload.configuration,
+            slots: panelSlots,
+            markers: preserveMarkersWithinSlots(panelState.markers, panelPayload.max_panel_size),
+            wizard: panelWizard,
+        };
+    }
+    return canonicalPanels;
+}
+
 const PanelBuilder = ({
     embedded = false,
     cockpitTheme = null,
@@ -310,6 +457,8 @@ const PanelBuilder = ({
     initialProject,
     projectId,
     projectName = 'Untitled panel',
+    initialError,
+    recoveryMode = false,
     onRequestExit,
 }: PanelBuilderProps) => {
     const [payload, setPayload] = useState<PanelPayload | null>(null);
@@ -334,7 +483,8 @@ const PanelBuilder = ({
     const [activeSlot, setActiveSlot] = useState<number | null>(null);
     const [tab, setTab] = useState<TabId>(initialProject?.tab ?? 'panel');
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(initialError ?? '');
+    const [persistenceError, setPersistenceError] = useState('');
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
@@ -356,20 +506,22 @@ const PanelBuilder = ({
     const [wizardSyncRevision, setWizardSyncRevision] = useState(0);
     const wizardStateRef = useRef(wizardState);
     const handleWizardStateChange = useCallback((state: WizardProjectState) => {
+        if (recoveryMode) return;
         wizardStateRef.current = state;
         setWizardState(state);
-    }, []);
+    }, [recoveryMode]);
     const syncWizardColorsWithPanel = useCallback((
         nextSlots: string[],
         removedSlotIndex?: number,
         invalidateResults = true,
     ) => {
+        if (recoveryMode) return;
         const nextState = synchronizeWizardPanelState(wizardStateRef.current, nextSlots, removedSlotIndex, invalidateResults);
         if (!nextState) return;
         wizardStateRef.current = nextState;
         setWizardState(nextState);
         setWizardSyncRevision((revision) => revision + 1);
-    }, []);
+    }, [recoveryMode]);
     const panelHistoryRef = useRef<{ past: PanelEditSnapshot[]; future: PanelEditSnapshot[] }>({
         past: [],
         future: [],
@@ -385,9 +537,9 @@ const PanelBuilder = ({
     useEffect(() => () => sidebarResizeCleanupRef.current?.(), []);
 
     useEffect(() => {
-        if (wizardStateRef.current?.inputsChanged === true) return;
+        if (recoveryMode || wizardStateRef.current?.inputsChanged === true) return;
         syncWizardColorsWithPanel(slots);
-    }, [slots, syncWizardColorsWithPanel]);
+    }, [recoveryMode, slots, syncWizardColorsWithPanel]);
 
     useEffect(() => {
         if (typeof window.requestIdleCallback === 'function') {
@@ -444,12 +596,19 @@ const PanelBuilder = ({
     }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
-        if (projectId) {
-            await savePanelProject(projectId, panelName, state);
-            return;
+        if (recoveryMode) return;
+        try {
+            if (projectId) {
+                await savePanelProject(projectId, panelName, state);
+            } else {
+                await saveActiveProject(state);
+            }
+            setPersistenceError('');
+        } catch (persistError) {
+            setPersistenceError(panelErrorMessage(persistError, 'Could not save this panel.'));
+            throw persistError;
         }
-        await saveActiveProject(state);
-    }, [panelName, projectId, projectState]);
+    }, [panelName, projectId, projectState, recoveryMode]);
 
     const exitToPanelLibrary = useCallback(async () => {
         await persistProjectState();
@@ -459,20 +618,20 @@ const PanelBuilder = ({
     useEffect(() => {
         if (!guiStateLoaded) return;
         const timer = window.setTimeout(() => {
-            void persistProjectState().catch(() => null);
+            void persistProjectState().catch(() => undefined);
         }, 500);
         return () => window.clearTimeout(timer);
     }, [guiStateLoaded, persistProjectState]);
 
     const selected = useMemo(() => slots.filter(Boolean), [slots]);
-    const selectedColorCount = useMemo(() => new Set(selected).size, [selected]);
+    const selectedColorCount = useMemo(() => new Set(selected.map(fluorophoreIdentity)).size, [selected]);
     const panelExceedsDetectorLimit = Boolean(payload && selectedColorCount > payload.max_panel_size);
 
     useEffect(() => {
         slotsRef.current = slots;
     }, [slots]);
 
-    const selectedSet = useMemo(() => new Set(selected), [selected]);
+    const selectedSet = useMemo(() => new Set(selected.map(fluorophoreIdentity)), [selected]);
     const panelHasContent = selected.length > 0 || Object.keys(markers).length > 0 || wizardState !== null;
 
     const colorByFluor = useMemo(() => {
@@ -584,27 +743,32 @@ const PanelBuilder = ({
         nextCytometer: string,
         nextConfiguration: string,
         nextSelected: string[],
-    ) => buildPanelPayload(nextCytometer, nextConfiguration, nextSelected), []);
+        rejectInvalidRequested = false,
+    ) => buildPanelPayload(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested), []);
 
     const fetchPanel = async (
         nextCytometer: string,
         nextConfiguration: string,
         nextSelected: string[],
         showLoading = false,
+        rejectInvalidRequested = false,
+        commit = true,
     ): Promise<PanelPayload | null> => {
         const requestSequence = panelRequestSequenceRef.current.begin();
         setError('');
         if (showLoading) setLoading(true);
         try {
-            const nextPayload = await requestPanel(nextCytometer, nextConfiguration, nextSelected);
+            const nextPayload = await requestPanel(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested);
             if (!nextPayload) return null;
             if (!panelRequestSequenceRef.current.isCurrent(requestSequence)) return null;
-            setPayload(nextPayload);
-            setCytometer(getCytometerName(nextPayload.cytometer));
-            setConfiguration(getCytometerName(nextPayload.configuration));
-            const nextColorCount = new Set(nextSelected.filter(Boolean)).size;
-            if (nextColorCount > nextPayload.max_panel_size) {
-                setError(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
+            if (commit) {
+                setPayload(nextPayload);
+                setCytometer(getCytometerName(nextPayload.cytometer));
+                setConfiguration(getCytometerName(nextPayload.configuration));
+                const nextColorCount = new Set(nextSelected.filter(Boolean).map(fluorophoreIdentity)).size;
+                if (nextColorCount > nextPayload.max_panel_size) {
+                    setError(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
+                }
             }
             return nextPayload;
         } catch (err) {
@@ -618,6 +782,7 @@ const PanelBuilder = ({
     };
 
     const restorePanelEdit = async (snapshot: PanelEditSnapshot) => {
+        if (recoveryMode) return;
         slotsRef.current = [...snapshot.slots];
         markersRef.current = { ...snapshot.markers };
         wizardStateRef.current = snapshot.wizard;
@@ -634,6 +799,7 @@ const PanelBuilder = ({
     };
 
     const undoPanelEdit = async () => {
+        if (recoveryMode) return;
         await runHistoryAction(historyBusy, panelHistoryRef.current.past, async (previous) => {
             panelHistoryRef.current.future.push(capturePanelEdit());
             syncHistoryAvailability();
@@ -647,6 +813,7 @@ const PanelBuilder = ({
     };
 
     const redoPanelEdit = async () => {
+        if (recoveryMode) return;
         await runHistoryAction(historyBusy, panelHistoryRef.current.future, async (next) => {
             panelHistoryRef.current.past.push(capturePanelEdit());
             syncHistoryAvailability();
@@ -670,8 +837,19 @@ const PanelBuilder = ({
                 setPayload(initial);
                 setCytometer(getCytometerName(initial.cytometer));
                 setConfiguration(getCytometerName(initial.configuration));
-                const initialColorCount = new Set(slotsRef.current.filter(Boolean)).size;
-                const trimmed = trimInitialPanel(slotsRef.current, markersRef.current, initial.max_panel_size);
+                const canonicalSlots = canonicalizeSlotsForPayload(slotsRef.current, initial);
+                const canonicalWizard = alignWizardFluorophores(
+                    wizardStateRef.current,
+                    canonicalSlots,
+                    initial.fluorophores.map((fluorophore) => fluorophore.fluorophore),
+                    true,
+                );
+                slotsRef.current = canonicalSlots;
+                wizardStateRef.current = canonicalWizard;
+                setSlots(canonicalSlots);
+                setWizardState(canonicalWizard);
+                const initialColorCount = new Set(canonicalSlots.filter(Boolean).map(fluorophoreIdentity)).size;
+                const trimmed = trimInitialPanel(canonicalSlots, markersRef.current, initial.max_panel_size);
                 if (trimmed) {
                     slotsRef.current = trimmed.slots;
                     markersRef.current = trimmed.markers;
@@ -737,6 +915,7 @@ const PanelBuilder = ({
     }, [activeSlot, clearingPanel, exitToPanelLibrary, fileMenu, onRequestExit, showClearConfirmation, showPanelWizard, showPdfConfirm]);
 
     const updateSlot = async (index: number, fluor: string) => {
+        if (recoveryMode) return;
         const currentSlots = slotsRef.current;
         if (shouldSkipSlotUpdate(currentSlots, index, fluor)) return;
         recordPanelEdit();
@@ -753,6 +932,7 @@ const PanelBuilder = ({
     };
 
     const removeSlot = async (index: number) => {
+        if (recoveryMode) return;
         recordPanelEdit();
         const nextSlots = slotsRef.current.filter((_, slotIndex) => slotIndex !== index);
         const nextMarkers = Object.fromEntries(
@@ -782,6 +962,7 @@ const PanelBuilder = ({
     };
 
     const addSlot = () => {
+        if (recoveryMode) return;
         appendPanelSlot(payload, slotsRef.current, setError, (nextSlots) => {
             recordPanelEdit();
             slotsRef.current = nextSlots;
@@ -792,6 +973,12 @@ const PanelBuilder = ({
     };
 
     const updateMarkerWithHistory = useCallback((slotIndex: number, value: string) => {
+        if (recoveryMode) return;
+        if (value.length > PROJECT_RESOURCE_LIMITS.maxStringLength) {
+            setError(`Marker names cannot exceed ${PROJECT_RESOURCE_LIMITS.maxStringLength} characters.`);
+            return;
+        }
+        setError('');
         if ((markersRef.current[slotIndex] ?? '') === value) return;
         recordPanelEdit();
         const nextMarkers = { ...markersRef.current };
@@ -800,9 +987,10 @@ const PanelBuilder = ({
         markersRef.current = nextMarkers;
         setMarkers(nextMarkers);
         writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
-    }, [recordPanelEdit]);
+    }, [recordPanelEdit, recoveryMode]);
 
     const clearPanelContent = async () => {
+        if (recoveryMode) return;
         const hasContent = slotsRef.current.some(Boolean)
             || Object.keys(markersRef.current).length > 0
             || wizardStateRef.current !== null;
@@ -855,6 +1043,7 @@ const PanelBuilder = ({
         recommendations,
         desiredSize,
     }: WizardApplication) => {
+        if (recoveryMode) return;
         if (payload && desiredSize > payload.max_panel_size) {
             throw new Error(`The panel cannot exceed ${payload.max_panel_size} colors for this detector configuration.`);
         }
@@ -892,6 +1081,7 @@ const PanelBuilder = ({
     };
 
     const exportPanelCsv = async () => {
+        if (recoveryMode) return;
         if (selectedRows.length === 0) {
             setError('Select at least one fluorophore before exporting a panel.');
             return;
@@ -909,6 +1099,7 @@ const PanelBuilder = ({
     };
 
     const exportPanelOverview = async () => {
+        if (recoveryMode) return;
         if (selectedRows.length === 0) {
             setError('Select at least one fluorophore before exporting a panel overview.');
             return;
@@ -933,6 +1124,7 @@ const PanelBuilder = ({
     };
 
     const beginSidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (recoveryMode) return;
         withSidebarResizeTarget(sidebarCollapsed, sidebarRef.current, (sidebar) => {
             event.preventDefault();
             sidebarResizeCleanupRef.current?.();
@@ -994,6 +1186,7 @@ const PanelBuilder = ({
     };
 
     const resizeSidebarByKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (recoveryMode) return;
         const direction = event.key === 'ArrowLeft'
             ? -SIDEBAR_KEYBOARD_STEP
             : event.key === 'ArrowRight'
@@ -1009,20 +1202,28 @@ const PanelBuilder = ({
     };
 
     const importPanelCsv = async (file: File | null) => {
+        if (recoveryMode) return;
         if (!file || !payload) return;
         setError('');
         setImporting(true);
         try {
-            const text = await file.text();
-            const imported = detectImportedPanelRows(text, payload.fluorophores);
-            if (imported.length > payload.max_panel_size) {
-                throw new Error(`The imported panel contains ${imported.length} colors, but this configuration supports at most ${payload.max_panel_size} colors (${payload.max_panel_size} detectors).`);
+            const text = await readTextFileWithinLimit(
+                file,
+                PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
+                'Panel CSV',
+            );
+            const imported = detectImportedPanelRows(text, payload.fluorophores, PROJECT_RESOURCE_LIMITS.maxStringLength);
+            if (imported.rows.length > payload.max_panel_size) {
+                throw new Error(`The imported panel contains ${imported.rows.length} colors, but this configuration supports at most ${payload.max_panel_size} colors (${payload.max_panel_size} detectors).`);
             }
+            const nextFluorophores = imported.rows.map(row => row.fluor);
+            const nextPayload = await fetchPanel(cytometer, configuration, nextFluorophores, false, true);
+            if (!nextPayload) return;
             recordPanelEdit();
-            const nextSlots = imported.map(row => row.fluor);
+            const nextSlots = [...nextFluorophores];
             while (nextSlots.length < emptySlots) nextSlots.push('');
             const nextMarkers: Record<number, string> = {};
-            imported.forEach((row, index) => {
+            imported.rows.forEach((row, index) => {
                 if (row.marker) nextMarkers[index] = row.marker;
             });
             slotsRef.current = nextSlots;
@@ -1035,7 +1236,6 @@ const PanelBuilder = ({
             writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
             setQueries({});
             setActiveSlot(null);
-            await fetchPanel(cytometer, configuration, imported.map(row => row.fluor));
         } catch (err) {
             setError(panelErrorMessage(err, 'Could not import panel CSV.'));
         } finally {
@@ -1045,6 +1245,7 @@ const PanelBuilder = ({
     };
 
     const choosePanelCsv = async () => {
+        if (recoveryMode) return;
         const file = await openTextFile({
             description: 'Panel CSV',
             mimeType: 'text/csv',
@@ -1056,6 +1257,7 @@ const PanelBuilder = ({
     const currentProjectState = (): ProjectState => projectState;
 
     const exportProject = async () => {
+        if (recoveryMode) return;
         await saveBlob(new Blob([serializeProject(currentProjectState())], { type: 'application/json' }), {
             suggestedName: projectJsonFilename(panelName),
             description: 'OpenPanel project',
@@ -1065,31 +1267,91 @@ const PanelBuilder = ({
     };
 
     const importProject = async (file: File | null) => {
+        if (recoveryMode) return;
         if (!file) return;
         setError('');
         setImporting(true);
         try {
-            const state = parseProject(await file.text());
+            const state = parseProject(await readTextFileWithinLimit(
+                file,
+                PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
+                'OpenPanel project',
+            ));
+            const configuration = resolveKnownConfiguration(state.cytometer, state.configuration);
+            if (!configuration) {
+                throw new Error(`OpenPanel project uses an unsupported configuration '${state.configuration}'.`);
+            }
             const nextPayload = await fetchPanel(
                 state.cytometer,
-                state.configuration,
-                state.slots.filter(Boolean),
+                configuration,
+                state.slots.filter((slot) => slot.trim()),
+                true,
+                true,
+                false,
+            );
+            if (!nextPayload) {
+                throw new Error('Panel data could not be loaded for the imported configuration.');
+            }
+            const fluorophoreValidation = validatePanelFluorophores(state.slots, nextPayload.fluorophores);
+            if (fluorophoreValidation.diagnostics.length > 0) {
+                const details = fluorophoreValidation.diagnostics.map((diagnostic) => (
+                    `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
+                )).join('; ');
+                throw new Error(`OpenPanel project import rejected ${fluorophoreValidation.diagnostics.length} fluorophore(s): ${details}`);
+            }
+            let acceptedIndex = 0;
+            const nextSlots = state.slots.map((slot) => (
+                slot.trim() ? fluorophoreValidation.accepted[acceptedIndex++] : ''
+            ));
+            const wizardValidation = validatePanelFluorophores(
+                state.wizard?.markers.map((marker) => marker.currentFluorophore).filter(Boolean) ?? [],
+                nextPayload.fluorophores,
+            );
+            if (wizardValidation.diagnostics.length > 0) {
+                const details = wizardValidation.diagnostics.map((diagnostic) => (
+                    `${JSON.stringify(diagnostic.requested)}: ${diagnostic.reason}`
+                )).join('; ');
+                throw new Error(`OpenPanel project wizard import rejected ${wizardValidation.diagnostics.length} fluorophore(s): ${details}`);
+            }
+            const nextWizard = alignWizardFluorophores(
+                state.wizard,
+                nextSlots,
+                nextPayload.fluorophores.map((fluorophore) => fluorophore.fluorophore),
                 true,
             );
-            if (!nextPayload) return;
-            clearPanelHistory();
-            const available = new Set(nextPayload.fluorophores.map((item) => item.fluorophore));
-            const nextSlots = state.slots.map((fluorophore) => available.has(fluorophore) ? fluorophore : '');
-            const nextColorCount = new Set(nextSlots.filter(Boolean)).size;
+            const nextColorCount = new Set(nextSlots.filter(Boolean).map(fluorophoreIdentity)).size;
             if (nextColorCount > nextPayload.max_panel_size) {
                 throw new Error(panelCapacityMessage(nextColorCount, nextPayload.max_panel_size));
             }
-            const nextMarkers = Object.fromEntries(
-                Object.entries(state.markers).filter(([index]) => nextSlots[Number(index)]),
-            ) as Record<number, string>;
+            assertPanelSlotsWithinCapacity(nextSlots, nextPayload.max_panel_size);
+            assertPanelMarkersWithinCapacity(state.markers, nextPayload.max_panel_size);
+            const nextMarkers = preserveMarkersWithinSlots(state.markers, nextPayload.max_panel_size);
+            const nextCytometer = getCytometerName(nextPayload.cytometer);
+            const nextConfiguration = getCytometerName(nextPayload.configuration);
+            const nextCytometerPanels = await canonicalizeImportedInactivePanels(state, nextCytometer);
+            const activeCytometerPanel = state.cytometerPanels[state.cytometer];
+            nextCytometerPanels[nextCytometer] = {
+                ...(activeCytometerPanel ?? { configuration: nextConfiguration, wizard: nextWizard }),
+                configuration: nextConfiguration,
+                slots: nextSlots,
+                markers: nextMarkers,
+                wizard: nextWizard,
+            };
+            await persistProjectState({
+                ...state,
+                cytometer: nextCytometer,
+                configuration: nextConfiguration,
+                slots: nextSlots,
+                markers: nextMarkers,
+                wizard: nextWizard,
+                cytometerPanels: nextCytometerPanels,
+            });
+            setPayload(nextPayload);
+            setCytometer(nextCytometer);
+            setConfiguration(nextConfiguration);
             slotsRef.current = nextSlots;
             markersRef.current = nextMarkers;
-            wizardStateRef.current = state.wizard;
+            wizardStateRef.current = nextWizard;
             setSlots(nextSlots);
             setMarkers(nextMarkers);
             setTab(state.tab);
@@ -1097,24 +1359,9 @@ const PanelBuilder = ({
             setSidebarWidth(state.sidebarWidth);
             setSidebarCollapsed(state.sidebarCollapsed);
             setPlotScale(state.plotScale);
-            setWizardState(state.wizard);
-            const nextCytometerPanels = {
-                ...state.cytometerPanels,
-                [state.cytometer]: {
-                    configuration: getCytometerName(nextPayload.configuration),
-                    slots: nextSlots,
-                    markers: nextMarkers,
-                    wizard: state.wizard,
-                },
-            };
+            setWizardState(nextWizard);
             setCytometerPanels(nextCytometerPanels);
-            await persistProjectState({
-                ...state,
-                configuration: getCytometerName(nextPayload.configuration),
-                slots: nextSlots,
-                markers: nextMarkers,
-                cytometerPanels: nextCytometerPanels,
-            });
+            clearPanelHistory();
         } catch (err) {
             setError(panelErrorMessage(err, 'Could not import this OpenPanel project.'));
         } finally {
@@ -1124,6 +1371,7 @@ const PanelBuilder = ({
     };
 
     const chooseProject = async () => {
+        if (recoveryMode) return;
         const file = await openTextFile({
             description: 'OpenPanel project',
             mimeType: 'application/json',
@@ -1175,6 +1423,7 @@ const PanelBuilder = ({
                                         if (!panelName.trim()) setPanelName('Untitled panel');
                                     }}
                                     aria-label="Panel name"
+                                    disabled={recoveryMode}
                                     spellCheck={false}
                                 />
                             )}
@@ -1189,7 +1438,7 @@ const PanelBuilder = ({
                         onPointerEnter={() => void loadPanelWizard()}
                         onFocus={() => void loadPanelWizard()}
                         aria-label="Open panel wizard"
-                        disabled={panelExceedsDetectorLimit}
+                        disabled={panelExceedsDetectorLimit || recoveryMode}
                         title={panelExceedsDetectorLimit ? panelCapacityMessage(selectedColorCount, payload.max_panel_size) : 'Open panel wizard'}
                     >
                         <WandSparkles size={17} aria-hidden="true" />
@@ -1202,7 +1451,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => void undoPanelEdit()}
-                            disabled={!historyAvailability.canUndo || historyBusy}
+                            disabled={recoveryMode || !historyAvailability.canUndo || historyBusy}
                             aria-label="Undo last edit"
                             title="Undo"
                         >
@@ -1212,7 +1461,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => void redoPanelEdit()}
-                            disabled={!historyAvailability.canRedo || historyBusy}
+                            disabled={recoveryMode || !historyAvailability.canRedo || historyBusy}
                             aria-label="Redo last edit"
                             title="Redo"
                         >
@@ -1224,7 +1473,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => setPlotScale((current) => Math.max(MIN_PLOT_SCALE, current - 10))}
-                            disabled={plotScale <= MIN_PLOT_SCALE}
+                            disabled={recoveryMode || plotScale <= MIN_PLOT_SCALE}
                             aria-label="Decrease plot size"
                             title="Decrease plot size"
                         >
@@ -1234,7 +1483,7 @@ const PanelBuilder = ({
                             type="button"
                             className="export-button icon-only"
                             onClick={() => setPlotScale((current) => Math.min(MAX_PLOT_SCALE, current + 10))}
-                            disabled={plotScale >= MAX_PLOT_SCALE}
+                            disabled={recoveryMode || plotScale >= MAX_PLOT_SCALE}
                             aria-label="Increase plot size"
                             title="Increase plot size"
                         >
@@ -1245,7 +1494,7 @@ const PanelBuilder = ({
                         type="button"
                         className="export-button icon-only panel-clear-button"
                         onClick={() => setShowClearConfirmation(true)}
-                        disabled={!panelHasContent || clearingPanel}
+                        disabled={recoveryMode || !panelHasContent || clearingPanel}
                         aria-label="Clear project panel"
                         title="Clear panel"
                     >
@@ -1255,6 +1504,7 @@ const PanelBuilder = ({
                         type="button"
                         className="export-button"
                         onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+                        disabled={recoveryMode}
                         aria-label="Toggle theme"
                         style={{ padding: '0 10px', width: '40px' }}
                     >
@@ -1280,7 +1530,7 @@ const PanelBuilder = ({
                                 type="button"
                                 className={`export-button file-action-trigger${fileMenu === 'import' ? ' is-open' : ''}`}
                                 onClick={() => setFileMenu(current => current === 'import' ? null : 'import')}
-                                disabled={importing}
+                                disabled={importing || recoveryMode}
                                 aria-label={importing ? 'Importing file' : 'Import'}
                                 aria-haspopup="menu"
                                 aria-expanded={fileMenu === 'import'}
@@ -1291,14 +1541,14 @@ const PanelBuilder = ({
                             </button>
                             {fileMenu === 'import' && (
                                 <div className="file-action-popout" role="menu" aria-label="Import options">
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void choosePanelCsv();
                                     }}>
                                         <FileSpreadsheet size={17} />
                                         <span><strong>Import panel</strong><small>CSV file</small></span>
                                     </button>
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void chooseProject();
                                     }}>
@@ -1314,6 +1564,7 @@ const PanelBuilder = ({
                                 className={`export-button file-action-trigger${fileMenu === 'export' ? ' is-open' : ''}`}
                                 onClick={() => setFileMenu(current => current === 'export' ? null : 'export')}
                                 aria-label="Export"
+                                disabled={recoveryMode}
                                 aria-haspopup="menu"
                                 aria-expanded={fileMenu === 'export'}
                                 title="Export"
@@ -1323,14 +1574,14 @@ const PanelBuilder = ({
                             </button>
                             {fileMenu === 'export' && (
                                 <div className="file-action-popout" role="menu" aria-label="Export options">
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void exportPanelCsv();
                                     }}>
                                         <FileSpreadsheet size={17} />
                                         <span><strong>Export panel</strong><small>CSV file</small></span>
                                     </button>
-                                    <button type="button" role="menuitem" onClick={() => {
+                                    <button type="button" role="menuitem" disabled={recoveryMode} onClick={() => {
                                         setFileMenu(null);
                                         void exportProject();
                                     }}>
@@ -1347,7 +1598,7 @@ const PanelBuilder = ({
                             return;
                         }
                         setShowPdfConfirm(true);
-                    }} disabled={exporting} aria-label={exporting ? 'Exporting overview PDF' : 'Export overview PDF'} title={exporting ? 'Exporting…' : 'Export overview PDF'}>
+                    }} disabled={exporting || recoveryMode} aria-label={exporting ? 'Exporting overview PDF' : 'Export overview PDF'} title={exporting ? 'Exporting…' : 'Export overview PDF'}>
                         <PdfIcon size={20} />
                     </button>
                     {embedded && onRequestExit && <button
@@ -1371,6 +1622,7 @@ const PanelBuilder = ({
                         type="button"
                         className="panel-sidebar-toggle"
                         onClick={() => setSidebarCollapsed(previous => !previous)}
+                        disabled={recoveryMode}
                         aria-label={sidebarCollapsed ? 'Show fluorophore sidebar' : 'Hide fluorophore sidebar'}
                         title={sidebarCollapsed ? 'Show fluorophore sidebar' : 'Hide fluorophore sidebar'}
                     >
@@ -1391,10 +1643,11 @@ const PanelBuilder = ({
                                 >
                                     <div className="selector-swatch" style={{ background: color }} />
                                     <div>
-                                        <input
+                                    <input
                                             className="selector-input"
                                             value={display}
                                             placeholder="Select fluorophore"
+                                            disabled={recoveryMode}
                                             onFocus={() => {
                                                 setActiveSlot(index);
                                                 setQueries(prev => ({ ...prev, [index]: fluor }));
@@ -1434,7 +1687,7 @@ const PanelBuilder = ({
                                             </div>
                                         )}
                                     </div>
-                                    <button className="clear-slot" type="button" onClick={() => void removeSlot(index)} aria-label="Remove fluorophore row">
+                                    <button className="clear-slot" type="button" onClick={() => void removeSlot(index)} aria-label="Remove fluorophore row" disabled={recoveryMode}>
                                         <X size={13} />
                                     </button>
                                 </div>
@@ -1444,7 +1697,7 @@ const PanelBuilder = ({
                             type="button"
                             className="fluor-option"
                             onClick={addSlot}
-                            disabled={slots.length >= payload.max_panel_size}
+                            disabled={recoveryMode || slots.length >= payload.max_panel_size}
                             title={slots.length >= payload.max_panel_size ? `Maximum panel size: ${payload.max_panel_size} detectors` : 'Add fluorophore row'}
                         >
                             <span><Plus size={16} /> Add fluorophore row</span>
@@ -1464,7 +1717,8 @@ const PanelBuilder = ({
                         aria-valuemin={MIN_SIDEBAR_WIDTH}
                         aria-valuemax={MAX_SIDEBAR_WIDTH}
                         aria-valuenow={Math.round(sidebarWidth)}
-                        tabIndex={0}
+                        tabIndex={recoveryMode ? -1 : 0}
+                        aria-disabled={recoveryMode}
                         onPointerDown={beginSidebarResize}
                         onKeyDown={resizeSidebarByKeyboard}
                     />
@@ -1484,7 +1738,8 @@ const PanelBuilder = ({
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
                     theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
-                    error={error}
+                    error={[recoveryMode ? initialError : '', error, persistenceError].filter(Boolean).join('\n')}
+                    readOnly={recoveryMode}
                     plotScale={plotScale}
                     onPlotScaleChange={setPlotScale}
                 />

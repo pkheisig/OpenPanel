@@ -62,6 +62,7 @@ interface PanelVisualizationsProps {
     error: string;
     plotScale: number;
     onPlotScaleChange: (scale: number) => void;
+    readOnly?: boolean;
 }
 
 type SpectrumResizeEdge = 'left' | 'right';
@@ -120,6 +121,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     error,
     plotScale,
     onPlotScaleChange,
+    readOnly = false,
 }: PanelVisualizationsProps) {
     const tabContentRef = useRef<HTMLElement>(null);
     const spectrumContainerRef = useRef<HTMLDivElement>(null);
@@ -308,7 +310,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
 
     return (
 <main
-    className="main-panel"
+    className={`main-panel${error ? ' has-error' : ''}`}
     style={{
         '--plot-zoom': plotZoom,
         '--spectrum-display-width': spectrumDisplayWidth,
@@ -456,7 +458,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
         <div className="complexity-badge">{complexityLabel}: {formatMetric(payload.complexity_index)}</div>
     </div>
 
-    {error && <div className="error-state">{error}</div>}
+    {error && <div className="error-state" role="alert" aria-live="assertive">{error}</div>}
 
     <section className="tab-content" ref={tabContentRef}>
         {tab === 'panel' && (
@@ -518,6 +520,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                                                         className="matrix-marker-input"
                                                         value={entry.marker}
                                                         placeholder="Marker"
+                                                        disabled={readOnly}
                                                         onChange={event => {
                                                             const val = event.target.value;
                                                             onMarkerChange(entry.slotIndex, val);
