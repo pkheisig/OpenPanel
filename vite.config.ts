@@ -1,10 +1,17 @@
+import { execFileSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const configuredPort = Number.parseInt(process.env.VITE_DEV_PORT || '5174', 10)
-const sourceCommit = process.env.VITE_GIT_COMMIT_SHA || process.env.GITHUB_SHA || 'dev'
+const sourceCommit = process.env.VITE_GIT_COMMIT_SHA || process.env.GITHUB_SHA || (() => {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  } catch {
+    return 'dev'
+  }
+})()
 
 // https://vite.dev/config/
 export default defineConfig({

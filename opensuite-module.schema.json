@@ -13,6 +13,10 @@
     "runtimeContractVersion",
     "uiContractVersion",
     "entrypoints",
+    "types",
+    "assetManifest",
+    "dependenciesManifest",
+    "artifactIntegrity",
     "peerDependencies",
     "capabilities"
   ],
@@ -34,7 +38,21 @@
       },
       "additionalProperties": false
     },
+    "types": { "type": "string", "minLength": 1 },
     "assetManifest": { "type": "string", "minLength": 1 },
+    "dependenciesManifest": { "type": "string", "minLength": 1 },
+    "artifactIntegrity": {
+      "type": "object",
+      "required": ["application", "stylesheet", "types", "assetManifest", "dependenciesManifest"],
+      "properties": {
+        "application": { "$ref": "#/$defs/integrity" },
+        "stylesheet": { "$ref": "#/$defs/integrity" },
+        "types": { "$ref": "#/$defs/integrity" },
+        "assetManifest": { "$ref": "#/$defs/integrity" },
+        "dependenciesManifest": { "$ref": "#/$defs/integrity" }
+      },
+      "additionalProperties": false
+    },
     "peerDependencies": {
       "type": "object",
       "required": ["react", "react-dom"],
@@ -47,5 +65,16 @@
     "capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
     "fileExtensions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "integrity": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    }
+  }
 }

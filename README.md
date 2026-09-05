@@ -28,6 +28,21 @@ Your markers, panels, imported files, projects, and reports stay on your device.
 
 GitHub Pages only serves the static application and bundled reference data. OpenPanel has no application backend and does not upload project contents. GitHub may receive standard request metadata while serving the site; once cached, the PWA can reopen offline.
 
+## OpenSuite application module
+
+The standalone PWA and the reusable OpenSuite module are built from the same
+application implementation. `npm run build:module` emits `dist-module/`, which
+contains a prefixed-path-safe ESM module, scoped stylesheet, TypeScript
+declarations, bundled reference data, an `opensuite-module.json` descriptor,
+dependency and asset manifests, notices, and SHA-256 checksums. React and
+ReactDOM remain external peer dependencies. The module entry has no service
+worker, standalone stale-chunk recovery, or page-global startup behavior; a
+host supplies persistence, file, navigation, theme, and asset services.
+
+The release workflow runs on `v*` tags and manual dispatch. OpenSuite imports a
+reviewed module artifact by exact version, source SHA, and content hashes; it
+must not resolve a mutable branch or a local checkout for a release.
+
 ## Project files
 
 - Panel CSV import accepts comma-, tab-, and semicolon-delimited files and exports `Marker,Fluorophore` CSVs.

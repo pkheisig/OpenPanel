@@ -14,11 +14,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:module": "node scripts/build-module.mjs",
     "lint": "eslint .",
     "test": "node --test src/detectorAxis.test.js && vitest run --config vitest.config.ts",
+    "test:module": "node --test tests-js/module-release.test.mjs",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:e2e": "playwright test",
-    "check": "npm run lint && npm test && npm run build && npm run test:e2e",
+    "check": "npm run lint && npm test && npm run build && npm run build:module && npm run test:module && npm run test:e2e",
     "preview": "vite preview"
   },
   "dependencies": {

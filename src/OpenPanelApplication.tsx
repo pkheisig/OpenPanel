@@ -10,3 +10,4 @@ export type {
   OpenPanelCloseResult,
   OpenPanelModule,
 } from './module/OpenPanelApplication'
+export type { OpenPanelApplicationContext } from './module/hostServices'
