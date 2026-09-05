@@ -13,7 +13,7 @@ import {
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
-import { createOpenSuiteProvenance, inspectOpenPanelProjectProvenance, openPanelProjectPayload, ProvenanceValidationError, type OpenSuiteProvenance } from './provenance'
+import { createOpenSuiteProvenance, inspectOpenPanelProjectProvenance, inspectOpenSuiteProvenance, openPanelProjectPayload, ProvenanceValidationError, type OpenSuiteProvenance } from './provenance'
 import type {
   AntigenDensity,
   WizardPanelResult,
@@ -593,7 +593,7 @@ function normalizeCytometerPanel(
 
 export function serializeProject(state: ProjectState): string {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   assertProjectResourceLimits(normalizedState)
   const serialized = serializeNormalizedProject(normalizedState)
   assertProjectTextWithinLimit(serialized)
@@ -639,6 +639,7 @@ function normalizeState(
   traverseResourceTree = true,
   dedupeSlots = true,
   validateMarkerKeys = true,
+  verifyProvenance = true,
 ): ProjectState {
   assertProjectResourceLimits(value, false, traverseResourceTree, validateMarkerKeys)
   const savedTab = scalar(value.tab)
@@ -683,9 +684,13 @@ function normalizeState(
   let provenance: OpenSuiteProvenance | undefined
   if (rawProvenance !== undefined) {
     try {
-      const inspection = inspectOpenPanelProjectProvenance(value)
-      if (inspection.status === 'mismatch') throw new ProjectValidationError('This project file has a mismatching provenance checksum.')
-      if (inspection.status === 'verified') provenance = inspection.provenance
+      if (verifyProvenance) {
+        const inspection = inspectOpenPanelProjectProvenance(value)
+        if (inspection.status === 'mismatch') throw new ProjectValidationError('This project file has a mismatching provenance checksum.')
+        if (inspection.status === 'verified') provenance = inspection.provenance
+      } else {
+        provenance = inspectOpenSuiteProvenance(rawProvenance)
+      }
     } catch (error) {
       if (error instanceof ProvenanceValidationError) throw new ProjectValidationError(error.message)
       throw error
@@ -781,7 +786,7 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   const serializedState = serializeProject(normalizedState)
   const persistedState = projectStateFromSerialized(serializedState)
   try {
@@ -1121,7 +1126,7 @@ export async function createPanelProject(
 ): Promise<StoredPanelProject> {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id: createPanelId(),
@@ -1153,7 +1158,7 @@ export async function savePanelProject(
   if (existing?.loadError) return existing
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id,
