@@ -89,6 +89,32 @@
     color-scheme: dark;
   }
 
+  .openpanel-module-root :where(.launch-screen.dark, .panel-builder.dark, .panel-wizard-backdrop.dark, .omip-library-backdrop.dark) {
+    --openpanel-bg-shell: var(--suite-bg-shell, #1d1916);
+    --openpanel-bg-surface: var(--suite-bg-surface, #2a241f);
+    --openpanel-bg-raised: var(--suite-bg-surface-raised, #2d2722);
+    --openpanel-bg-subtle: var(--suite-bg-subtle, #332a24);
+    --openpanel-text: var(--suite-text-main, #f6eee5);
+    --openpanel-muted: var(--suite-text-muted, #c4b5a7);
+    --openpanel-border: var(--suite-border, #504338);
+    --openpanel-border-strong: var(--suite-border-strong, #665548);
+    --openpanel-accent: var(--suite-accent, #ff9654);
+    --openpanel-accent-hover: var(--suite-accent-hover, #ffad73);
+    --openpanel-accent-soft: var(--suite-accent-soft, #4a2d1e);
+    --openpanel-connected: var(--suite-semantic-connected, #55c7b6);
+    --openpanel-danger: var(--suite-semantic-danger, #bd5149);
+    --openpanel-on-accent: #2a180e;
+    color-scheme: dark;
+  }
+
+  .openpanel-module-root .app-loading {
+    min-height: 40vh;
+    display: grid;
+    place-items: center;
+    color: var(--openpanel-muted);
+    font-size: 17px;
+  }
+
   .openpanel-module-root :where(.launch-screen, .panel-builder, .module-loading-state, .omip-library-backdrop) {
     font-family: var(--openpanel-font-family);
   }

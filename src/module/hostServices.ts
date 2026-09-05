@@ -115,7 +115,7 @@ export function openPanelHostOwns(
 ): boolean {
   const declared = context.ownership ?? context.hostOwnership
   if (declared && declared[ownership] !== undefined) return declared[ownership] === true
-  return context.mode === 'embedded'
+  return false
 }
 
 export type OpenPanelLifecycleState = {

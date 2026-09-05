@@ -124,7 +124,11 @@ describe('OpenPanel application module', () => {
   })
 
   test('normalizes and validates host-owned UI context', () => {
-    const context = normalizeOpenPanelApplicationContext({ mode: 'embedded', theme: 'dark' })
+    const context = normalizeOpenPanelApplicationContext({
+      mode: 'embedded',
+      theme: 'dark',
+      ownership: { globalChrome: true, theme: true, windowClose: true },
+    })
     expect(context).toMatchObject({
       mode: 'embedded',
       theme: 'dark',
@@ -133,6 +137,8 @@ describe('OpenPanel application module', () => {
     })
     expect(openPanelHostOwns(context, 'globalChrome')).toBe(true)
     expect(openPanelHostOwns(context, 'theme')).toBe(true)
+    expect(openPanelHostOwns({ mode: 'embedded' }, 'globalChrome')).toBe(false)
+    expect(openPanelHostOwns({ mode: 'embedded' }, 'windowClose')).toBe(false)
     expect(openPanelHostOwns({ ...context, ownership: { windowClose: false } }, 'windowClose')).toBe(false)
     expect(openPanelHostOwns({ mode: 'standalone' }, 'theme')).toBe(false)
     expect(() => validateOpenPanelApplicationContext({ uiContractVersion: '9.9.9' })).toThrow(/unsupported/)

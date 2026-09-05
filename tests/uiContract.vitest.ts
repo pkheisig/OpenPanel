@@ -8,6 +8,8 @@ describe('OpenSuite UI contract boundary', () => {
   test('keeps reusable foundation styles inside the module root', () => {
     expect(moduleStyles).toContain('@layer reset, foundation, primitives, shell;')
     expect(moduleStyles).toContain('.openpanel-module-root')
+    expect(moduleStyles).toContain('.openpanel-module-root .app-loading')
+    expect(moduleStyles).toContain('.launch-screen.dark')
     expect(moduleStyles).not.toMatch(/(^|\n)\s*(html|body|#root|:root)\s*[{,:]/)
     expect(moduleStyles).not.toContain('body:has(')
     expect(moduleStyles).not.toContain('#root *')
