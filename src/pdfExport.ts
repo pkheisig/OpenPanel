@@ -1,7 +1,8 @@
 import { jsPDF } from 'jspdf'
 import { responseProvenanceForPayload, responseProvenanceWarningForPayload } from './panelBuilderShared'
 import { createOpenSuiteProvenance, portableJson } from './provenance'
-import type { DetectorInfo, NumericRow, PanelPayload } from './panelBuilderShared'
+import { calculateCollinearityDiagnostic } from './spectralEngine'
+import type { CollinearityDiagnostic, DetectorInfo, NumericRow, PanelPayload } from './panelBuilderShared'
 
 type PanelReportRow = {
   fluor: string
@@ -164,14 +165,32 @@ function hotspotColor(value: number, maximum: number): [number, number, number] 
   return [red, green, blue].map((channel) => Math.round((channel + match) * 255)) as [number, number, number]
 }
 
+function collinearityForReport(payload: PanelPayload, rows: PanelReportRow[]): CollinearityDiagnostic | null | undefined {
+  const responseProvenance = responseProvenanceForPayload(
+    payload.cytometer,
+    payload.measurement_mode,
+    payload.response_provenance,
+  )
+  if (responseProvenance.class === 'synthetic_filter_proxy') return payload.collinearity
+
+  const names = rows.map((row) => row.fluor)
+  const spectraByName = new Map(payload.spectra.map((row) => [row.fluorophore, row]))
+  const spectra = names.map((name) => spectraByName.get(name))
+  if (spectra.some((row) => row === undefined)) return null
+
+  const values = (spectra as NumericRow[]).map((row) => payload.detectors.map((detector) => Number(row[detector.detector])))
+  return calculateCollinearityDiagnostic(values, names, responseProvenance)
+}
+
 function addHotspotPage(document: jsPDF, payload: PanelPayload, rows: PanelReportRow[]): void {
-  const diagnostic = payload.collinearity
   const responseProvenance = responseProvenanceForPayload(
     payload.cytometer,
     payload.measurement_mode,
     payload.response_provenance,
   )
   if (responseProvenance.class === 'synthetic_filter_proxy' || rows.length < 2) return
+  const diagnostic = collinearityForReport(payload, rows)
+  if (!diagnostic) return
 
   document.addPage('letter', 'landscape')
   addReportProvenanceNote(document, payload)
@@ -335,7 +354,11 @@ function addSignatureChart(
 // builder below remains the normal entry point used by the UI.
 export { addHotspotPage, addSimilarityPage }
 
-function panelProvenancePayload(payload: PanelPayload, rows: PanelReportRow[]): Record<string, unknown> {
+function panelProvenancePayload(
+  payload: PanelPayload,
+  rows: PanelReportRow[],
+  collinearity: CollinearityDiagnostic | null | undefined,
+): Record<string, unknown> {
   return {
     cytometer: payload.cytometer,
     configuration: payload.configuration,
@@ -344,7 +367,7 @@ function panelProvenancePayload(payload: PanelPayload, rows: PanelReportRow[]): 
     detectors: payload.detectors,
     fluorophores: payload.fluorophores,
     response_provenance: payload.response_provenance,
-    collinearity: payload.collinearity,
+    collinearity,
     rows: rows.map((row) => ({ fluor: row.fluor, marker: row.marker })),
     complexity_index: payload.complexity_index,
     spectralLibraryRows: payload.spectra.length,
@@ -353,10 +376,11 @@ function panelProvenancePayload(payload: PanelPayload, rows: PanelReportRow[]): 
 
 export function createPanelOverviewPdf(payload: PanelPayload, rows: PanelReportRow[]): Blob {
   const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter', compress: true })
+  const reportCollinearity = collinearityForReport(payload, rows)
   const provenance = createOpenSuiteProvenance({
     artifactType: 'pdf',
     artifactName: 'Export OpenPanel panel overview PDF',
-    payload: panelProvenancePayload(payload, rows),
+    payload: panelProvenancePayload(payload, rows, reportCollinearity),
     configurationId: `${payload.cytometer}:${payload.configuration}`,
     responseProvenance: payload.response_provenance,
     extensions: {

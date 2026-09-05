@@ -118,6 +118,30 @@ describe('browser imports and exports', () => {
     const hotspotBytes = hotspotDocument.output('arraybuffer') as ArrayBuffer
     expect(new TextDecoder('latin1').decode(new Uint8Array(hotspotBytes))).toContain('Fluorophore Hotspot')
 
+    const thirdFluorophore = payload.fluorophores.find((item) => !payload.selected.includes(item.fluorophore))?.fluorophore
+    expect(thirdFluorophore).toBeTruthy()
+    const fullPayload = await buildPanelPayload('aurora', '5l_uv_v_b_yg_r', [
+      'Alexa Fluor 488', 'Alexa Fluor 647', thirdFluorophore as string,
+    ])
+    const stalePayload = {
+      ...fullPayload,
+      collinearity: {
+        ...fullPayload.collinearity!,
+        maxSif: 99,
+        maxSifEndmember: 'stale',
+        hotspotMatrix: fullPayload.collinearity!.hotspotMatrix.map((row) => row.map(() => 99)),
+      },
+    }
+    const subsetHotspotDocument = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' })
+    addHotspotPage(subsetHotspotDocument, stalePayload, [
+      { fluor: 'Alexa Fluor 488', marker: 'CD3' },
+      { fluor: thirdFluorophore as string, marker: 'CD3' },
+    ])
+    const subsetHotspotText = new TextDecoder('latin1').decode(
+      new Uint8Array(subsetHotspotDocument.output('arraybuffer') as ArrayBuffer),
+    )
+    expect(subsetHotspotText).not.toContain('Max SIF: 99.00 · stale')
+
     const conventionalDocument = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' })
     addSimilarityPage(
       conventionalDocument,

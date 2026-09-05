@@ -211,9 +211,9 @@ export const PanelVisualizations = memo(function PanelVisualizations({
             : 'Complexity Index';
     const hotspotDiagnostic = payload.collinearity;
     const hotspotEligible = responseProvenance.class !== 'synthetic_filter_proxy' && hotspotDiagnostic !== undefined;
-    const hotspotNames = selected.filter((name) => hotspotDiagnostic?.endmembers.includes(name));
     const hotspotSelectionComplete = hotspotDiagnostic?.status === 'ok'
-        && hotspotNames.length === selected.length;
+        && hotspotDiagnostic.endmembers.length === selected.length
+        && hotspotDiagnostic.endmembers.every((name, index) => name === selected[index]);
 
     useEffect(() => {
         if (!hotspotEligible) setMatrixView('similarity');
@@ -612,7 +612,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
                             Hotspot
                         </button>
                     )}
-                    {matrixView === 'hotspot' && hotspotDiagnostic?.status === 'ok' && hotspotDiagnostic.maxSif !== null && (
+                    {matrixView === 'hotspot' && hotspotSelectionComplete && hotspotDiagnostic.maxSif !== null && (
                         <span className="matrix-view-summary">
                             Max SIF {formatHotspotValue(hotspotDiagnostic.maxSif)} · {hotspotDiagnostic.maxSifEndmember ?? 'unknown'}
                         </span>
