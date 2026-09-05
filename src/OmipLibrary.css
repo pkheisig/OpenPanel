@@ -22,15 +22,15 @@
 }
 
 .omip-library-backdrop.dark {
-  --omip-bg: var(--suite-bg-surface, #2a241f);
-  --omip-surface: var(--suite-bg-surface-raised, #2d2722);
-  --omip-header: var(--suite-bg-subtle, #332a24);
-  --omip-text: var(--suite-text-main, #f6eee5);
-  --omip-muted: var(--suite-text-muted, #c4b5a7);
-  --omip-border: var(--suite-border, #504338);
-  --omip-border-soft: var(--suite-bg-subtle, #332a24);
-  --omip-accent: var(--suite-semantic-connected, #55c7b6);
-  --omip-accent-soft: var(--suite-accent-soft, #4a2d1e);
+  --omip-bg: var(--suite-color-surface);
+  --omip-surface: var(--suite-color-surface-raised);
+  --omip-header: var(--suite-color-subtle);
+  --omip-text: var(--suite-color-text);
+  --omip-muted: var(--suite-color-text-muted);
+  --omip-border: var(--suite-color-border);
+  --omip-border-soft: var(--suite-color-subtle);
+  --omip-accent: var(--suite-color-connected);
+  --omip-accent-soft: var(--suite-color-accent-soft);
   color-scheme: dark;
 }
 
@@ -71,7 +71,7 @@
 
 .omip-library-heading h2 {
   margin: 0;
-  font-family: Georgia, "Source Serif 4", serif;
+  font-family: var(--suite-font-family-app);
   font-size: 21px;
   font-weight: 500;
 }

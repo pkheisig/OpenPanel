@@ -30,6 +30,8 @@ import type { OmipCatalogEntry, OmipTemplate } from './panelWizardKnowledge'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
 import { OmipLibrary } from './OmipLibrary'
+import { ProjectActionDialog } from './ProjectActionDialog'
+import type { ProjectActionDialogMode } from './ProjectActionDialog'
 import {
   openPanelHostOwns,
   useOpenPanelApplicationContext,
@@ -63,6 +65,12 @@ type ProjectMenuState = {
   panel: StoredPanelProject
   x: number
   y: number
+  trigger: HTMLElement | null
+}
+
+type ProjectDialogState = {
+  mode: ProjectActionDialogMode
+  panel: StoredPanelProject
 }
 
 type ProjectOrder = 'created-desc' | 'created-asc' | 'updated-desc' | 'name-asc'
@@ -293,6 +301,13 @@ export function LandingPage({
   const [omipPayload, setOmipPayload] = useState<PanelPayload | null>(null)
   const [creatingFromOmip, setCreatingFromOmip] = useState(false)
   const [menu, setMenu] = useState<ProjectMenuState | null>(null)
+  const [projectDialog, setProjectDialog] = useState<ProjectDialogState | null>(null)
+  const [projectDialogValue, setProjectDialogValue] = useState('')
+  const [projectDialogError, setProjectDialogError] = useState('')
+  const [projectDialogBusy, setProjectDialogBusy] = useState(false)
+  const projectDialogTrigger = useRef<HTMLElement | null>(null)
+  const projectDialogBusyRef = useRef(false)
+  const launchRef = useRef<HTMLElement>(null)
   const [projectOrder, setProjectOrder] = useState<ProjectOrder>('created-desc')
   const [cytometer, setCytometer] = useState('')
   const configurations = useMemo(
@@ -325,6 +340,11 @@ export function LandingPage({
   }, [host.theme, hostOwnsTheme, theme])
 
   const renderedTheme = hostOwnsTheme ? (applicationContext.theme ?? theme) : theme
+
+  useEffect(() => {
+    if (hostOwnsTheme) return
+    launchRef.current?.closest<HTMLElement>('.openpanel-module-root')?.setAttribute('data-openpanel-theme', theme)
+  }, [hostOwnsTheme, theme])
 
   useEffect(() => {
     const closeMenu = (event: PointerEvent) => {
@@ -444,29 +464,69 @@ export function LandingPage({
     )
   )
 
-  const openMenu = (panel: StoredPanelProject, x: number, y: number) => {
+  const openMenu = (panel: StoredPanelProject, x: number, y: number, trigger: HTMLElement) => {
     const width = 190
     const height = panel.archivedAt ? 214 : 214
+    const focusTarget = trigger.matches('button, a, [tabindex]')
+      ? trigger
+      : trigger.querySelector<HTMLElement>('button, a, [tabindex]') ?? trigger
     setMenu({
       panel,
       x: Math.max(10, Math.min(x, window.innerWidth - width - 10)),
       y: Math.max(10, Math.min(y, window.innerHeight - height - 10)),
+      trigger: focusTarget,
     })
   }
 
-  const rename = async (panel: StoredPanelProject) => {
-    const name = window.prompt('Panel name', panel.name)?.trim()
-    if (name && name !== panel.name) await onRename(panel, name)
+  const openProjectDialog = (mode: ProjectActionDialogMode, panel: StoredPanelProject) => {
+    projectDialogTrigger.current = menu?.trigger ?? null
+    setProjectDialogValue(panel.name)
+    setProjectDialogError('')
+    setProjectDialog({ mode, panel })
   }
 
-  const remove = async (panel: StoredPanelProject) => {
-    if (window.confirm(`Delete “${panel.name}”? This cannot be undone.`)) {
-      await onDelete(panel)
+  const closeProjectDialog = () => {
+    if (projectDialogBusyRef.current) return
+    setProjectDialog(null)
+    setProjectDialogError('')
+  }
+
+  const submitProjectDialog = async () => {
+    if (!projectDialog || projectDialogBusyRef.current) return
+    const { mode, panel } = projectDialog
+    const name = projectDialogValue.trim()
+    if (mode === 'rename' && (!name || name === panel.name)) {
+      if (!name) setProjectDialogError('Enter a project name.')
+      else closeProjectDialog()
+      return
+    }
+    projectDialogBusyRef.current = true
+    setProjectDialogBusy(true)
+    setProjectDialogError('')
+    try {
+      if (mode === 'rename') await onRename(panel, name)
+      else await onDelete(panel)
+      setProjectDialog(null)
+    } catch (actionError) {
+      setProjectDialogError(errorMessage(
+        actionError,
+        mode === 'rename' ? 'Could not rename this project.' : 'Could not delete this project.',
+      ))
+    } finally {
+      projectDialogBusyRef.current = false
+      setProjectDialogBusy(false)
     }
   }
 
+  useEffect(() => {
+    if (projectDialog) return
+    const trigger = projectDialogTrigger.current
+    projectDialogTrigger.current = null
+    if (trigger?.isConnected) trigger.focus({ preventScroll: true })
+  }, [projectDialog])
+
   return (
-    <main className={`launch-screen ${renderedTheme}`}>
+    <main ref={launchRef} className={`launch-screen ${renderedTheme}`}>
       <header className="launch-header">
         {!hostOwnsChrome && (
           <a className="launch-brand" href="./" aria-label="OpenPanel home">
@@ -477,7 +537,7 @@ export function LandingPage({
         <div className="launch-header-actions">
           <button
             type="button"
-            className="launch-secondary-button"
+            className="suite-button suite-button--secondary launch-secondary-button"
             disabled={importing || starting || creatingFromOmip}
             onClick={() => importInput.current?.click()}
           >
@@ -498,7 +558,7 @@ export function LandingPage({
           {!hostOwnsTheme && (
             <button
               type="button"
-              className="launch-theme-button"
+              className="suite-button suite-button--quiet suite-button--icon launch-theme-button"
               onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
               aria-label={renderedTheme === 'light' ? 'Use dark mode' : 'Use light mode'}
               title={renderedTheme === 'light' ? 'Use dark mode' : 'Use light mode'}
@@ -607,7 +667,7 @@ export function LandingPage({
 
             <div className="launch-card-actions">
               <button
-                className="launch-submit"
+                className="suite-button suite-button--primary launch-submit"
                 type="submit"
                 disabled={!setupReady || starting || creatingFromOmip}
               >
@@ -616,7 +676,7 @@ export function LandingPage({
                 <ArrowRight size={17} />
               </button>
               <button
-                className="launch-submit"
+                className="suite-button suite-button--primary launch-submit"
                 type="button"
                 disabled={!setupReady || starting || creatingFromOmip}
                 onClick={() => {
@@ -657,7 +717,7 @@ export function LandingPage({
                   cytometer={cytometerLabel(panel.state.cytometer)}
                   configuration={configurationLabel(panel)}
                   onOpen={() => onOpen(panel)}
-                  onMenu={(x, y) => openMenu(panel, x, y)}
+                  onMenu={(x, y, trigger) => openMenu(panel, x, y, trigger)}
                 />
               ))}
             </div>
@@ -691,7 +751,7 @@ export function LandingPage({
                       configuration={configurationLabel(panel)}
                       archived
                       onOpen={() => onOpen(panel)}
-                      onMenu={(x, y) => openMenu(panel, x, y)}
+                      onMenu={(x, y, trigger) => openMenu(panel, x, y, trigger)}
                     />
                   ))}
                 </div>
@@ -711,12 +771,24 @@ export function LandingPage({
         <ProjectActionMenu
           state={menu}
           onClose={() => setMenu(null)}
-          onRename={() => rename(menu.panel)}
+          onRename={() => openProjectDialog('rename', menu.panel)}
           onExport={() => onExport(menu.panel)}
           onDuplicate={() => onDuplicate(menu.panel)}
           onArchive={() => onArchive(menu.panel)}
           onRestore={() => onRestore(menu.panel)}
-          onDelete={() => remove(menu.panel)}
+          onDelete={() => openProjectDialog('delete', menu.panel)}
+        />
+      )}
+      {projectDialog && (
+        <ProjectActionDialog
+          mode={projectDialog.mode}
+          panelName={projectDialog.panel.name}
+          value={projectDialogValue}
+          busy={projectDialogBusy}
+          error={projectDialogError}
+          onChange={setProjectDialogValue}
+          onCancel={closeProjectDialog}
+          onSubmit={submitProjectDialog}
         />
       )}
       {showOmipLibrary && (
@@ -759,7 +831,7 @@ function ProjectCard({
   configuration: string
   archived?: boolean
   onOpen: () => void
-  onMenu: (x: number, y: number) => void
+  onMenu: (x: number, y: number, trigger: HTMLElement) => void
 }) {
   const colors = panel.state.slots.filter(Boolean).length
   return (
@@ -767,7 +839,7 @@ function ProjectCard({
       className={`panel-library-card ${archived ? 'archived' : ''}`}
       onContextMenu={(event) => {
         event.preventDefault()
-        onMenu(event.clientX, event.clientY)
+        onMenu(event.clientX, event.clientY, event.currentTarget)
       }}
     >
       <button
@@ -796,7 +868,7 @@ function ProjectCard({
           aria-label={`Project actions for ${panel.name}`}
           onClick={(event) => {
             const rect = event.currentTarget.getBoundingClientRect()
-            onMenu(rect.right, rect.bottom + 5)
+            onMenu(rect.right, rect.bottom + 5, event.currentTarget)
           }}
         >
           <MoreHorizontal size={18} />

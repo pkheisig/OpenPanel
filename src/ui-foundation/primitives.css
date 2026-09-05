@@ -1,0 +1,119 @@
+/* OpenSuite UI foundation 1.0.0 primitive subset used by OpenPanel chrome. */
+@layer primitives {
+  .openpanel-module-root .suite-button {
+    display: inline-flex;
+    min-height: var(--suite-control-height-normal);
+    align-items: center;
+    justify-content: center;
+    gap: var(--suite-space-control-gap);
+    padding: 0 var(--suite-space-4);
+    border: var(--suite-border-width) solid var(--suite-color-border);
+    border-radius: var(--suite-radius-control);
+    color: var(--suite-color-text);
+    background: var(--suite-color-surface);
+    cursor: pointer;
+    font: inherit;
+    font-weight: var(--suite-font-weight-medium);
+    line-height: var(--suite-line-height-compact);
+    text-decoration: none;
+    transition: background-color var(--suite-motion-fast) var(--suite-ease-standard), border-color var(--suite-motion-fast) var(--suite-ease-standard), color var(--suite-motion-fast) var(--suite-ease-standard), transform var(--suite-motion-fast) var(--suite-ease-standard);
+  }
+
+  .openpanel-module-root .suite-button:hover:not(:disabled) {
+    border-color: var(--suite-color-border-strong);
+    background: var(--suite-color-surface-raised);
+  }
+
+  .openpanel-module-root .suite-button:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .openpanel-module-root .suite-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .openpanel-module-root .suite-button--primary {
+    border-color: var(--suite-color-accent);
+    color: var(--suite-color-text-on-accent);
+    background: var(--suite-color-accent);
+  }
+
+  .openpanel-module-root .suite-button--primary:hover:not(:disabled) {
+    border-color: var(--suite-color-accent-hover);
+    background: var(--suite-color-accent-hover);
+  }
+
+  .openpanel-module-root .suite-button--secondary {
+    border-color: var(--suite-color-accent);
+    color: var(--suite-color-accent);
+  }
+
+  .openpanel-module-root .suite-button--quiet {
+    min-height: var(--suite-control-height-compact);
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .openpanel-module-root .suite-button--quiet:hover:not(:disabled) {
+    border-color: var(--suite-color-border);
+    background: var(--suite-color-subtle);
+  }
+
+  .openpanel-module-root .suite-button--icon {
+    width: var(--suite-control-height-normal);
+    padding: 0;
+  }
+
+  .openpanel-module-root .suite-button--destructive {
+    border-color: var(--suite-color-danger);
+    color: var(--suite-color-danger);
+  }
+
+  .openpanel-module-root .suite-button--destructive:hover:not(:disabled) {
+    color: var(--suite-color-text-on-accent);
+    background: var(--suite-color-danger);
+  }
+
+  .openpanel-module-root .suite-input {
+    min-height: var(--suite-control-height-normal);
+    width: 100%;
+    padding: var(--suite-space-2) var(--suite-space-3);
+    border: var(--suite-border-width) solid var(--suite-color-border);
+    border-radius: var(--suite-radius-input);
+    color: var(--suite-color-text);
+    background: var(--suite-color-surface);
+    font: inherit;
+  }
+
+  .openpanel-module-root .suite-input:hover {
+    border-color: var(--suite-color-border-strong);
+  }
+
+  .openpanel-module-root .suite-input[aria-invalid="true"] {
+    border-color: var(--suite-color-danger);
+  }
+
+  .openpanel-module-root .suite-dialog {
+    width: min(32rem, 100%);
+    padding: var(--suite-space-6);
+    border: var(--suite-border-width) solid var(--suite-color-border);
+    border-radius: var(--suite-radius-dialog);
+    color: var(--suite-color-text);
+    background: var(--suite-color-surface);
+    box-shadow: var(--suite-shadow-md);
+  }
+
+  .openpanel-module-root .suite-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--suite-space-2);
+    margin-top: var(--suite-space-6);
+  }
+
+  .openpanel-module-root :where(.suite-button, .suite-input, [role="combobox"], [role="menuitem"]):focus-visible {
+    outline: var(--suite-focus-width) solid var(--suite-color-focus);
+    outline-offset: var(--suite-focus-offset);
+  }
+}
+

@@ -488,6 +488,7 @@ const PanelBuilder = ({
     const projectInputRef = useRef<HTMLInputElement | null>(null);
     const fileActionsRef = useRef<HTMLDivElement | null>(null);
     const sidebarRef = useRef<HTMLElement | null>(null);
+    const panelRootRef = useRef<HTMLDivElement | null>(null);
     const sidebarResizeCleanupRef = useRef<(() => void) | null>(null);
     const [markers, setMarkers] = useState<Record<number, string>>(() => initialProject?.markers ?? {});
     const markersRef = useRef(markers);
@@ -584,6 +585,11 @@ const PanelBuilder = ({
         if (effectiveEmbedded || hostOwnsTheme) return;
         host.theme.save(theme);
     }, [effectiveEmbedded, host.theme, hostOwnsTheme, theme]);
+
+    useEffect(() => {
+        if (hostOwnsTheme) return;
+        panelRootRef.current?.closest<HTMLElement>('.openpanel-module-root')?.setAttribute('data-openpanel-theme', renderedTheme);
+    }, [hostOwnsTheme, renderedTheme]);
 
     useEffect(() => {
         host.storage.setItem('spectreasy_slots', JSON.stringify(slots));
@@ -1448,7 +1454,7 @@ const PanelBuilder = ({
     }
 
     return (
-        <div className={`panel-builder ${renderedTheme}`}>
+        <div ref={panelRootRef} className={`panel-builder ${renderedTheme}`}>
             <header className="panel-topbar">
                 <div className="panel-title-group">
                     {!effectiveEmbedded && exitHandler && (

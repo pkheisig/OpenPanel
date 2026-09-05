@@ -65,8 +65,13 @@ describe('OpenPanel application module', () => {
     expect(OPEN_PANEL_APPLICATION_MANIFEST.moduleVersion).toBe('1.0.0')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.applicationContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.runtimeContractVersion).toBe('0.1.0-bootstrap')
-    expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe('0.1.0-bootstrap')
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe('1.0.0')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe(OPEN_PANEL_UI_CONTRACT_VERSION)
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.uiFoundation).toMatchObject({
+      packageName: '@pkheisig/opensuite-ui-foundation',
+      version: '1.0.0',
+      sourceDigest: '6f723015c258a1b30bee5824a8735fbc01ec53c4feee006fcaa7f165b8d6b05c',
+    })
     expect(OPEN_PANEL_APPLICATION_MANIFEST.entrypoints).toEqual({
       application: './openpanel.js',
       stylesheet: './openpanel.css',

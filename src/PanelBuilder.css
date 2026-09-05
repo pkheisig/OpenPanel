@@ -44,33 +44,33 @@
 }
 
 .panel-builder.dark {
-  --bg-app: var(--suite-bg-shell, #1d1916);
+  --bg-app: var(--suite-color-shell);
   --bg-gradient: linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px), linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px);
-  --text-primary: var(--suite-text-main, #f6eee5);
-  --text-secondary: var(--suite-text-main, #f6eee5);
-  --text-muted: var(--suite-text-muted, #c4b5a7);
-  --border-color: var(--suite-border, #504338);
-  --border-color-soft: var(--suite-bg-subtle, #332a24);
-  --bg-topbar: var(--suite-bg-surface, #2a241f);
-  --bg-sidebar: var(--suite-bg-subtle, #332a24);
-  --bg-card: var(--suite-bg-surface, #2a241f);
-  --bg-cell-empty: var(--suite-bg-surface-raised, #2d2722);
-  --bg-cell-header: var(--suite-bg-subtle, #332a24);
-  --bg-cell-diag: var(--suite-border, #504338);
-  --bg-spectrum: var(--suite-bg-surface-raised, #2d2722);
-  --chart-grid: var(--suite-border, #504338);
-  --chart-axis: var(--suite-text-muted, #c4b5a7);
-  --chart-axis-text: var(--suite-text-muted, #c4b5a7);
-  --bg-cell-impossible: var(--suite-bg-subtle, #332a24);
-  --input-bg: var(--suite-bg-surface-raised, #2d2722);
-  --input-border: var(--suite-border, #504338);
-  --button-bg: var(--suite-bg-surface, #2a241f);
-  --button-text: var(--suite-text-main, #f6eee5);
-  --button-border: var(--suite-border, #504338);
-  --accent: var(--suite-semantic-connected, #55c7b6);
-  --accent-hover: var(--suite-semantic-connected, #55c7b6);
-  --accent-soft: var(--suite-accent-soft, #4a2d1e);
-  --accent-2: var(--suite-semantic-danger, #bd5149);
+  --text-primary: var(--suite-color-text);
+  --text-secondary: var(--suite-color-text);
+  --text-muted: var(--suite-color-text-muted);
+  --border-color: var(--suite-color-border);
+  --border-color-soft: var(--suite-color-subtle);
+  --bg-topbar: var(--suite-color-surface);
+  --bg-sidebar: var(--suite-color-subtle);
+  --bg-card: var(--suite-color-surface);
+  --bg-cell-empty: var(--suite-color-surface-raised);
+  --bg-cell-header: var(--suite-color-subtle);
+  --bg-cell-diag: var(--suite-color-border);
+  --bg-spectrum: var(--suite-color-surface-raised);
+  --chart-grid: var(--suite-color-border);
+  --chart-axis: var(--suite-color-text-muted);
+  --chart-axis-text: var(--suite-color-text-muted);
+  --bg-cell-impossible: var(--suite-color-subtle);
+  --input-bg: var(--suite-color-surface-raised);
+  --input-border: var(--suite-color-border);
+  --button-bg: var(--suite-color-surface);
+  --button-text: var(--suite-color-text);
+  --button-border: var(--suite-color-border);
+  --accent: var(--suite-color-connected);
+  --accent-hover: var(--suite-color-connected);
+  --accent-soft: var(--suite-color-accent-soft);
+  --accent-2: var(--suite-color-danger);
   --shadow: 0 4px 20px rgb(0 0 0 / 35%);
   --shadow-dropdown: 0 18px 46px rgb(0 0 0 / 48%);
   color-scheme: dark;
@@ -79,13 +79,13 @@
 .panel-topbar {
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: var(--suite-layer-sticky);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 18px;
-  min-height: 70px;
-  padding: 10px 24px;
+  min-height: var(--suite-header-height);
+  padding: 8px 24px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-topbar);
 }

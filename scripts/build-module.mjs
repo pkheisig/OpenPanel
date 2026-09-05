@@ -133,7 +133,12 @@ const manifest = {
   sourceCommit: source,
   applicationContractVersion: '0.1.0-bootstrap',
   runtimeContractVersion: '0.1.0-bootstrap',
-  uiContractVersion: '0.1.0-bootstrap',
+  uiContractVersion: '1.0.0',
+  uiFoundation: {
+    packageName: '@pkheisig/opensuite-ui-foundation',
+    version: '1.0.0',
+    sourceDigest: '6f723015c258a1b30bee5824a8735fbc01ec53c4feee006fcaa7f165b8d6b05c',
+  },
   entrypoints: { application: './openpanel.js', stylesheet: './openpanel.css' },
   types: './index.d.ts',
   assetManifest: './asset-manifest.json',
