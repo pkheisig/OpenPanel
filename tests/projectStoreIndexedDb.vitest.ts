@@ -37,6 +37,7 @@ import {
   restorePanelProject,
   saveActiveProject,
   savePanelProject,
+  serializeProject,
   setActivePanelProject,
 } from '../src/projectStore'
 import type { ProjectState } from '../src/projectStore'
@@ -91,6 +92,17 @@ describe('IndexedDB project persistence', () => {
 
     await expect(loadActiveProject()).resolves.toMatchObject({ tab: 'panel' })
     expect(fakeDb.put).not.toHaveBeenCalled()
+  })
+
+  test('rejects a tampered active provenance state', async () => {
+    const saved = JSON.parse(serializeProject(state)) as Record<string, unknown>
+    delete saved.kind
+    delete saved.version
+    delete saved.savedAt
+    saved.configuration = 'discover_s8'
+    fakeDb.records.set('active', saved)
+
+    await expect(loadActiveProject()).rejects.toThrow('mismatching provenance checksum')
   })
 
   test('rejects malformed marker keys before database persistence', async () => {

@@ -847,7 +847,7 @@ export function rowsToObjects(rows: string[][]): CsvRow[] {
   ))
 }
 
-function sha256(value: string): string {
+export function sha256(value: string): string {
   const bytes = new TextEncoder().encode(value)
   const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64
   const padded = new Uint8Array(paddedLength)

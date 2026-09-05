@@ -8,7 +8,7 @@ import {
   parseProject,
   serializeProject,
 } from '../src/projectStore'
-import type { ProjectState } from '../src/projectStore'
+import type { OpenPanelProject, ProjectState } from '../src/projectStore'
 import { WIZARD_SCORING_VERSION } from '../src/panelWizardEngine'
 import type { WizardProjectState } from '../src/panelWizardEngine'
 import { responseMatrixProvenance } from '../src/panelBuilderShared'
@@ -82,7 +82,37 @@ describe('OpenPanel project files', () => {
     expect(file.version).toBe(PROJECT_FILE_VERSION)
     expect(file.savedAt).toEqual(expect.any(String))
     expect(file.wizard).toEqual(wizard)
-    expect(parseProject(serialized)).toEqual(project)
+    const parsed = parseProject(serialized)
+    expect(parsed).toMatchObject(project)
+    expect(parsed.provenance?.schemaName).toBe('opensuite-provenance')
+    expect(parsed.provenance?.artifact.type).toBe('openpanel-project')
+  })
+
+  test('rejects a project whose payload was changed after saving', () => {
+    const tampered = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    tampered.configuration = 'discover_s8'
+    expect(() => parseProject(JSON.stringify(tampered))).toThrow('mismatching provenance checksum')
+  })
+
+  test('rotates provenance when an authenticated project is edited and saved', () => {
+    const first = JSON.parse(serializeProject(project)) as OpenPanelProject
+    const edited = parseProject(JSON.stringify(first))
+    const rewritten = JSON.parse(serializeProject({ ...edited, configuration: 'discover_s8' })) as OpenPanelProject
+    const firstDigest = first.provenance?.artifact.checksum.digest
+    expect(rewritten.provenance?.artifact.checksum.digest).not.toBe(firstDigest)
+    expect(rewritten.provenance?.lineage.parents).toMatchObject({
+      status: 'available',
+      value: [expect.objectContaining({ sha256: firstDigest })],
+    })
+
+    const second = JSON.parse(serializeProject(parseProject(JSON.stringify(rewritten)))) as OpenPanelProject
+    expect(second.provenance?.lineage.parents).toMatchObject({
+      status: 'available',
+      value: [expect.objectContaining({ sha256: rewritten.provenance?.artifact.checksum.digest })],
+    })
+    expect(second.provenance?.extensions.openpanel.originalProvenance).toMatchObject({
+      artifact: { checksum: { digest: firstDigest } },
+    })
   })
 
   test('loads the former R gui_state config envelope', () => {
@@ -124,6 +154,7 @@ describe('OpenPanel project files', () => {
 
   test('migrates pre-fit plot scales to the fitted default', () => {
     const legacyScale = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    delete legacyScale.provenance
     delete legacyScale.plotScaleMode
     legacyScale.plotScale = 40
     expect(parseProject(JSON.stringify(legacyScale)).plotScale).toBe(80)
@@ -132,6 +163,7 @@ describe('OpenPanel project files', () => {
 
   test('migrates former LIVE/DEAD Near-IR names to LIVE DEAD NIR', () => {
     const legacyName = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    delete legacyName.provenance
     legacyName.slots = ['LIVE/DEAD Fixable Near-IR', '', '']
     legacyName.wizard = {
       ...wizard,
@@ -261,6 +293,7 @@ describe('OpenPanel project files', () => {
 
   test('migrates former frequency and cell-type marker settings to antigen density', () => {
     const legacy = JSON.parse(serializeProject(project)) as Record<string, unknown>
+    delete legacy.provenance
     legacy.wizard = {
       ...wizard,
       markers: [{

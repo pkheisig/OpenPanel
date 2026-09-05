@@ -13,6 +13,7 @@ import {
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
+import { createOpenSuiteProvenance, inspectOpenPanelProjectProvenance, inspectOpenSuiteProvenance, openPanelProjectPayload, ProvenanceValidationError, type OpenSuiteProvenance } from './provenance'
 import type {
   AntigenDensity,
   WizardPanelResult,
@@ -97,6 +98,7 @@ export type OpenPanelProject = {
   plotScaleMode: 'fit-width'
   wizard: WizardProjectState | null
   cytometerPanels: Record<string, CytometerPanelState>
+  provenance?: OpenSuiteProvenance
 }
 
 export type ProjectState = Omit<OpenPanelProject, 'kind' | 'version' | 'savedAt'>
@@ -591,7 +593,7 @@ function normalizeCytometerPanel(
 
 export function serializeProject(state: ProjectState): string {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   assertProjectResourceLimits(normalizedState)
   const serialized = serializeNormalizedProject(normalizedState)
   assertProjectTextWithinLimit(serialized)
@@ -599,14 +601,37 @@ export function serializeProject(state: ProjectState): string {
 }
 
 function serializeNormalizedProject(normalizedState: ProjectState): string {
-  const project: OpenPanelProject = {
+  const payload: Omit<OpenPanelProject, 'provenance'> = {
     kind: PROJECT_FILE_KIND,
     version: PROJECT_FILE_VERSION,
     savedAt: new Date().toISOString(),
     ...normalizedState,
     markers: Object.fromEntries(Object.entries(normalizedState.markers).map(([key, value]) => [Number(key), String(value)])),
   }
+  delete (payload as Record<string, unknown>).provenance
+  const prior = normalizedState.provenance
+  const original = (prior?.extensions?.openpanel?.originalProvenance as OpenSuiteProvenance | undefined) ?? prior
+  const provenance = createOpenSuiteProvenance({
+    artifactType: 'openpanel-project',
+    artifactName: 'Save OpenPanel project',
+    payload: openPanelProjectPayload(payload),
+    configurationId: `${payload.cytometer}:${payload.configuration}`,
+    parents: prior ? [{ id: prior.artifact.id, type: prior.artifact.type, sha256: prior.artifact.checksum.digest }] : undefined,
+    originalProvenance: original,
+    responseProvenance: {
+      ...(normalizedState.wizard ? { wizard: 'panel-builder' } : {}),
+    },
+  })
+  const project: OpenPanelProject = { ...payload, provenance }
   return `${JSON.stringify(project, null, 2)}\n`
+}
+
+function projectStateFromSerialized(serialized: string): ProjectState {
+  const project = JSON.parse(serialized) as Record<string, unknown>
+  delete project.kind
+  delete project.version
+  delete project.savedAt
+  return project as ProjectState
 }
 
 function normalizeState(
@@ -614,6 +639,7 @@ function normalizeState(
   traverseResourceTree = true,
   dedupeSlots = true,
   validateMarkerKeys = true,
+  verifyProvenance = true,
 ): ProjectState {
   assertProjectResourceLimits(value, false, traverseResourceTree, validateMarkerKeys)
   const savedTab = scalar(value.tab)
@@ -654,6 +680,22 @@ function normalizeState(
     : Number.isFinite(legacyPlotHeight)
       ? (legacyPlotHeight / 230) * 100
       : DEFAULT_PLOT_SCALE
+  const rawProvenance = value.provenance
+  let provenance: OpenSuiteProvenance | undefined
+  if (rawProvenance !== undefined) {
+    try {
+      if (verifyProvenance) {
+        const inspection = inspectOpenPanelProjectProvenance(value)
+        if (inspection.status === 'mismatch') throw new ProjectValidationError('This project file has a mismatching provenance checksum.')
+        if (inspection.status === 'verified') provenance = inspection.provenance
+      } else {
+        provenance = inspectOpenSuiteProvenance(rawProvenance)
+      }
+    } catch (error) {
+      if (error instanceof ProvenanceValidationError) throw new ProjectValidationError(error.message)
+      throw error
+    }
+  }
   return {
     cytometer,
     configuration: activePanel.configuration || configuration,
@@ -671,6 +713,7 @@ function normalizeState(
     plotScaleMode: 'fit-width',
     wizard: activePanel.wizard,
     cytometerPanels,
+    ...(provenance ? { provenance } : {}),
   }
 }
 
@@ -743,10 +786,11 @@ export async function loadActiveProject(): Promise<ProjectState | null> {
 
 export async function saveActiveProject(state: ProjectState): Promise<void> {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   const serializedState = serializeProject(normalizedState)
+  const persistedState = projectStateFromSerialized(serializedState)
   try {
-    await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
+    await (await database()).put(PROJECT_STORE, persistedState, ACTIVE_PROJECT_KEY)
   } catch {
     if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
       throw new Error('OpenPanel active project could not be persisted in local storage.')
@@ -1082,14 +1126,14 @@ export async function createPanelProject(
 ): Promise<StoredPanelProject> {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id: createPanelId(),
     name: normalizePanelName(name),
     createdAt: now,
     updatedAt: now,
-    state: normalizedState,
+    state: projectStateFromSerialized(serializedState),
   }
   try {
     const db = await database()
@@ -1114,7 +1158,7 @@ export async function savePanelProject(
   if (existing?.loadError) return existing
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const now = new Date().toISOString()
-  const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
+  const normalizedState = normalizeState(state as unknown as Record<string, unknown>, true, true, true, false)
   const serializedState = serializeProject(normalizedState)
   const panel: StoredPanelProject = {
     id,
@@ -1122,7 +1166,7 @@ export async function savePanelProject(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     archivedAt: existing?.archivedAt,
-    state: normalizedState,
+    state: projectStateFromSerialized(serializedState),
   }
   try {
     const db = await database()
