@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   buildPanelPayload,
+  calculateCollinearityDiagnostic,
   calculatePanelComplexity,
   calculateSimilarityMatrix,
   detectorKeys,
@@ -707,6 +708,52 @@ describe('browser spectral engine parity', () => {
     expect(calculatePanelComplexity([[0, 0], [0, 0]])).toBeNull()
     expect(calculatePanelComplexity([[0.2, 1], [1, 0.1]])).toBe(1.35)
     expect(calculatePanelComplexity([[Number.MAX_VALUE, 0], [0, Number.MIN_VALUE]])).toBeNull()
+  })
+
+  test('calculates exact signed hotspot and SIF diagnostics without clipping', () => {
+    const orthogonal = calculateCollinearityDiagnostic(
+      [[1, 0], [0, 1]],
+      ['A', 'B'],
+      responseMatrixProvenance('measured_detector_response'),
+    )
+    expect(orthogonal).toMatchObject({
+      status: 'ok',
+      gramMatrix: [[1, 0], [0, 1]],
+      hotspotMatrix: [[1, 0], [0, 1]],
+      sifByEndmember: [1, 1],
+      maxSif: 1,
+      maxSifEndmember: 'A',
+      rank: 2,
+    })
+
+    const signed = calculateCollinearityDiagnostic(
+      [[1, 0], [-1, 0]],
+      ['A', 'B'],
+      responseMatrixProvenance('measured_detector_response'),
+    )
+    expect(signed.status).toBe('rank_deficient')
+    expect(signed.gramMatrix[0][1]).toBe(-1)
+    expect(signed.sifByEndmember).toEqual([])
+
+    const multiEndmember = calculateCollinearityDiagnostic(
+      [[1, 0, 0], [0, 1, 0], [0.7, 0.7, 0.1]],
+      ['A', 'B', 'C'],
+      responseMatrixProvenance('measured_detector_response'),
+    )
+    expect(multiEndmember.status).toBe('ok')
+    expect(multiEndmember.sifByEndmember).toHaveLength(3)
+    expect(multiEndmember.maxSif).toBeGreaterThan(1)
+
+    expect(calculateCollinearityDiagnostic(
+      [[1, 0], [1]],
+      ['A', 'B'],
+      responseMatrixProvenance('measured_detector_response'),
+    )).toMatchObject({ status: 'invalid', hotspotMatrix: [], maxSif: null })
+    expect(calculateCollinearityDiagnostic(
+      [[1, 0], [0, 1]],
+      ['A', 'B'],
+      responseMatrixProvenance('synthetic_filter_proxy'),
+    )).toMatchObject({ status: 'not_applicable', hotspotMatrix: [], maxSif: null })
   })
 
   test('parses quoted bundled CSV syntax without changing values', () => {

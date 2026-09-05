@@ -98,10 +98,10 @@ describe('wizard engine edge paths', () => {
     expect(panelMetrics([], spectra, responseMatrixProvenance('measured_full_spectrum')).spectralRisk).toBe(1000)
     expect(panelMetrics(['FITC', 'PE'], new Map([
       ['FITC', [1, 0]], ['PE', [0.8, 0.2]],
-    ]), responseMatrixProvenance('synthetic_filter_proxy')).maxResponseSeparation).toBe(1)
+    ]), responseMatrixProvenance('synthetic_filter_proxy')).maxSif).toBeNull()
     expect(panelMetrics(['FITC', 'PE'], new Map([
       ['FITC', [1, 0]], ['PE', [0.8, 0.2]],
-    ]), responseMatrixProvenance('measured_detector_response')).maxResponseSeparation).toBeGreaterThan(1)
+    ]), responseMatrixProvenance('measured_detector_response')).maxSif).toBeGreaterThan(1)
     expect(closestPair('missing', ['missing'], spectra)).toEqual({ name: '', similarity: 0 })
     expect(markerPriority(marker('m0', 'CD3'), [marker('m0', 'CD3')], {})).toBe(90 * 0.45)
     expect(optimizeBestFit(

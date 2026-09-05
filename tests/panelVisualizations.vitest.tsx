@@ -45,6 +45,17 @@ const payload = {
     { fluorophore: 'A', A: 1, B: 0.4 },
     { fluorophore: 'B', A: 0.4, B: 1 },
   ],
+  collinearity: {
+    endmembers: ['A', 'B'],
+    gramMatrix: [[1, 0.4], [0.4, 1]],
+    hotspotMatrix: [[1.09, 0.69], [0.69, 1.09]],
+    sifByEndmember: [1.09, 1.09],
+    maxSif: 1.09,
+    maxSifEndmember: 'A',
+    rank: 2,
+    singularValues: [1.4, 0.6],
+    status: 'ok',
+  },
   complexity_index: 1.23,
   peak_detectors: ['V1-A', 'B1-A'],
   max_panel_size: 4,
@@ -150,7 +161,7 @@ describe('PanelVisualizations', () => {
   })
 
   test('renders panel matrix, tooltips, marker edits, tabs, and conventional labels', () => {
-    const { container } = render(<Wrapper />)
+    const { container } = render(<Wrapper selected={['A', 'B']} />)
     expect(screen.getByRole('img', { name: 'Combined spectra' })).not.toBeNull()
     expect(screen.getByText('A recoverable panel warning')).not.toBeNull()
     expect(screen.getAllByRole('separator')).toHaveLength(2)
@@ -166,14 +177,19 @@ describe('PanelVisualizations', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'SIMILARITY' }))
     expect(screen.getByText('0.40')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Hotspot' }))
+    expect(screen.getAllByText('1.09')).toHaveLength(2)
+    expect(screen.getByText('Max SIF 1.09 · A')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'SPECTRA' }))
     expect(screen.getByTestId('signature-A')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'PANEL' }))
     expect(screen.getByDisplayValue('CD3')).not.toBeNull()
 
+    cleanup()
     const { unmount } = render(<Wrapper mode="conventional" />)
     expect(screen.getByRole('img', { name: 'Combined detector peaks' })).not.toBeNull()
     expect(screen.getByRole('button', { name: 'PEAKS' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Hotspot' })).toBeNull()
     unmount()
   })
 

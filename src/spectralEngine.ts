@@ -1,4 +1,4 @@
-import { Matrix, SingularValueDecomposition } from 'ml-matrix'
+import { inverse, Matrix, SingularValueDecomposition } from 'ml-matrix'
 import { canonicalizeFluorophoreName, fluorophoreIdentity, resolveBundledFluorophoreKey } from './fluorophoreNames'
 import {
   PINNED_FLUOROPHORE_ALIAS_TO_CANONICAL,
@@ -19,6 +19,7 @@ import type {
   NumericRow,
   PanelMeasurementMode,
   PanelPayload,
+  CollinearityDiagnostic,
   ResponseMatrixProvenance,
 } from './panelBuilderShared'
 import { responseProvenanceForCytometer } from './panelBuilderShared'
@@ -2387,6 +2388,150 @@ export function calculateSimilarityMatrix(values: number[][]): number[][] {
   }))
 }
 
+function invalidCollinearityDiagnostic(
+  endmembers: string[],
+  status: CollinearityDiagnostic['status'],
+  reason: string,
+  gramMatrix: number[][] = [],
+  rank: number | null = null,
+  singularValues: number[] = [],
+): CollinearityDiagnostic {
+  return {
+    endmembers,
+    gramMatrix,
+    hotspotMatrix: [],
+    sifByEndmember: [],
+    maxSif: null,
+    maxSifEndmember: null,
+    rank,
+    singularValues,
+    status,
+    reason,
+  }
+}
+
+function matrixRows(matrix: Matrix): number[][] {
+  return Array.from({ length: matrix.rows }, (_, rowIndex) => (
+    Array.from({ length: matrix.columns }, (_, columnIndex) => matrix.get(rowIndex, columnIndex))
+  ))
+}
+
+/**
+ * Calculate the exact signed endmember Gram/hotspot diagnostic.
+ *
+ * This intentionally does not share calculateSimilarityMatrix(): that function
+ * is a display-oriented, nonnegative cosine contract. The diagnostic preserves
+ * signed dot products and refuses to regularize a non-estimable panel.
+ */
+export function calculateCollinearityDiagnostic(
+  values: number[][],
+  endmembers: string[] = values.map((_, index) => `Endmember ${index + 1}`),
+  responseProvenance?: ResponseMatrixProvenance,
+): CollinearityDiagnostic {
+  const names = values.map((_, index) => endmembers[index] ?? `Endmember ${index + 1}`)
+  if (responseProvenance?.class === 'synthetic_filter_proxy') {
+    return invalidCollinearityDiagnostic(
+      names,
+      'not_applicable',
+      'Exact hotspot/SIF is not applicable to synthetic filter-response planning proxies.',
+    )
+  }
+  if (values.length === 0) {
+    return invalidCollinearityDiagnostic(names, 'invalid', 'At least one endmember response is required.')
+  }
+  const width = values[0]?.length ?? 0
+  if (width === 0) {
+    return invalidCollinearityDiagnostic(names, 'invalid', 'Endmember responses must contain at least one detector value.')
+  }
+
+  const normalized = values.map((row) => {
+    if (row.length !== width || row.some((value) => !Number.isFinite(value))) return null
+    const norm = Math.sqrt(row.reduce((sum, value) => sum + value * value, 0))
+    return norm > 0 && Number.isFinite(norm) ? row.map((value) => value / norm) : null
+  })
+  if (normalized.some((row) => row === null)) {
+    return invalidCollinearityDiagnostic(
+      names,
+      'invalid',
+      'Every endmember response must have matching dimensions, finite values, and a non-zero L2 norm.',
+    )
+  }
+
+  const normalizedRows = normalized as number[][]
+  const gramMatrix = normalizedRows.map((row) => normalizedRows.map((column) => (
+    row.reduce((sum, value, index) => sum + value * column[index], 0)
+  )))
+  const gram = new Matrix(gramMatrix)
+  let singularValues: number[]
+  try {
+    const decomposition = new SingularValueDecomposition(gram, { autoTranspose: false })
+    singularValues = decomposition.diagonal
+    if (singularValues.length !== gram.rows || singularValues.some((value) => !Number.isFinite(value))) {
+      return invalidCollinearityDiagnostic(
+        names,
+        'invalid',
+        'The Gram matrix singular values were not finite.',
+        gramMatrix,
+      )
+    }
+  } catch {
+    return invalidCollinearityDiagnostic(names, 'invalid', 'The Gram matrix could not be decomposed.', gramMatrix)
+  }
+  const largestSingularValue = Math.max(...singularValues, 0)
+  const tolerance = Number.EPSILON * Math.max(1, gram.rows) * Math.max(1, largestSingularValue) * 100
+  const rank = singularValues.filter((value) => value > tolerance).length
+  if (rank < gram.rows) {
+    return invalidCollinearityDiagnostic(
+      names,
+      'rank_deficient',
+      `The signed Gram matrix is rank deficient (rank ${rank} of ${gram.rows}); exact SIF is not estimable.`,
+      gramMatrix,
+      rank,
+      singularValues,
+    )
+  }
+
+  try {
+    const inverseGram = inverse(gram)
+    const inverseRows = matrixRows(inverseGram)
+    const hotspotMatrix = inverseRows.map((row) => row.map((value) => Math.sqrt(Math.abs(value))))
+    const sifByEndmember = hotspotMatrix.map((row, index) => row[index])
+    if (hotspotMatrix.some((row) => row.some((value) => !Number.isFinite(value)))
+      || sifByEndmember.some((value) => !Number.isFinite(value))) {
+      return invalidCollinearityDiagnostic(
+        names,
+        'invalid',
+        'The exact hotspot/SIF result was non-finite.',
+        gramMatrix,
+        rank,
+        singularValues,
+      )
+    }
+    const maxSif = Math.max(...sifByEndmember)
+    const maxIndex = sifByEndmember.indexOf(maxSif)
+    return {
+      endmembers: names,
+      gramMatrix,
+      hotspotMatrix,
+      sifByEndmember,
+      maxSif,
+      maxSifEndmember: names[maxIndex] ?? null,
+      rank,
+      singularValues,
+      status: 'ok',
+    }
+  } catch {
+    return invalidCollinearityDiagnostic(
+      names,
+      'invalid',
+      'The full-rank Gram matrix could not be inverted without regularization.',
+      gramMatrix,
+      rank,
+      singularValues,
+    )
+  }
+}
+
 export function calculatePanelComplexity(values: number[][]): number | null {
   if (values.length === 0 || values[0]?.length === 0) return null
   if (values.length < 2) return 1
@@ -2605,6 +2750,11 @@ export async function buildPanelPayload(
 
   const similarityValues = calculateSimilarityMatrix(selectedValues)
   const similarity = namedRows(selectedLabels, selectedLabels, similarityValues)
+  const collinearity = calculateCollinearityDiagnostic(
+    selectedValues,
+    selectedLabels,
+    library.response_provenance,
+  )
   const peaks = selectedValues.map((row) => base.detectorInfo[row.reduce(
     (best, value, index, values) => value > values[best] ? index : best,
     0,
@@ -2622,6 +2772,7 @@ export async function buildPanelPayload(
     selected: selectedLabels,
     spectra: namedRows(selectedLabels, base.detectorInfo.map((detector) => detector.detector), selectedValues),
     similarity,
+    collinearity,
     complexity_index: calculatePanelComplexity(selectedValues),
     peak_detectors: peaks,
     max_panel_size: base.detectorInfo.length,

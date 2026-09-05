@@ -249,6 +249,21 @@ type NumericRow = {
     [key: string]: string | number;
 };
 
+type CollinearityDiagnosticStatus = 'ok' | 'rank_deficient' | 'invalid' | 'not_applicable';
+
+type CollinearityDiagnostic = {
+    endmembers: string[];
+    gramMatrix: number[][];
+    hotspotMatrix: number[][];
+    sifByEndmember: number[];
+    maxSif: number | null;
+    maxSifEndmember: string | null;
+    rank: number | null;
+    singularValues: number[];
+    status: CollinearityDiagnosticStatus;
+    reason?: string;
+};
+
 type PanelPayload = {
     cytometer: string;
     configuration: string;
@@ -261,6 +276,7 @@ type PanelPayload = {
     selected: string[];
     spectra: NumericRow[];
     similarity: NumericRow[];
+    collinearity?: CollinearityDiagnostic;
     complexity_index: number | null;
     peak_detectors: string[];
     max_panel_size: number;
@@ -817,6 +833,8 @@ export type {
     PanelImportDiagnostic,
     PanelMeasurementMode,
     PanelPayload,
+    CollinearityDiagnostic,
+    CollinearityDiagnosticStatus,
     ResponseMatrixProvenance,
     ResponseMatrixProvenanceClass,
     TabId,

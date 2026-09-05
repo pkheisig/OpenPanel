@@ -34,7 +34,12 @@ import {
     responseProvenanceForPayload,
     responseProvenanceWarningForPayload,
 } from './panelBuilderShared';
-import type { NumericRow, PanelPayload, TabId } from './panelBuilderShared';
+import type {
+    CollinearityDiagnostic,
+    NumericRow,
+    PanelPayload,
+    TabId,
+} from './panelBuilderShared';
 
 export interface SelectedPanelEntry {
     fluor: string;
@@ -68,6 +73,39 @@ interface PanelVisualizationsProps {
 type SpectrumResizeEdge = 'left' | 'right';
 
 const PLOT_RESIZE_KEYBOARD_STEP = 10;
+
+function formatHotspotValue(value: number): string {
+    if (!Number.isFinite(value)) return 'NA';
+    if (value >= 100) return value.toExponential(2);
+    if (value >= 10) return value.toFixed(1);
+    return value.toFixed(2);
+}
+
+function getHotspotStyle(
+    value: number,
+    isDiagonal: boolean,
+    diagnostic: CollinearityDiagnostic,
+    theme: 'light' | 'dark',
+): CSSProperties {
+    if (isDiagonal) {
+        return {
+            background: 'var(--bg-cell-diag)',
+            color: theme === 'dark' ? '#fff' : '#111',
+        };
+    }
+    const maximum = diagnostic.hotspotMatrix.flat().reduce(
+        (current, candidate) => Number.isFinite(candidate) ? Math.max(current, candidate) : current,
+        0,
+    );
+    const intensity = maximum > 0 ? Math.log1p(Math.max(0, value)) / Math.log1p(maximum) : 0;
+    const hue = 214 - Math.min(1, intensity) * 174;
+    const lightness = theme === 'dark' ? 31 - intensity * 9 : 94 - intensity * 47;
+    return {
+        background: `hsl(${hue.toFixed(1)} 82% ${Math.max(18, lightness).toFixed(1)}%)`,
+        color: intensity > 0.58 ? '#fffaf4' : theme === 'dark' ? '#f3f6ff' : '#172033',
+        textShadow: intensity > 0.7 ? '0 1px 2px rgba(0, 0, 0, 0.35)' : 'none',
+    };
+}
 
 export function resolveSpectrumHover(
     spectrumHover: { fluor: string } | null,
@@ -130,6 +168,7 @@ export const PanelVisualizations = memo(function PanelVisualizations({
     const spectrumTooltipRef = useRef<HTMLDivElement>(null);
     const spectrumPointerRef = useRef({ clientX: 0, clientY: 0 });
     const [spectrumHover, setSpectrumHover] = useState<{ fluor: string; color: string } | null>(null);
+    const [matrixView, setMatrixView] = useState<'similarity' | 'hotspot'>('similarity');
     const baseChartWidth = detectorAxisChartWidth(payload.detectors.length);
     const signatureChartWidth = detectorSignatureChartWidth(payload.detectors.length);
     const compactDisplayWidth = detectorAxisDisplayWidth(payload.detectors.length, payload.measurement_mode);
@@ -170,6 +209,15 @@ export const PanelVisualizations = memo(function PanelVisualizations({
         : responseProvenance.class === 'measured_detector_response'
             ? 'Detector-response complexity'
             : 'Complexity Index';
+    const hotspotDiagnostic = payload.collinearity;
+    const hotspotEligible = responseProvenance.class !== 'synthetic_filter_proxy' && hotspotDiagnostic !== undefined;
+    const hotspotNames = selected.filter((name) => hotspotDiagnostic?.endmembers.includes(name));
+    const hotspotSelectionComplete = hotspotDiagnostic?.status === 'ok'
+        && hotspotNames.length === selected.length;
+
+    useEffect(() => {
+        if (!hotspotEligible) setMatrixView('similarity');
+    }, [hotspotEligible]);
 
     useEffect(() => {
         tabContentRef.current?.scrollTo({ top: 0, left: 0 });
@@ -545,11 +593,77 @@ export const PanelVisualizations = memo(function PanelVisualizations({
 
         {tab === 'similarity' && (
             <div>
+                <div className="matrix-view-toggle" role="group" aria-label="Similarity matrix view">
+                    <button
+                        type="button"
+                        className={matrixView === 'similarity' ? 'active' : ''}
+                        aria-pressed={matrixView === 'similarity'}
+                        onClick={() => setMatrixView('similarity')}
+                    >
+                        Similarity
+                    </button>
+                    {hotspotEligible && (
+                        <button
+                            type="button"
+                            className={matrixView === 'hotspot' ? 'active' : ''}
+                            aria-pressed={matrixView === 'hotspot'}
+                            onClick={() => setMatrixView('hotspot')}
+                        >
+                            Hotspot
+                        </button>
+                    )}
+                    {matrixView === 'hotspot' && hotspotDiagnostic?.status === 'ok' && hotspotDiagnostic.maxSif !== null && (
+                        <span className="matrix-view-summary">
+                            Max SIF {formatHotspotValue(hotspotDiagnostic.maxSif)} · {hotspotDiagnostic.maxSifEndmember ?? 'unknown'}
+                        </span>
+                    )}
+                </div>
                 <div className="similarity-wrap">
-                    {selected.length === 0 ? (
+                    {matrixView === 'hotspot' ? (
+                        selected.length === 0 ? (
+                            <div className="empty-state">Select fluorophores to calculate hotspot/SIF.</div>
+                        ) : !hotspotSelectionComplete ? (
+                            <div className="empty-state" role="status">
+                                {hotspotDiagnostic?.reason || 'Exact hotspot/SIF is unavailable for the selected fluorophores.'}
+                            </div>
+                        ) : (
+                            <table className="similarity-table hotspot-table" aria-label="Exact fluorophore hotspot matrix">
+                                <tbody>
+                                    {selected.map((rowName, rowIndex) => {
+                                        const diagnosticRowIndex = hotspotDiagnostic.endmembers.indexOf(rowName);
+                                        return (
+                                            <tr key={rowName}>
+                                                <th className="row-label">{rowName}</th>
+                                                {selected.map((colName, colIndex) => {
+                                                    if (colIndex > rowIndex) return null;
+                                                    const diagnosticColumnIndex = hotspotDiagnostic.endmembers.indexOf(colName);
+                                                    const value = hotspotDiagnostic.hotspotMatrix[diagnosticRowIndex]?.[diagnosticColumnIndex];
+                                                    if (value === undefined) return null;
+                                                    return (
+                                                        <td
+                                                            key={colName}
+                                                            style={getHotspotStyle(value, rowName === colName, hotspotDiagnostic, theme)}
+                                                        >
+                                                            {formatHotspotValue(value)}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        );
+                                    })}
+                                    <tr>
+                                        <th className="axis-corner" aria-hidden="true" />
+                                        {selected.map(name => (
+                                            <th className="col-label" key={name}><span className="rotated-label">{name}</span></th>
+                                        ))}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        )
+                    ) : selected.length === 0 ? (
                         <div className="empty-state">Select fluorophores to calculate similarity.</div>
                     ) : (
-                        <table className="similarity-table">
+                        <table className="similarity-table" aria-label="Fluorophore similarity matrix">
                             <tbody>
                                 {selected.map((rowName, rowIndex) => (
                                     <tr key={rowName}>
