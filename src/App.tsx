@@ -2,43 +2,39 @@ import { useEffect, useState } from 'react'
 import { LandingPage } from './LandingPage'
 import type { PanelLaunchSelection } from './LandingPage'
 import PanelBuilder from './PanelBuilder'
-import { projectJsonFilename, projectNameFromFilename, readTextFileWithinLimit, saveBlob } from './browserFiles'
+import { projectJsonFilename, projectNameFromFilename } from './browserFiles'
 import {
   PanelSelectionValidationError,
   buildPanelPayload,
   resolveKnownConfiguration,
   validateRequestedFluorophores,
 } from './spectralEngine'
-import { readLocalStorage, writeLocalStorage } from './browserStorage'
 import { assertPanelMarkersWithinCapacity, assertPanelSlotsWithinCapacity } from './panelBuilderShared'
 import {
   DEFAULT_PLOT_SCALE,
   PROJECT_RESOURCE_LIMITS,
   alignWizardFluorophores,
-  archivePanelProject,
-  createPanelProject,
-  deletePanelProject,
-  duplicatePanelProject,
-  listPanelProjects,
-  loadLastPanelProject,
   parseProject,
-  renamePanelProject,
-  restorePanelProject,
   serializeProject,
-  setActivePanelProject,
 } from './projectStore'
 import type { CytometerPanelState, ProjectState, StoredPanelProject } from './projectStore'
-import { readThemePreference } from './themePreference'
+import {
+  OpenPanelHostProvider,
+  useOpenPanelApplicationContext,
+  useOpenPanelHostContext,
+  useOpenPanelHostServices,
+} from './module/hostServices'
+import type { OpenPanelApplicationContext, OpenPanelHostServices } from './module/hostServices'
 
 const CURRENT_SURFACE_STORAGE_KEY = 'openpanel.current-surface'
 
-function storedSurface(): 'landing' | 'editor' | null {
-  const value = readLocalStorage(CURRENT_SURFACE_STORAGE_KEY)
+function storedSurface(storage: OpenPanelHostServices['storage']): 'landing' | 'editor' | null {
+  const value = storage.getItem(CURRENT_SURFACE_STORAGE_KEY)
   return value === 'landing' || value === 'editor' ? value : null
 }
 
-function rememberSurface(surface: 'landing' | 'editor'): void {
-  writeLocalStorage(CURRENT_SURFACE_STORAGE_KEY, surface)
+function rememberSurface(storage: OpenPanelHostServices['storage'], surface: 'landing' | 'editor'): void {
+  storage.setItem(CURRENT_SURFACE_STORAGE_KEY, surface)
 }
 
 function includeRecoveryPanel(
@@ -62,7 +58,7 @@ function preserveMarkersWithinSlots(
   ) as Record<number, string>
 }
 
-function emptyProject(selection: PanelLaunchSelection): ProjectState {
+function emptyProject(selection: PanelLaunchSelection, theme: 'light' | 'dark'): ProjectState {
   const slots = selection.slots ? [...selection.slots] : Array(18).fill('')
   const markers = selection.markers ? { ...selection.markers } : {}
   return {
@@ -71,7 +67,7 @@ function emptyProject(selection: PanelLaunchSelection): ProjectState {
     slots,
     markers,
     tab: 'panel',
-    theme: readThemePreference(),
+    theme,
     sidebarWidth: 214,
     sidebarCollapsed: false,
     plotScale: DEFAULT_PLOT_SCALE,
@@ -88,34 +84,69 @@ function emptyProject(selection: PanelLaunchSelection): ProjectState {
   }
 }
 
-export default function App() {
+export type AppProps = {
+  hostServices?: OpenPanelHostServices
+  applicationContext?: OpenPanelApplicationContext
+}
+
+function AppContent() {
+  const host = useOpenPanelHostServices()
+  const applicationContext = useOpenPanelApplicationContext()
+  const { projects, files, storage, theme: themeServices } = host
+  const assetResolver = host.assets
   const [panels, setPanels] = useState<StoredPanelProject[]>([])
   const [activePanel, setActivePanel] = useState<StoredPanelProject | null>(null)
   const [showLanding, setShowLanding] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  /* eslint-disable react-hooks/set-state-in-effect -- synchronize a controlled host-provided initial project. */
   useEffect(() => {
+    if (applicationContext.initialProject) {
+      const now = new Date().toISOString()
+      setActivePanel({
+        id: applicationContext.projectId ?? 'embedded',
+        name: applicationContext.projectName ?? 'Untitled panel',
+        createdAt: now,
+        updatedAt: now,
+        state: applicationContext.initialProject,
+      })
+      setPanels([])
+      setShowLanding(false)
+      setLoading(false)
+      return
+    }
     let cancelled = false
     const restore = async () => {
-      const restored = await loadLastPanelProject()
-      const storedPanels = await listPanelProjects()
+      const restored = await projects.loadLastPanelProject()
+      const storedPanels = await projects.listPanelProjects()
       if (cancelled) return
       const visiblePanels = includeRecoveryPanel(storedPanels, restored)
       setActivePanel(restored)
       setPanels(visiblePanels)
-      const landing = storedSurface() === 'landing' || restored === null || Boolean(restored?.loadError)
+      const landing = storedSurface(storage) === 'landing' || restored === null || Boolean(restored?.loadError)
       setShowLanding(landing)
-      rememberSurface(landing ? 'landing' : 'editor')
+      rememberSurface(storage, landing ? 'landing' : 'editor')
       setLoading(false)
     }
     void restore()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [applicationContext.initialProject, applicationContext.projectId, applicationContext.projectName, projects, storage])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const refreshPanels = async (recoveryPanel: StoredPanelProject | null) => {
-    setPanels(includeRecoveryPanel(await listPanelProjects(), recoveryPanel))
+    setPanels(includeRecoveryPanel(await projects.listPanelProjects(), recoveryPanel))
+  }
+
+  const exitApplication = async () => {
+    if (applicationContext.mode === 'embedded') {
+      await (applicationContext.onRequestExit ?? host.navigation?.requestExit)?.()
+      return
+    }
+    rememberSurface(storage, 'landing')
+    await refreshPanels(activePanel)
+    setShowLanding(true)
   }
 
   const assertLegacyRecoveryResolved = () => {
@@ -134,15 +165,15 @@ export default function App() {
         panels={panels}
         onStart={async (selection) => {
           assertLegacyRecoveryResolved()
-          const panel = await createPanelProject(selection.name, emptyProject(selection))
+          const panel = await projects.createPanelProject(selection.name, emptyProject(selection, themeServices.read(applicationContext.theme)))
           await refreshPanels(null)
           setActivePanel(panel)
-          rememberSurface('editor')
+          rememberSurface(storage, 'editor')
           setShowLanding(false)
         }}
         onImport={async (file) => {
           assertLegacyRecoveryResolved()
-          const state = parseProject(await readTextFileWithinLimit(
+          const state = parseProject(await files.readTextFileWithinLimit(
             file,
             PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
             'OpenPanel project',
@@ -151,16 +182,15 @@ export default function App() {
           if (!configuration) {
             throw new Error(`OpenPanel project uses an unsupported configuration '${state.configuration}'.`)
           }
-          const validation = await validateRequestedFluorophores(state.cytometer, configuration, state.slots)
+          const validation = assetResolver
+            ? await validateRequestedFluorophores(state.cytometer, configuration, state.slots, assetResolver)
+            : await validateRequestedFluorophores(state.cytometer, configuration, state.slots)
           if (validation.diagnostics.length > 0) {
             throw new PanelSelectionValidationError(validation.diagnostics)
           }
-          const payload = await buildPanelPayload(
-            state.cytometer,
-            configuration,
-            state.slots.filter((slot) => slot.trim()),
-            true,
-          )
+          const payload = assetResolver
+            ? await buildPanelPayload(state.cytometer, configuration, state.slots.filter((slot) => slot.trim()), true, assetResolver)
+            : await buildPanelPayload(state.cytometer, configuration, state.slots.filter((slot) => slot.trim()), true)
           if (validation.accepted.length > payload.max_panel_size) {
             throw new Error(`This panel has ${validation.accepted.length} colors, but the selected configuration has only ${payload.max_panel_size} detectors.`)
           }
@@ -169,11 +199,9 @@ export default function App() {
           const wizardRequested = state.wizard?.markers
             .map((marker) => marker.currentFluorophore)
             .filter(Boolean) ?? []
-          const wizardValidation = await validateRequestedFluorophores(
-            state.cytometer,
-            configuration,
-            wizardRequested,
-          )
+          const wizardValidation = assetResolver
+            ? await validateRequestedFluorophores(state.cytometer, configuration, wizardRequested, assetResolver)
+            : await validateRequestedFluorophores(state.cytometer, configuration, wizardRequested)
           if (wizardValidation.diagnostics.length > 0) {
             throw new PanelSelectionValidationError(wizardValidation.diagnostics)
           }
@@ -196,20 +224,15 @@ export default function App() {
             if (!panelConfiguration) {
               throw new Error(`OpenPanel project uses an unsupported configuration '${panelState.configuration}' for '${panelCytometer}'.`)
             }
-            const panelValidation = await validateRequestedFluorophores(
-              panelCytometer,
-              panelConfiguration,
-              panelState.slots,
-            )
+            const panelValidation = assetResolver
+              ? await validateRequestedFluorophores(panelCytometer, panelConfiguration, panelState.slots, assetResolver)
+              : await validateRequestedFluorophores(panelCytometer, panelConfiguration, panelState.slots)
             if (panelValidation.diagnostics.length > 0) {
               throw new PanelSelectionValidationError(panelValidation.diagnostics)
             }
-            const panelPayload = await buildPanelPayload(
-              panelCytometer,
-              panelConfiguration,
-              panelValidation.accepted,
-              true,
-            )
+            const panelPayload = assetResolver
+              ? await buildPanelPayload(panelCytometer, panelConfiguration, panelValidation.accepted, true, assetResolver)
+              : await buildPanelPayload(panelCytometer, panelConfiguration, panelValidation.accepted, true)
             const canonicalPanelCytometer = panelPayload.cytometer || panelCytometer
             const previousPanelCytometer = seenPanelCytometers.get(canonicalPanelCytometer)
             if (previousPanelCytometer) {
@@ -228,11 +251,9 @@ export default function App() {
             const panelWizardRequested = panelState.wizard?.markers
               .map((marker) => marker.currentFluorophore)
               .filter(Boolean) ?? []
-            const panelWizardValidation = await validateRequestedFluorophores(
-              panelCytometer,
-              panelConfiguration,
-              panelWizardRequested,
-            )
+            const panelWizardValidation = assetResolver
+              ? await validateRequestedFluorophores(panelCytometer, panelConfiguration, panelWizardRequested, assetResolver)
+              : await validateRequestedFluorophores(panelCytometer, panelConfiguration, panelWizardRequested)
             if (panelWizardValidation.diagnostics.length > 0) {
               throw new PanelSelectionValidationError(panelWizardValidation.diagnostics)
             }
@@ -274,20 +295,20 @@ export default function App() {
             cytometerPanels: canonicalCytometerPanels,
             wizard: canonicalWizard,
           }
-          const panel = await createPanelProject(
+          const panel = await projects.createPanelProject(
             projectNameFromFilename(file.name),
             canonicalState,
           )
           await refreshPanels(null)
           setActivePanel(panel)
-          rememberSurface('editor')
+          rememberSurface(storage, 'editor')
           setShowLanding(false)
         }}
         onExport={async (panel) => {
           if (panel.loadError) {
             throw new Error(`Cannot export '${panel.name}' until its saved state is recovered or deleted.`)
           }
-          await saveBlob(new Blob([serializeProject(panel.state)], { type: 'application/json' }), {
+          await files.saveBlob(new Blob([serializeProject(panel.state)], { type: 'application/json' }), {
             suggestedName: projectJsonFilename(panel.name),
             description: 'OpenPanel project',
             mimeType: 'application/json',
@@ -295,51 +316,72 @@ export default function App() {
           })
         }}
         onRename={async (panel, name) => {
-          const renamed = await renamePanelProject(panel.id, name)
+          const renamed = await projects.renamePanelProject(panel.id, name)
           if (renamed && activePanel?.id === renamed.id) setActivePanel(renamed)
           await refreshPanels(activePanel)
         }}
         onDuplicate={async (panel) => {
-          await duplicatePanelProject(panel.id)
+          await projects.duplicatePanelProject(panel.id)
           await refreshPanels(activePanel)
         }}
         onArchive={async (panel) => {
-          await archivePanelProject(panel.id)
+          await projects.archivePanelProject(panel.id)
           if (activePanel?.id === panel.id) setActivePanel(null)
           await refreshPanels(activePanel)
         }}
         onRestore={async (panel) => {
-          await restorePanelProject(panel.id)
+          await projects.restorePanelProject(panel.id)
           await refreshPanels(activePanel)
         }}
         onDelete={async (panel) => {
-          await deletePanelProject(panel.id)
+          await projects.deletePanelProject(panel.id)
           if (activePanel?.id === panel.id) setActivePanel(null)
           await refreshPanels(null)
         }}
         onOpen={(panel) => {
-          if (!panel.loadError) setActivePanelProject(panel.id)
+          if (!panel.loadError) projects.setActivePanelProject(panel.id)
           setActivePanel(panel)
-          rememberSurface('editor')
+          rememberSurface(storage, 'editor')
           setShowLanding(false)
         }}
       />
     )
   }
 
+  const controlledProjectIdentity = applicationContext.initialProject
+    ? JSON.stringify(applicationContext.initialProject)
+    : activePanel.updatedAt
+  const editorKey = [
+    activePanel.id,
+    applicationContext.projectRevision ?? '',
+    applicationContext.projectName ?? activePanel.name,
+    controlledProjectIdentity,
+  ].join(':')
+
   return (
     <PanelBuilder
-      key={activePanel.id}
+      key={editorKey}
       projectId={activePanel.id}
       projectName={activePanel.name}
       initialProject={activePanel.state}
       initialError={activePanel.loadError}
       recoveryMode={Boolean(activePanel.loadError)}
-      onRequestExit={async () => {
-        rememberSurface('landing')
-        await refreshPanels(activePanel)
-        setShowLanding(true)
-      }}
+      mode={applicationContext.mode}
+      hostTheme={applicationContext.theme}
+      projectPath={applicationContext.projectPath}
+      projectRevision={applicationContext.projectRevision}
+      onRequestExit={exitApplication}
     />
+  )
+}
+
+export default function App({ hostServices, applicationContext }: AppProps = {}) {
+  const inherited = useOpenPanelHostContext()
+  const services = hostServices ?? inherited.services
+  const context = applicationContext ?? inherited.applicationContext
+  return (
+    <OpenPanelHostProvider services={services} applicationContext={context} lifecycle={inherited.lifecycle}>
+      <AppContent />
+    </OpenPanelHostProvider>
   )
 }

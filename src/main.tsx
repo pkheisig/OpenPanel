@@ -2,14 +2,21 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import { installStaleChunkRecovery } from './staleChunkRecovery.ts'
-import App from './App.tsx'
+import { OpenPanelApplication } from './module/OpenPanelApplication'
+import { createDefaultOpenPanelHostServices } from './standalone/standaloneHost'
 import './index.css'
 
 installStaleChunkRecovery()
 registerSW({ immediate: true })
 
-createRoot(document.getElementById('root')!).render(
+const root = createRoot(document.getElementById('root')!)
+root.render(
   <StrictMode>
-    <App />
+    <OpenPanelApplication
+      services={createDefaultOpenPanelHostServices()}
+      applicationContext={{ mode: 'standalone' }}
+    />
   </StrictMode>,
 )
+
+window.addEventListener('pagehide', () => root.unmount(), { once: true })

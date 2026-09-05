@@ -8,8 +8,7 @@ import { ModuleLoadingState } from './ModuleLoadingState';
 import type { WizardApplication } from './PanelWizard';
 import { PanelVisualizations } from './PanelVisualizations';
 import { rankUiSelectOptions } from './uiSelectSearch';
-import { openTextFile, projectJsonFilename, readTextFileWithinLimit, saveBlob } from './browserFiles';
-import { writeLocalStorage } from './browserStorage';
+import { projectJsonFilename } from './browserFiles';
 import { buildPanelPayload, resolveKnownConfiguration } from './spectralEngine';
 import { fluorophoreIdentity } from './fluorophoreNames';
 import { CYTOMETER_ALIASES } from './cytometerAliases';
@@ -20,11 +19,15 @@ import {
     MIN_PLOT_SCALE,
     PROJECT_RESOURCE_LIMITS,
     alignWizardFluorophores,
-    saveActiveProject,
-    savePanelProject,
     serializeProject,
 } from './projectStore';
 import type { CytometerPanelState, ProjectState } from './projectStore';
+import {
+    useOpenPanelApplicationContext,
+    useOpenPanelHostServices,
+    useOpenPanelLifecycle,
+} from './module/hostServices';
+import type { OpenPanelAssetResolver } from './module/hostServices';
 import type { OpenSuiteProvenance } from './provenance';
 import type { WizardProjectState } from './panelWizardEngine';
 import {
@@ -44,7 +47,6 @@ import {
     validatePanelFluorophores,
 } from './panelBuilderShared';
 import { createRefreshSequence } from './refreshSequence';
-import { readThemePreference, saveThemePreference } from './themePreference';
 import type {
     FluorInfo,
     NumericRow,
@@ -53,6 +55,8 @@ import type {
 } from './panelBuilderShared';
 
 type PanelBuilderProps = {
+    mode?: 'standalone' | 'embedded';
+    hostTheme?: 'light' | 'dark' | null;
     embedded?: boolean;
     cockpitTheme?: 'light' | 'dark' | null;
     projectPath?: string;
@@ -389,6 +393,7 @@ function panelValidationError(
 async function canonicalizeImportedInactivePanels(
     state: ProjectState,
     activeCytometer: string,
+    assets?: OpenPanelAssetResolver,
 ): Promise<Record<string, CytometerPanelState>> {
     const canonicalPanels: Record<string, CytometerPanelState> = {};
     const seenPanelCytometers = new Map<string, string>();
@@ -397,12 +402,9 @@ async function canonicalizeImportedInactivePanels(
         if (!panelConfiguration) {
             throw new Error(`OpenPanel project uses an unsupported configuration '${panelState.configuration}' for '${panelCytometer}'.`);
         }
-        const panelPayload = await buildPanelPayload(
-            panelCytometer,
-            panelConfiguration,
-            panelState.slots.filter((slot) => slot.trim()),
-            true,
-        );
+        const panelPayload = assets
+            ? await buildPanelPayload(panelCytometer, panelConfiguration, panelState.slots.filter((slot) => slot.trim()), true, assets)
+            : await buildPanelPayload(panelCytometer, panelConfiguration, panelState.slots.filter((slot) => slot.trim()), true);
         const panelValidation = validatePanelFluorophores(panelState.slots, panelPayload.fluorophores);
         if (panelValidation.diagnostics.length > 0) {
             throw panelValidationError(`inactive '${panelCytometer}' panel import`, panelValidation.diagnostics);
@@ -453,6 +455,8 @@ async function canonicalizeImportedInactivePanels(
 }
 
 const PanelBuilder = ({
+    mode,
+    hostTheme,
     embedded = false,
     cockpitTheme = null,
     initialCytometer = 'aurora',
@@ -464,6 +468,12 @@ const PanelBuilder = ({
     recoveryMode = false,
     onRequestExit,
 }: PanelBuilderProps) => {
+    const host = useOpenPanelHostServices();
+    const applicationContext = useOpenPanelApplicationContext();
+    const lifecycle = useOpenPanelLifecycle();
+    const effectiveEmbedded = (mode ?? (embedded ? 'embedded' : 'standalone')) === 'embedded';
+    const effectiveCockpitTheme = hostTheme ?? cockpitTheme;
+    const exitHandler = onRequestExit ?? host.navigation?.requestExit ?? applicationContext.onRequestExit;
     const [payload, setPayload] = useState<PanelPayload | null>(null);
     const [cytometer, setCytometer] = useState(() => getCytometerName(initialProject?.cytometer ?? initialCytometer));
     const [configuration, setConfiguration] = useState(() => getCytometerName(initialProject?.configuration ?? initialConfiguration));
@@ -488,12 +498,14 @@ const PanelBuilder = ({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(initialError ?? '');
     const [persistenceError, setPersistenceError] = useState('');
+    const [dirty, setDirty] = useState(false);
+    const persistedProjectFingerprintRef = useRef<string | null>(null);
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
     const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-        if (embedded && cockpitTheme) return cockpitTheme;
-        return readThemePreference(initialProject?.theme);
+        if (effectiveEmbedded && effectiveCockpitTheme) return effectiveCockpitTheme;
+        return host.theme.read(initialProject?.theme);
     });
     const [guiStateLoaded, setGuiStateLoaded] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(initialProject?.sidebarWidth ?? 214);
@@ -554,21 +566,21 @@ const PanelBuilder = ({
     }, []);
 
     useEffect(() => {
-        writeLocalStorage('spectreasy_cytometer', getCytometerName(cytometer));
-    }, [cytometer]);
+        host.storage.setItem('spectreasy_cytometer', getCytometerName(cytometer));
+    }, [cytometer, host.storage]);
 
     useEffect(() => {
-        writeLocalStorage('spectreasy_configuration', getCytometerName(configuration));
-    }, [configuration]);
+        host.storage.setItem('spectreasy_configuration', getCytometerName(configuration));
+    }, [configuration, host.storage]);
 
     useEffect(() => {
-        if (embedded) return;
-        saveThemePreference(theme);
-    }, [embedded, theme]);
+        if (effectiveEmbedded) return;
+        host.theme.save(theme);
+    }, [effectiveEmbedded, host.theme, theme]);
 
     useEffect(() => {
-        writeLocalStorage('spectreasy_slots', JSON.stringify(slots));
-    }, [slots]);
+        host.storage.setItem('spectreasy_slots', JSON.stringify(slots));
+    }, [host.storage, slots]);
 
     useEffect(() => {
         markersRef.current = markers;
@@ -579,8 +591,8 @@ const PanelBuilder = ({
     }, [wizardState]);
 
     useEffect(() => {
-        writeLocalStorage('spectreasy_markers', JSON.stringify(markers));
-    }, [markers]);
+        host.storage.setItem('spectreasy_markers', JSON.stringify(markers));
+    }, [host.storage, markers]);
 
     const projectState = useMemo<ProjectState>(() => {
         return createPanelBuilderProjectState(
@@ -598,26 +610,51 @@ const PanelBuilder = ({
             initialProject?.provenance,
         );
     }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels, initialProject?.provenance]);
+    const projectFingerprint = useMemo(() => JSON.stringify(projectState), [projectState]);
+
+    useEffect(() => {
+        if (!guiStateLoaded) return;
+        if (persistedProjectFingerprintRef.current === null) {
+            persistedProjectFingerprintRef.current = projectFingerprint;
+            setDirty(false);
+            return;
+        }
+        setDirty(persistedProjectFingerprintRef.current !== projectFingerprint);
+    }, [guiStateLoaded, projectFingerprint]);
+
+    useEffect(() => {
+        lifecycle.report({
+            activeProjectId: projectId ?? null,
+            activeWorkspace: cytometer && configuration ? `${cytometer}:${configuration}` : null,
+            dirty,
+            busy: loading || exporting || importing || historyBusy,
+        });
+    }, [configuration, cytometer, dirty, exporting, historyBusy, importing, lifecycle, loading, projectId]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
         if (recoveryMode) return;
         try {
+            lifecycle.report({ persistenceInFlight: true, busy: true });
             if (projectId) {
-                await savePanelProject(projectId, panelName, state);
+                await host.projects.savePanelProject(projectId, panelName, state);
             } else {
-                await saveActiveProject(state);
+                await host.projects.saveActiveProject(state);
             }
+            persistedProjectFingerprintRef.current = JSON.stringify(state);
+            setDirty(false);
             setPersistenceError('');
         } catch (persistError) {
             setPersistenceError(panelErrorMessage(persistError, 'Could not save this panel.'));
             throw persistError;
+        } finally {
+            lifecycle.report({ persistenceInFlight: false, busy: loading || exporting || importing });
         }
-    }, [panelName, projectId, projectState, recoveryMode]);
+    }, [exporting, host.projects, importing, lifecycle, loading, panelName, projectId, projectState, recoveryMode]);
 
     const exitToPanelLibrary = useCallback(async () => {
         await persistProjectState();
-        await onRequestExit?.();
-    }, [onRequestExit, persistProjectState]);
+        await exitHandler?.();
+    }, [exitHandler, persistProjectState]);
 
     useEffect(() => {
         if (!guiStateLoaded) return;
@@ -748,7 +785,9 @@ const PanelBuilder = ({
         nextConfiguration: string,
         nextSelected: string[],
         rejectInvalidRequested = false,
-    ) => buildPanelPayload(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested), []);
+    ) => host.assets
+        ? buildPanelPayload(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested, host.assets)
+        : buildPanelPayload(nextCytometer, nextConfiguration, nextSelected, rejectInvalidRequested), [host.assets]);
 
     const fetchPanel = async (
         nextCytometer: string,
@@ -795,8 +834,8 @@ const PanelBuilder = ({
         setWizardState(snapshot.wizard);
         setQueries({});
         setActiveSlot(null);
-        writeLocalStorage('spectreasy_slots', JSON.stringify(snapshot.slots));
-        writeLocalStorage('spectreasy_markers', JSON.stringify(snapshot.markers));
+        host.storage.setItem('spectreasy_slots', JSON.stringify(snapshot.slots));
+        host.storage.setItem('spectreasy_markers', JSON.stringify(snapshot.markers));
         await fetchPanel(cytometer, configuration, snapshot.slots.filter(Boolean)).catch((historyError) => {
             setError(panelErrorMessage(historyError, 'Could not restore panel edit.'));
         });
@@ -908,7 +947,7 @@ const PanelBuilder = ({
                 setFileMenu(null);
                 return;
             }
-            if (onRequestExit) void exitToPanelLibrary();
+            if (exitHandler) void exitToPanelLibrary();
         };
         document.addEventListener('mousedown', handleClickOutside);
         document.addEventListener('keydown', handleEscape);
@@ -916,7 +955,7 @@ const PanelBuilder = ({
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleEscape);
         };
-    }, [activeSlot, clearingPanel, exitToPanelLibrary, fileMenu, onRequestExit, showClearConfirmation, showPanelWizard, showPdfConfirm]);
+    }, [activeSlot, clearingPanel, exitHandler, exitToPanelLibrary, fileMenu, showClearConfirmation, showPanelWizard, showPdfConfirm]);
 
     const updateSlot = async (index: number, fluor: string) => {
         if (recoveryMode) return;
@@ -927,7 +966,7 @@ const PanelBuilder = ({
         slotsRef.current = nextSlots;
         setSlots(nextSlots);
         syncWizardColorsWithPanel(nextSlots);
-        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+        host.storage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
         setQueries(prev => ({ ...prev, [index]: '' }));
         setActiveSlot(null);
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
@@ -957,8 +996,8 @@ const PanelBuilder = ({
                 .map(([slotIndex, value]) => [reindexRemovedSlot(slotIndex, index), value]),
         ));
         setActiveSlot(null);
-        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
-        writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
+        host.storage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        host.storage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch(err => {
             setError(panelErrorMessage(err, 'Could not update panel.'));
         });
@@ -972,7 +1011,7 @@ const PanelBuilder = ({
             slotsRef.current = nextSlots;
             setSlots(nextSlots);
             syncWizardColorsWithPanel(nextSlots);
-            writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
+            host.storage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
         });
     };
 
@@ -990,8 +1029,8 @@ const PanelBuilder = ({
         else delete nextMarkers[slotIndex];
         markersRef.current = nextMarkers;
         setMarkers(nextMarkers);
-        writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
-    }, [recordPanelEdit, recoveryMode]);
+        host.storage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
+    }, [host.storage, recordPanelEdit, recoveryMode]);
 
     const clearPanelContent = async () => {
         if (recoveryMode) return;
@@ -1009,8 +1048,8 @@ const PanelBuilder = ({
         setWizardState(null);
         setQueries({});
         setActiveSlot(null);
-        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
-        writeLocalStorage('spectreasy_markers', '{}');
+        host.storage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        host.storage.setItem('spectreasy_markers', '{}');
         await fetchPanel(cytometer, configuration, []).catch((clearError) => {
             setError(panelErrorMessage(clearError, 'Could not clear the panel.'));
         });
@@ -1071,8 +1110,8 @@ const PanelBuilder = ({
         setSlots(nextSlots);
         setMarkers(nextMarkers);
         syncWizardColorsWithPanel(nextSlots, undefined, false);
-        writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
-        writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
+        host.storage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+        host.storage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
         await fetchPanel(cytometer, configuration, nextSlots.filter(Boolean)).catch((wizardError) => {
             throw new Error(panelErrorMessage(wizardError, 'Could not apply the panel recommendations.'));
         });
@@ -1094,7 +1133,7 @@ const PanelBuilder = ({
             ['Marker', 'Fluorophore'].map(csvEscape).join(','),
             ...selectedRows.map(row => [row.marker, row.fluor].map(csvEscape).join(',')),
         ];
-        await saveBlob(new Blob([`${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' }), {
+        await host.files.saveBlob(new Blob([`${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' }), {
             suggestedName: `spectreasy_${cytometer}_${configuration}_panel.csv`,
             description: 'Panel CSV',
             mimeType: 'text/csv',
@@ -1114,7 +1153,7 @@ const PanelBuilder = ({
             const readyPayload = assertPanelPayload(payload);
             const { createPanelOverviewPdf } = await import('./pdfExport');
             const pdf = createPanelOverviewPdf(readyPayload, selectedRows);
-            await saveBlob(pdf, {
+            await host.files.saveBlob(pdf, {
                 suggestedName: `spectreasy_${cytometer}_${configuration}_panel_overview.pdf`,
                 description: 'Panel overview PDF',
                 mimeType: 'application/pdf',
@@ -1211,7 +1250,7 @@ const PanelBuilder = ({
         setError('');
         setImporting(true);
         try {
-            const text = await readTextFileWithinLimit(
+            const text = await host.files.readTextFileWithinLimit(
                 file,
                 PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
                 'Panel CSV',
@@ -1236,8 +1275,8 @@ const PanelBuilder = ({
             setSlots(nextSlots);
             setMarkers(nextMarkers);
             setWizardState(null);
-            writeLocalStorage('spectreasy_slots', JSON.stringify(nextSlots));
-            writeLocalStorage('spectreasy_markers', JSON.stringify(nextMarkers));
+            host.storage.setItem('spectreasy_slots', JSON.stringify(nextSlots));
+            host.storage.setItem('spectreasy_markers', JSON.stringify(nextMarkers));
             setQueries({});
             setActiveSlot(null);
         } catch (err) {
@@ -1250,7 +1289,7 @@ const PanelBuilder = ({
 
     const choosePanelCsv = async () => {
         if (recoveryMode) return;
-        const file = await openTextFile({
+        const file = await host.files.openTextFile({
             description: 'Panel CSV',
             mimeType: 'text/csv',
             extensions: ['.csv', '.tsv', '.txt'],
@@ -1262,7 +1301,7 @@ const PanelBuilder = ({
 
     const exportProject = async () => {
         if (recoveryMode) return;
-        await saveBlob(new Blob([serializeProject(currentProjectState())], { type: 'application/json' }), {
+        await host.files.saveBlob(new Blob([serializeProject(currentProjectState())], { type: 'application/json' }), {
             suggestedName: projectJsonFilename(panelName),
             description: 'OpenPanel project',
             mimeType: 'application/json',
@@ -1276,7 +1315,7 @@ const PanelBuilder = ({
         setError('');
         setImporting(true);
         try {
-            const state = parseProject(await readTextFileWithinLimit(
+            const state = parseProject(await host.files.readTextFileWithinLimit(
                 file,
                 PROJECT_RESOURCE_LIMITS.maxProjectFileBytes,
                 'OpenPanel project',
@@ -1332,7 +1371,7 @@ const PanelBuilder = ({
             const nextMarkers = preserveMarkersWithinSlots(state.markers, nextPayload.max_panel_size);
             const nextCytometer = getCytometerName(nextPayload.cytometer);
             const nextConfiguration = getCytometerName(nextPayload.configuration);
-            const nextCytometerPanels = await canonicalizeImportedInactivePanels(state, nextCytometer);
+            const nextCytometerPanels = await canonicalizeImportedInactivePanels(state, nextCytometer, host.assets);
             const activeCytometerPanel = state.cytometerPanels[state.cytometer];
             nextCytometerPanels[nextCytometer] = {
                 ...(activeCytometerPanel ?? { configuration: nextConfiguration, wizard: nextWizard }),
@@ -1376,7 +1415,7 @@ const PanelBuilder = ({
 
     const chooseProject = async () => {
         if (recoveryMode) return;
-        const file = await openTextFile({
+        const file = await host.files.openTextFile({
             description: 'OpenPanel project',
             mimeType: 'application/json',
             extensions: ['.openpanel.json', '.json'],
@@ -1385,27 +1424,27 @@ const PanelBuilder = ({
     };
 
     if (loading) {
-        return <ModuleLoadingState label="Loading Spectral Panel Builder" theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)} />;
+        return <ModuleLoadingState label="Loading Spectral Panel Builder" theme={resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)} />;
     }
 
     if (!payload) {
         return (
-            <div className={`panel-builder panel-boot-failure ${resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}`}>
+            <div className={`panel-builder panel-boot-failure ${resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}`}>
                 <div className="panel-boot-error" role="alert">
                     <strong>Spectral Panel Builder could not load</strong>
                     <span>{bootErrorLabel(error)}</span>
                     <button type="button" onClick={retryBoot}>Try again</button>
-                    {embedded && onRequestExit && <button type="button" className="secondary" onClick={onRequestExit}>Return to cockpit</button>}
+                    {effectiveEmbedded && exitHandler && <button type="button" className="secondary" onClick={exitHandler}>Return to cockpit</button>}
                 </div>
             </div>
         );
     }
 
     return (
-        <div className={`panel-builder ${resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}`}>
+        <div className={`panel-builder ${resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}`}>
             <header className="panel-topbar">
                 <div className="panel-title-group">
-                    {!embedded && onRequestExit && (
+                    {!effectiveEmbedded && exitHandler && (
                         <button
                             type="button"
                             className="panel-back-button"
@@ -1418,7 +1457,7 @@ const PanelBuilder = ({
                     )}
                     <div>
                         <div className="panel-heading-row">
-                            {!embedded && projectId && (
+                            {!effectiveEmbedded && projectId && (
                                 <input
                                     className="panel-name-input"
                                     value={panelName}
@@ -1504,7 +1543,7 @@ const PanelBuilder = ({
                     >
                         <Trash2 size={16} />
                     </button>
-                    {!embedded && <button
+                    {!effectiveEmbedded && <button
                         type="button"
                         className="export-button"
                         onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
@@ -1605,10 +1644,10 @@ const PanelBuilder = ({
                     }} disabled={exporting || recoveryMode} aria-label={exporting ? 'Exporting overview PDF' : 'Export overview PDF'} title={exporting ? 'Exporting…' : 'Export overview PDF'}>
                         <PdfIcon size={20} />
                     </button>
-                    {embedded && onRequestExit && <button
+                    {effectiveEmbedded && exitHandler && <button
                         type="button"
                         className="export-button applet-close-button"
-                        onClick={onRequestExit}
+                        onClick={exitHandler}
                         aria-label="Close panel builder and return to cockpit"
                         autoFocus
                     >
@@ -1741,7 +1780,7 @@ const PanelBuilder = ({
                     similarityByName={similarityByName}
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
-                    theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
+                    theme={resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}
                     error={[recoveryMode ? initialError : '', error, persistenceError].filter(Boolean).join('\n')}
                     readOnly={recoveryMode}
                     plotScale={plotScale}
@@ -1749,7 +1788,7 @@ const PanelBuilder = ({
                 />
             </div>
             {showPanelWizard && (
-                <Suspense fallback={<div className={`panel-wizard-backdrop ${resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}`} />}>
+                <Suspense fallback={<div className={`panel-wizard-backdrop ${resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}`} />}>
                     <PanelWizard
                         key={`panel-wizard-${wizardSyncRevision}`}
                         cytometer={cytometer}
@@ -1759,9 +1798,10 @@ const PanelBuilder = ({
                         maxPanelSize={payload.max_panel_size}
                         measurementMode={payload.measurement_mode}
                         responseProvenance={payload.response_provenance}
+                        assetResolver={host.assets}
                         slots={slots}
                         markerNames={markers}
-                        theme={resolvePanelBuilderTheme(embedded, cockpitTheme, theme)}
+                        theme={resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}
                         initialState={wizardState}
                         onStateChange={handleWizardStateChange}
                         onClearPanel={clearPanelContent}

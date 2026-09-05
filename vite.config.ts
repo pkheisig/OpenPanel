@@ -4,10 +4,14 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const configuredPort = Number.parseInt(process.env.VITE_DEV_PORT || '5174', 10)
+const sourceCommit = process.env.VITE_GIT_COMMIT_SHA || process.env.GITHUB_SHA || 'dev'
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/OpenPanel/',
+  define: {
+    'import.meta.env.VITE_GIT_COMMIT_SHA': JSON.stringify(sourceCommit),
+  },
   plugins: [
     react(),
     tailwindcss(),

@@ -23,6 +23,10 @@ import type {
 } from './panelBuilderShared'
 import { responseProvenanceForCytometer } from './panelBuilderShared'
 import { CYTOMETER_ALIASES, type CytometerId } from './cytometerAliases'
+import type { OpenPanelAssetResolver } from './module/hostServices'
+import { createBrowserAssetResolver, dataUrl } from './standalone/browserAssetResolver'
+
+export { dataUrl }
 
 export { resolveBundledFluorophoreKey } from './fluorophoreNames'
 
@@ -734,6 +738,8 @@ const CONVENTIONAL_CYTOMETERS = new Set<CytometerId>([
   'navios', 'dxflex', 'facsaria_fusion',
 ])
 
+const defaultAssetResolver = createBrowserAssetResolver()
+let activeAssetResolver: OpenPanelAssetResolver = defaultAssetResolver
 let dictionaryInitialization: Promise<void> | null = null
 const libraries = new Map<CytometerId, SpectralLibrary>()
 const libraryInitializations = new Map<CytometerId, Promise<void>>()
@@ -924,22 +930,18 @@ export function dictionaryText(value: unknown): string {
   return value == null ? '' : String(value)
 }
 
-export function dataUrl(filename: string): string {
-  const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
-  return new URL(`data/${filename}`, new URL(import.meta.env.BASE_URL, origin)).toString()
-}
-
-async function loadCsv(filename: string): Promise<string[][]> {
-  let response: Response
+async function loadCsv(filename: string, assetResolver?: OpenPanelAssetResolver): Promise<string[][]> {
+  const resolver = assetResolver ?? defaultAssetResolver
+  let text: string
   try {
-    response = await fetch(dataUrl(filename))
+    text = await resolver.loadText(filename)
   } catch (error) {
+    if (error instanceof BundledDataValidationError) throw error
     validationError(filename, `could not load bundled data file: ${error instanceof Error ? error.message : String(error)}`)
   }
-  if (!response.ok) validationError(filename, `could not load bundled data file (${response.status}).`)
   let rows: string[][]
   try {
-    rows = parseCsv(await response.text())
+    rows = parseCsv(text)
   } catch (error) {
     if (error instanceof BundledDataValidationError) throw error
     validationError(filename, error instanceof Error ? error.message : String(error))
@@ -1788,13 +1790,22 @@ export function validateBundledDataRows(
   }
 }
 
-function initializeDictionaries(): Promise<void> {
+function initializeDictionaries(assetResolver?: OpenPanelAssetResolver): Promise<void> {
+  const resolver = assetResolver ?? defaultAssetResolver
+  if (activeAssetResolver !== resolver) {
+    activeAssetResolver = resolver
+    dictionaryInitialization = null
+    libraries.clear()
+    libraryInitializations.clear()
+    configurationBases.clear()
+    panelPayloadCache.clear()
+  }
   if (dictionaryInitialization) return dictionaryInitialization
   const pending = Promise.all([
-    loadCsv('cytometer_dictionary.csv'),
-    loadCsv('fluorophore_dictionary.csv'),
-    loadCsv('conventional_detector_dictionary.csv'),
-    loadCsv('conventional_fluorophore_estimates.csv'),
+    loadCsv('cytometer_dictionary.csv', resolver),
+    loadCsv('fluorophore_dictionary.csv', resolver),
+    loadCsv('conventional_detector_dictionary.csv', resolver),
+    loadCsv('conventional_fluorophore_estimates.csv', resolver),
   ]).then(([cytometers, fluorophores, conventionalDetectors, conventionalEstimates]) => {
     cytometerDictionary = rowsToObjects(cytometers)
     fluorophoreDictionary = rowsToObjects(fluorophores)
@@ -1810,16 +1821,25 @@ function initializeDictionaries(): Promise<void> {
   })
 }
 
-function initializeLibrary(cytometer: CytometerId): Promise<void> {
+function initializeLibrary(cytometer: CytometerId, assetResolver?: OpenPanelAssetResolver): Promise<void> {
+  const resolver = assetResolver ?? defaultAssetResolver
+  if (activeAssetResolver !== resolver) {
+    activeAssetResolver = resolver
+    dictionaryInitialization = null
+    libraries.clear()
+    libraryInitializations.clear()
+    configurationBases.clear()
+    panelPayloadCache.clear()
+  }
   const existing = libraryInitializations.get(cytometer)
   if (existing) return existing
   const pending = CONVENTIONAL_CYTOMETERS.has(cytometer)
-    ? initializeDictionaries().then(() => {
+    ? initializeDictionaries(resolver).then(() => {
       libraries.set(cytometer, buildConventionalLibrary(cytometer))
     })
-    : initializeDictionaries().then(async () => {
+    : initializeDictionaries(resolver).then(async () => {
       const filename = LIBRARY_FILES[cytometer]!
-      const rows = await loadCsv(filename)
+      const rows = await loadCsv(filename, resolver)
       validateSpectralDetectorMetadata(filename, rows)
       const measurementMode = LIBRARIES.find((libraryInfo) => libraryInfo.id === cytometer)!.measurement_mode
       libraries.set(
@@ -1834,14 +1854,14 @@ function initializeLibrary(cytometer: CytometerId): Promise<void> {
   })
 }
 
-async function initializeCytometer(cytometer: CytometerId): Promise<void> {
-  await Promise.all([initializeDictionaries(), initializeLibrary(cytometer)])
+async function initializeCytometer(cytometer: CytometerId, assetResolver?: OpenPanelAssetResolver): Promise<void> {
+  await Promise.all([initializeDictionaries(assetResolver), initializeLibrary(cytometer, assetResolver)])
 }
 
-export async function initializeSpectralEngine(): Promise<void> {
+export async function initializeSpectralEngine(assetResolver?: OpenPanelAssetResolver): Promise<void> {
   await Promise.all([
-    initializeDictionaries(),
-    ...LIBRARIES.map((library) => initializeLibrary(library.id as CytometerId)),
+    initializeDictionaries(assetResolver),
+    ...LIBRARIES.map((library) => initializeLibrary(library.id as CytometerId, assetResolver)),
   ])
 }
 
@@ -2509,10 +2529,11 @@ export async function validateRequestedFluorophores(
   cytometer: unknown = 'aurora',
   configuration?: unknown,
   requestedFluorophores: string[] = [],
+  assetResolver?: OpenPanelAssetResolver,
 ): Promise<RequestedFluorophoreValidation> {
   const id = resolveCytometer(cytometer)
   const config = resolveConfiguration(id, configuration)
-  await initializeCytometer(id)
+  await initializeCytometer(id, assetResolver)
   const library = requireSpectralLibrary(libraries.get(id), id)
   return validateRequestedFromBase(
     requestedFluorophores.map((value) => value.trim()).filter(Boolean),
@@ -2551,10 +2572,11 @@ export async function buildPanelPayload(
   configuration?: unknown,
   requestedFluorophores: string[] = [],
   rejectInvalidRequested = false,
+  assetResolver?: OpenPanelAssetResolver,
 ): Promise<PanelPayload> {
   const id = resolveCytometer(cytometer)
   const config = resolveConfiguration(id, configuration)
-  await initializeCytometer(id)
+  await initializeCytometer(id, assetResolver)
   const library = requireSpectralLibrary(libraries.get(id), id)
   const normalizedRequested = requestedFluorophores.map((value) => value.trim()).filter(Boolean)
   const base = configurationBase(id, config, library)
@@ -2629,6 +2651,7 @@ export async function buildPanelPayload(
 }
 
 export function resetSpectralEngineForTests(): void {
+  activeAssetResolver = defaultAssetResolver
   dictionaryInitialization = null
   libraries.clear()
   libraryInitializations.clear()

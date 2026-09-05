@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opensuite.local/schemas/opensuite-module.schema.json",
+  "title": "OpenSuite application module manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "displayName",
+    "moduleVersion",
+    "sourceCommit",
+    "applicationContractVersion",
+    "runtimeContractVersion",
+    "uiContractVersion",
+    "entrypoints",
+    "peerDependencies",
+    "capabilities"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "displayName": { "type": "string", "minLength": 1 },
+    "moduleVersion": { "type": "string", "minLength": 1 },
+    "sourceCommit": { "type": "string", "minLength": 1 },
+    "applicationContractVersion": { "type": "string", "minLength": 1 },
+    "runtimeContractVersion": { "type": "string", "minLength": 1 },
+    "uiContractVersion": { "type": "string", "minLength": 1 },
+    "entrypoints": {
+      "type": "object",
+      "required": ["application", "stylesheet"],
+      "properties": {
+        "application": { "type": "string", "minLength": 1 },
+        "stylesheet": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "assetManifest": { "type": "string", "minLength": 1 },
+    "peerDependencies": {
+      "type": "object",
+      "required": ["react", "react-dom"],
+      "properties": {
+        "react": { "type": "string", "minLength": 1 },
+        "react-dom": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "capabilities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "fileExtensions": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  },
+  "additionalProperties": false
+}
