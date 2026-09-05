@@ -1,5 +1,8 @@
-import { inverse, Matrix } from 'ml-matrix'
-import { calculatePanelComplexity, calculateSimilarityMatrix } from './spectralEngine'
+import {
+  calculateCollinearityDiagnostic,
+  calculatePanelComplexity,
+  calculateSimilarityMatrix,
+} from './spectralEngine'
 import {
   fluorophoreBrightnessKey,
 } from './panelWizardReferences'
@@ -12,6 +15,7 @@ import type {
   NumericRow,
   PanelMeasurementMode,
   PanelPayload,
+  CollinearityDiagnostic,
   ResponseMatrixProvenance,
 } from './panelBuilderShared'
 import type { WizardReferenceData } from './panelWizardReferences'
@@ -54,6 +58,7 @@ export type WizardRecommendation = {
   availabilityScore: number
   availabilityTier: AvailabilityTier
   availabilityConfidence: 'Curated' | 'Estimated'
+  sifDelta?: number | null
 }
 
 export type WizardAlternative = Omit<
@@ -68,6 +73,7 @@ export type WizardPanelResult = {
   complexity: number
   previousComplexity: number
   maxSimilarity: number
+  maxSif?: number | null
   spectralRisk: number
   averageAvailability: number
 }
@@ -115,7 +121,8 @@ type PanelMetrics = {
   complexity: number
   maxSimilarity: number
   topSimilarityMean: number
-  maxResponseSeparation: number
+  maxSif: number | null
+  collinearity: CollinearityDiagnostic
   spectralRisk: number
 }
 
@@ -395,6 +402,27 @@ function spectrumVector(row: NumericRow, detectors: string[]): number[] {
   })
 }
 
+function sifForEndmember(metrics: PanelMetrics, fluorophore: string): number | null {
+  if (metrics.collinearity.status !== 'ok') return null
+  const index = metrics.collinearity.endmembers.indexOf(fluorophore)
+  const value = index >= 0 ? metrics.collinearity.sifByEndmember[index] : null
+  return value !== undefined && Number.isFinite(value) ? value : null
+}
+
+function sifDeltaBetween(full: PanelMetrics, baseline: PanelMetrics): number | null {
+  if (full.collinearity.status !== 'ok' || baseline.collinearity.status !== 'ok') return null
+  if (full.maxSif === null || baseline.maxSif === null) return null
+  return Math.max(0, full.maxSif - baseline.maxSif)
+}
+
+function sifPenalty(value: number | null): number {
+  return value === null ? 0 : Math.log2(Math.max(1, value)) * 10
+}
+
+function collinearityStatusPenalty(status: CollinearityDiagnostic['status']): number {
+  return status === 'ok' || status === 'not_applicable' ? 0 : 100
+}
+
 function panelMetrics(
   names: string[],
   spectra: Map<string, number[]>,
@@ -402,7 +430,11 @@ function panelMetrics(
   // keeps an unspecified metric from claiming instrument-response evidence.
   responseProvenance: ResponseMatrixProvenance = SYNTHETIC_RESPONSE_PROVENANCE,
 ): PanelMetrics {
-  const values = names.map((name) => spectra.get(name)).filter((value): value is number[] => value !== undefined)
+  const available = names
+    .map((name) => ({ name, value: spectra.get(name) }))
+    .filter((item): item is { name: string; value: number[] } => item.value !== undefined)
+  const availableNames = available.map((item) => item.name)
+  const values = available.map((item) => item.value)
   const complexity = calculatePanelComplexity(values) ?? Number.POSITIVE_INFINITY
   const similarities = calculateSimilarityMatrix(values)
   const pairs: number[] = []
@@ -417,27 +449,14 @@ function panelMetrics(
   const topSimilarityMean = pairs.length === 0
     ? 0
     : pairs.slice(0, topCount).reduce((sum, value) => sum + value, 0) / topCount
-  let maxResponseSeparation = 1
-  if (similarities.length > 1 && responseProvenance.class !== 'synthetic_filter_proxy') {
-    try {
-      const regularized = new Matrix(similarities)
-      for (let index = 0; index < regularized.rows; index += 1) {
-        regularized.set(index, index, regularized.get(index, index) + 1e-6)
-      }
-      const hotspot = inverse(regularized)
-      maxResponseSeparation = Math.max(
-        1,
-        ...Array.from(
-          { length: hotspot.rows },
-          (_, index) => Math.sqrt(Math.abs(hotspot.get(index, index))),
-        ),
-      )
-    } catch {
-      maxResponseSeparation = 100
-    }
-  }
+  const collinearity = calculateCollinearityDiagnostic(values, availableNames, responseProvenance)
+  const maxSif = collinearity.maxSif
   const complexityRisk = Number.isFinite(complexity) ? Math.log2(Math.max(1, complexity)) * 18 : 1000
-  const responseSeparationRisk = Math.log2(Math.max(1, maxResponseSeparation)) * 28
+  const collinearityRisk = values.length === 0
+    ? 0
+    : collinearity.status === 'ok'
+    ? Math.log2(Math.max(1, maxSif ?? 1)) * 28
+    : collinearity.status === 'not_applicable' ? 0 : 1000
   const similarityGuardrail = maxSimilarity >= 0.98
     ? 90 + (maxSimilarity - 0.98) * 500
     : maxSimilarity >= 0.9
@@ -447,8 +466,9 @@ function panelMetrics(
     complexity,
     maxSimilarity,
     topSimilarityMean,
-    maxResponseSeparation,
-    spectralRisk: complexityRisk + responseSeparationRisk + maxSimilarity * 42 + topSimilarityMean * 22 + similarityGuardrail,
+    maxSif,
+    collinearity,
+    spectralRisk: complexityRisk + collinearityRisk + maxSimilarity * 42 + topSimilarityMean * 22 + similarityGuardrail,
   }
 }
 
@@ -685,15 +705,14 @@ function recommendationRows(
       ? fullMetrics.complexity - withoutComplexity
       : 0
     const availability = fluorophoreAvailability(fluorophore)
-    const spreadingDelta = Math.max(
-      0,
-      fullMetrics.maxResponseSeparation - withoutMetrics.maxResponseSeparation,
-    )
+    const sifDelta = sifDeltaBetween(fullMetrics, withoutMetrics)
     const spectralFit = Math.round(clamp(
       100
       - pair.similarity * 58
       - Math.max(0, complexityDelta) * 7
-      - Math.log2(1 + spreadingDelta) * 18,
+      - (sifDelta === null ? 0 : Math.log2(1 + sifDelta) * 18)
+      - sifPenalty(sifForEndmember(fullMetrics, fluorophore))
+      - collinearityStatusPenalty(fullMetrics.collinearity.status),
     ))
     return {
       fluorophore,
@@ -701,6 +720,7 @@ function recommendationRows(
       complexityDelta,
       availability,
       spectralFit,
+      sifDelta,
       peakLaser: payload.fluorophores.find((item) => item.fluorophore === fluorophore)?.peak_laser ?? '',
     }
   }
@@ -742,6 +762,7 @@ function recommendationRows(
       availabilityScore: dye.availability.score,
       availabilityTier: dye.availability.tier,
       availabilityConfidence: dye.availability.confidence,
+      sifDelta: dye.sifDelta,
     }
   })
   for (const marker of unassignedMarkers) {
@@ -771,10 +792,20 @@ function recommendationRows(
           references,
         )
         const brightnessPenalty = brightnessScore === null ? 0 : (100 - brightnessScore) / 65
+        const candidateMetrics = panelMetrics(
+          [...selected, dye.fluorophore],
+          spectra,
+          responseProvenance,
+        )
+        const candidateSifPenalty = sifPenalty(sifForEndmember(candidateMetrics, dye.fluorophore))
+          + collinearityStatusPenalty(candidateMetrics.collinearity.status)
         return {
           dye,
           brightnessScore,
-          pairingCost: coexpressionPenalty + (100 - dye.spectralFit) / 250 + brightnessPenalty,
+          pairingCost: coexpressionPenalty
+            + (100 - dye.spectralFit) / 250
+            + brightnessPenalty
+            + candidateSifPenalty / 100,
         }
       })
       .sort((left, right) => (
@@ -808,6 +839,7 @@ function recommendationRows(
       availabilityScore: dye.availability.score,
       availabilityTier: dye.availability.tier,
       availabilityConfidence: dye.availability.confidence,
+      sifDelta: dye.sifDelta,
     })
   }
   return rows
@@ -842,15 +874,14 @@ function alternatives(
       const previousMetrics = baseline
         ? panelMetrics(selected.filter((name) => name !== baseline), spectra, responseProvenance)
         : panelMetrics(selected, spectra, responseProvenance)
-      const spreadingDelta = Math.max(
-        0,
-        metrics.maxResponseSeparation - previousMetrics.maxResponseSeparation,
-      )
+      const sifDelta = sifDeltaBetween(metrics, previousMetrics)
       const spectralFit = Math.round(clamp(
         100
         - pair.similarity * 58
         - Math.max(0, complexityDelta) * 7
-        - Math.log2(1 + spreadingDelta) * 18,
+        - (sifDelta === null ? 0 : Math.log2(1 + sifDelta) * 18)
+        - sifPenalty(sifForEndmember(metrics, fluorophore))
+        - collinearityStatusPenalty(metrics.collinearity.status),
       ))
       return {
         fluorophore,
@@ -858,6 +889,7 @@ function alternatives(
         isExisting: false,
         peakLaser: payload.fluorophores.find((item) => item.fluorophore === fluorophore)?.peak_laser ?? '',
         spectralFit,
+        sifDelta,
         recommendedScore: recommendationScore(spectralFit, availability.score, null),
         maxSimilarity: pair.similarity,
         closestFluorophore: pair.name,
@@ -899,6 +931,7 @@ function buildResult(
     complexity: metrics.complexity,
     previousComplexity: lockedMetrics.complexity,
     maxSimilarity: metrics.maxSimilarity,
+    maxSif: metrics.maxSif,
     spectralRisk: metrics.spectralRisk,
     averageAvailability,
   }

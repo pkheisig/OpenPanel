@@ -13,7 +13,7 @@ vi.mock('ml-matrix', async () => {
 import { generateWizardResults } from '../src/panelWizardEngine'
 
 describe('wizard engine numerical failure handling', () => {
-  test('uses the conservative spreading risk when matrix inversion fails', () => {
+  test('uses conservative SIF risk when matrix inversion fails', () => {
     const payload = {
       cytometer: 'aurora', configuration: 'config', measurement_mode: 'spectral',
       libraries: [], configurations: [],
