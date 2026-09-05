@@ -7,6 +7,15 @@ import type {
 import type { AppTheme } from '../themePreference'
 import { createDefaultOpenPanelHostServices } from '../standalone/standaloneHost'
 
+export const OPEN_PANEL_UI_CONTRACT_VERSION = '0.1.0-bootstrap' as const
+
+export type OpenPanelHostOwnership = {
+  globalChrome?: boolean
+  theme?: boolean
+  updater?: boolean
+  windowClose?: boolean
+}
+
 export type OpenPanelStorage = {
   getItem(key: string): string | null
   setItem(key: string, value: string): boolean
@@ -63,6 +72,11 @@ export type OpenPanelHostServices = {
 export type OpenPanelApplicationContext = {
   mode?: 'standalone' | 'embedded'
   theme?: AppTheme
+  density?: 'compact' | 'comfortable'
+  uiContractVersion?: string
+  ownership?: OpenPanelHostOwnership
+  /** @deprecated Use ownership. Kept for hosts during the bootstrap contract. */
+  hostOwnership?: OpenPanelHostOwnership
   projectPath?: string
   projectRevision?: string
   initialCytometer?: string
@@ -71,6 +85,37 @@ export type OpenPanelApplicationContext = {
   projectId?: string
   projectName?: string
   onRequestExit?: () => void | Promise<void>
+}
+
+export function normalizeOpenPanelApplicationContext(
+  context: OpenPanelApplicationContext = {},
+): OpenPanelApplicationContext {
+  return {
+    mode: 'standalone',
+    uiContractVersion: OPEN_PANEL_UI_CONTRACT_VERSION,
+    density: 'compact',
+    ...context,
+  }
+}
+
+export function validateOpenPanelApplicationContext(
+  context: OpenPanelApplicationContext,
+): void {
+  if (context.uiContractVersion && context.uiContractVersion !== OPEN_PANEL_UI_CONTRACT_VERSION) {
+    throw new Error(`OpenPanel UI contract version is unsupported: ${context.uiContractVersion}.`)
+  }
+  if (context.density && !['compact', 'comfortable'].includes(context.density)) {
+    throw new Error(`OpenPanel density is unsupported: ${context.density}.`)
+  }
+}
+
+export function openPanelHostOwns(
+  context: OpenPanelApplicationContext,
+  ownership: keyof OpenPanelHostOwnership,
+): boolean {
+  const declared = context.ownership ?? context.hostOwnership
+  if (declared && declared[ownership] !== undefined) return declared[ownership] === true
+  return context.mode === 'embedded'
 }
 
 export type OpenPanelLifecycleState = {
@@ -147,6 +192,7 @@ export function OpenPanelHostProvider({
   lifecycle?: OpenPanelLifecycleReporter
   children: ReactNode
 }) {
+  validateOpenPanelApplicationContext(applicationContext)
   const [providerLifecycle] = useState<OpenPanelLifecycleReporter>(
     () => lifecycle ?? createOpenPanelLifecycleReporter(applicationContext),
   )

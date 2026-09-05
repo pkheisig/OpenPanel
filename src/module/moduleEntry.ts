@@ -6,6 +6,11 @@ export {
   createOpenPanelModule,
   validateOpenPanelApplicationManifest,
 } from './OpenPanelApplication'
+export {
+  OPEN_PANEL_UI_CONTRACT_VERSION,
+  normalizeOpenPanelApplicationContext,
+  validateOpenPanelApplicationContext,
+} from './hostServices'
 export type {
   OpenPanelApplicationManifest,
   OpenPanelCloseResult,
@@ -15,6 +20,7 @@ export type {
   OpenPanelApplicationContext,
   OpenPanelFileServices,
   OpenPanelHostServices,
+  OpenPanelHostOwnership,
   OpenPanelLifecycleReporter,
   OpenPanelLifecycleState,
   OpenPanelProjectRepository,

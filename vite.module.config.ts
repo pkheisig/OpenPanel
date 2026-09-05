@@ -11,6 +11,7 @@ const packageMetadata = JSON.parse(readFileSync(new URL('./package.json', import
   version: string
 }
 const moduleRoot = '[data-openpanel-module-root]'
+const moduleRootClass = '.openpanel-module-root'
 
 function sourceCommit(): string {
   const configured = process.env.VITE_GIT_COMMIT_SHA || process.env.GITHUB_SHA
@@ -25,6 +26,7 @@ function sourceCommit(): string {
 function scopeSelector(selector: string): string {
   const trimmed = selector.trim()
   if (!trimmed || trimmed.startsWith(`${moduleRoot}`)) return trimmed
+  if (trimmed.startsWith(moduleRootClass)) return `${moduleRoot}${trimmed.slice(moduleRootClass.length)}`
   if (trimmed === '#root' || trimmed === 'html' || trimmed === 'body' || trimmed === ':root' || trimmed === ':host') return moduleRoot
   if (trimmed.startsWith('#root')) return `${moduleRoot}${trimmed.slice('#root'.length)}`
   if (/^(html|body|:root|:host)(?=$|[.#:[\s>+~])/.test(trimmed)) {

@@ -3,8 +3,11 @@ import { StrictMode, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import App from '../App'
 import {
+  OPEN_PANEL_UI_CONTRACT_VERSION,
   OpenPanelHostProvider,
   createOpenPanelLifecycleReporter,
+  normalizeOpenPanelApplicationContext,
+  validateOpenPanelApplicationContext,
 } from './hostServices'
 import type {
   OpenPanelApplicationContext,
@@ -21,7 +24,7 @@ export const OPEN_PANEL_APPLICATION_MANIFEST = {
   sourceCommit: import.meta.env.VITE_GIT_COMMIT_SHA || 'dev',
   applicationContractVersion: '0.1.0-bootstrap',
   runtimeContractVersion: '0.1.0-bootstrap',
-  uiContractVersion: '0.1.0-bootstrap',
+  uiContractVersion: OPEN_PANEL_UI_CONTRACT_VERSION,
   entrypoints: {
     application: './openpanel.js',
     stylesheet: './openpanel.css',
@@ -57,6 +60,9 @@ export function validateOpenPanelApplicationManifest(
   }
   if (!manifest.applicationContractVersion || !manifest.runtimeContractVersion) {
     throw new Error('OpenPanel module manifest contract versions are required.')
+  }
+  if (manifest.uiContractVersion !== OPEN_PANEL_UI_CONTRACT_VERSION) {
+    throw new Error('OpenPanel module manifest UI contract version is unsupported.')
   }
   if (!manifest.entrypoints.application || !manifest.entrypoints.stylesheet) {
     throw new Error('OpenPanel module manifest entrypoints are required.')
@@ -94,9 +100,20 @@ export function OpenPanelApplication({
   applicationContext?: OpenPanelApplicationContext
   children?: ReactNode
 }) {
+  const normalizedContext = normalizeOpenPanelApplicationContext(applicationContext)
+  validateOpenPanelApplicationContext(normalizedContext)
   return (
-    <OpenPanelHostProvider services={services} applicationContext={applicationContext}>
-      {children ?? <App />}
+    <OpenPanelHostProvider services={services} applicationContext={normalizedContext}>
+      <div
+        className="openpanel-module-root"
+        data-openpanel-module-root="true"
+        data-openpanel-mode={normalizedContext.mode}
+        data-openpanel-theme={normalizedContext.theme ?? 'light'}
+        data-openpanel-density={normalizedContext.density}
+        data-openpanel-ui-contract={normalizedContext.uiContractVersion}
+      >
+        {children ?? <App />}
+      </div>
     </OpenPanelHostProvider>
   )
 }
@@ -108,7 +125,7 @@ export function createOpenPanelModule(
   validateOpenPanelApplicationManifest(manifest)
   let root: Root | null = null
   let moduleRoot: HTMLDivElement | null = null
-  let currentContext: OpenPanelApplicationContext = { mode: 'standalone' }
+  let currentContext: OpenPanelApplicationContext = normalizeOpenPanelApplicationContext()
   let suspended = false
   const lifecycle: OpenPanelLifecycleReporter = createOpenPanelLifecycleReporter(currentContext)
 
@@ -121,7 +138,16 @@ export function createOpenPanelModule(
           applicationContext={currentContext}
           lifecycle={lifecycle}
         >
-          <div data-openpanel-module-root="true" data-suspended={suspended ? 'true' : 'false'} hidden={suspended}>
+          <div
+            className="openpanel-module-root"
+            data-openpanel-module-root="true"
+            data-openpanel-mode={currentContext.mode}
+            data-openpanel-theme={currentContext.theme ?? 'light'}
+            data-openpanel-density={currentContext.density}
+            data-openpanel-ui-contract={currentContext.uiContractVersion}
+            data-suspended={suspended ? 'true' : 'false'}
+            hidden={suspended}
+          >
             <App />
           </div>
         </OpenPanelHostProvider>
@@ -134,7 +160,8 @@ export function createOpenPanelModule(
     mount: (container, initialContext = {}) => {
       if (root) throw new Error('OpenPanel module is already mounted.')
       suspended = false
-      currentContext = { mode: 'standalone', ...initialContext }
+      currentContext = normalizeOpenPanelApplicationContext(initialContext)
+      validateOpenPanelApplicationContext(currentContext)
       lifecycle.updateContext(currentContext)
       moduleRoot = document.createElement('div')
       moduleRoot.dataset.openpanelModule = 'true'
@@ -144,7 +171,8 @@ export function createOpenPanelModule(
       render()
     },
     updateContext: (contextPatch) => {
-      currentContext = { ...currentContext, ...contextPatch }
+      currentContext = normalizeOpenPanelApplicationContext({ ...currentContext, ...contextPatch })
+      validateOpenPanelApplicationContext(currentContext)
       lifecycle.updateContext(currentContext)
       render()
     },

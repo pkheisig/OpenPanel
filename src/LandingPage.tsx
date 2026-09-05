@@ -30,7 +30,11 @@ import type { OmipCatalogEntry, OmipTemplate } from './panelWizardKnowledge'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
 import { OmipLibrary } from './OmipLibrary'
-import { useOpenPanelHostServices } from './module/hostServices'
+import {
+  openPanelHostOwns,
+  useOpenPanelApplicationContext,
+  useOpenPanelHostServices,
+} from './module/hostServices'
 import type { OpenPanelAssetResolver } from './module/hostServices'
 import './LandingPage.css'
 
@@ -270,13 +274,16 @@ export function LandingPage({
   onDelete,
 }: LandingPageProps) {
   const host = useOpenPanelHostServices()
+  const applicationContext = useOpenPanelApplicationContext()
+  const hostOwnsChrome = openPanelHostOwns(applicationContext, 'globalChrome')
+  const hostOwnsTheme = openPanelHostOwns(applicationContext, 'theme')
   const assetResolver = host.assets
   const libraries = useMemo(
     () => [...getSpectralPanelLibraries()].sort((left, right) => left.label.localeCompare(right.label)),
     [],
   )
   const importInput = useRef<HTMLInputElement>(null)
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => host.theme.read())
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => applicationContext.theme ?? host.theme.read())
   const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
   const [starting, setStarting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -313,8 +320,11 @@ export function LandingPage({
   )
 
   useEffect(() => {
+    if (hostOwnsTheme) return
     host.theme.save(theme)
-  }, [host.theme, theme])
+  }, [host.theme, hostOwnsTheme, theme])
+
+  const renderedTheme = hostOwnsTheme ? (applicationContext.theme ?? theme) : theme
 
   useEffect(() => {
     const closeMenu = (event: PointerEvent) => {
@@ -456,12 +466,14 @@ export function LandingPage({
   }
 
   return (
-    <main className={`launch-screen ${theme}`}>
+    <main className={`launch-screen ${renderedTheme}`}>
       <header className="launch-header">
-        <a className="launch-brand" href="./" aria-label="OpenPanel home">
-          <img src={`${import.meta.env.BASE_URL}favicon-light.svg`} alt="" />
-          <span>OpenPanel</span>
-        </a>
+        {!hostOwnsChrome && (
+          <a className="launch-brand" href="./" aria-label="OpenPanel home">
+            <img src={`${import.meta.env.BASE_URL}favicon-light.svg`} alt="" />
+            <span>OpenPanel</span>
+          </a>
+        )}
         <div className="launch-header-actions">
           <button
             type="button"
@@ -483,15 +495,17 @@ export function LandingPage({
               event.currentTarget.value = ''
             }}
           />
-          <button
-            type="button"
-            className="launch-theme-button"
-            onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
-            aria-label={theme === 'light' ? 'Use dark mode' : 'Use light mode'}
-            title={theme === 'light' ? 'Use dark mode' : 'Use light mode'}
-          >
-            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-          </button>
+          {!hostOwnsTheme && (
+            <button
+              type="button"
+              className="launch-theme-button"
+              onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+              aria-label={renderedTheme === 'light' ? 'Use dark mode' : 'Use light mode'}
+              title={renderedTheme === 'light' ? 'Use dark mode' : 'Use light mode'}
+            >
+              {renderedTheme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+          )}
         </div>
       </header>
 
@@ -707,7 +721,7 @@ export function LandingPage({
       )}
       {showOmipLibrary && (
         <OmipLibrary
-          theme={theme}
+          theme={renderedTheme}
           availableFluorophores={omipPayload?.fluorophores.map((item) => item.fluorophore)}
           maxPanelSize={omipPayload?.max_panel_size}
           activeCytometerLabel={resolveLibraryLabel(cytometer, libraries)}

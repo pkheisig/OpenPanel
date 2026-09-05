@@ -5,6 +5,7 @@ import { installStaleChunkRecovery } from './staleChunkRecovery.ts'
 import { OpenPanelApplication } from './module/OpenPanelApplication'
 import { createDefaultOpenPanelHostServices } from './standalone/standaloneHost'
 import './index.css'
+import './standalone/standalone.css'
 
 installStaleChunkRecovery()
 registerSW({ immediate: true })

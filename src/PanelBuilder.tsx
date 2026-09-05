@@ -23,6 +23,7 @@ import {
 } from './projectStore';
 import type { CytometerPanelState, ProjectState } from './projectStore';
 import {
+    openPanelHostOwns,
     useOpenPanelApplicationContext,
     useOpenPanelHostServices,
     useOpenPanelLifecycle,
@@ -473,6 +474,8 @@ const PanelBuilder = ({
     const lifecycle = useOpenPanelLifecycle();
     const effectiveEmbedded = (mode ?? (embedded ? 'embedded' : 'standalone')) === 'embedded';
     const effectiveCockpitTheme = hostTheme ?? cockpitTheme;
+    const hostOwnsTheme = openPanelHostOwns(applicationContext, 'theme');
+    const hostOwnsWindowClose = openPanelHostOwns(applicationContext, 'windowClose');
     const exitHandler = onRequestExit ?? host.navigation?.requestExit ?? applicationContext.onRequestExit;
     const [payload, setPayload] = useState<PanelPayload | null>(null);
     const [cytometer, setCytometer] = useState(() => getCytometerName(initialProject?.cytometer ?? initialCytometer));
@@ -504,9 +507,13 @@ const PanelBuilder = ({
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
     const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        if (applicationContext.theme) return applicationContext.theme;
         if (effectiveEmbedded && effectiveCockpitTheme) return effectiveCockpitTheme;
         return host.theme.read(initialProject?.theme);
     });
+    const renderedTheme = hostOwnsTheme
+        ? applicationContext.theme ?? effectiveCockpitTheme ?? theme
+        : resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme);
     const [guiStateLoaded, setGuiStateLoaded] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(initialProject?.sidebarWidth ?? 214);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(initialProject?.sidebarCollapsed ?? false);
@@ -574,9 +581,9 @@ const PanelBuilder = ({
     }, [configuration, host.storage]);
 
     useEffect(() => {
-        if (effectiveEmbedded) return;
+        if (effectiveEmbedded || hostOwnsTheme) return;
         host.theme.save(theme);
-    }, [effectiveEmbedded, host.theme, theme]);
+    }, [effectiveEmbedded, host.theme, hostOwnsTheme, theme]);
 
     useEffect(() => {
         host.storage.setItem('spectreasy_slots', JSON.stringify(slots));
@@ -1424,24 +1431,24 @@ const PanelBuilder = ({
     };
 
     if (loading) {
-        return <ModuleLoadingState label="Loading Spectral Panel Builder" theme={resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)} />;
+        return <ModuleLoadingState label="Loading Spectral Panel Builder" theme={renderedTheme} />;
     }
 
     if (!payload) {
         return (
-            <div className={`panel-builder panel-boot-failure ${resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}`}>
+            <div className={`panel-builder panel-boot-failure ${renderedTheme}`}>
                 <div className="panel-boot-error" role="alert">
                     <strong>Spectral Panel Builder could not load</strong>
                     <span>{bootErrorLabel(error)}</span>
                     <button type="button" onClick={retryBoot}>Try again</button>
-                    {effectiveEmbedded && exitHandler && <button type="button" className="secondary" onClick={exitHandler}>Return to cockpit</button>}
+                    {effectiveEmbedded && !hostOwnsWindowClose && exitHandler && <button type="button" className="secondary" onClick={exitHandler}>Return to cockpit</button>}
                 </div>
             </div>
         );
     }
 
     return (
-        <div className={`panel-builder ${resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}`}>
+        <div className={`panel-builder ${renderedTheme}`}>
             <header className="panel-topbar">
                 <div className="panel-title-group">
                     {!effectiveEmbedded && exitHandler && (
@@ -1543,7 +1550,7 @@ const PanelBuilder = ({
                     >
                         <Trash2 size={16} />
                     </button>
-                    {!effectiveEmbedded && <button
+                    {!effectiveEmbedded && !hostOwnsTheme && <button
                         type="button"
                         className="export-button"
                         onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
@@ -1551,7 +1558,7 @@ const PanelBuilder = ({
                         aria-label="Toggle theme"
                         style={{ padding: '0 10px', width: '40px' }}
                     >
-                        {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+                        {renderedTheme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
                     </button>}
                     <input
                         ref={importInputRef}
@@ -1644,7 +1651,7 @@ const PanelBuilder = ({
                     }} disabled={exporting || recoveryMode} aria-label={exporting ? 'Exporting overview PDF' : 'Export overview PDF'} title={exporting ? 'Exporting…' : 'Export overview PDF'}>
                         <PdfIcon size={20} />
                     </button>
-                    {effectiveEmbedded && exitHandler && <button
+                    {effectiveEmbedded && !hostOwnsWindowClose && exitHandler && <button
                         type="button"
                         className="export-button applet-close-button"
                         onClick={exitHandler}
@@ -1780,7 +1787,7 @@ const PanelBuilder = ({
                     similarityByName={similarityByName}
                     colorByFluor={colorByFluor}
                     hoveredFluor={hoveredFluor}
-                    theme={resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}
+                    theme={renderedTheme}
                     error={[recoveryMode ? initialError : '', error, persistenceError].filter(Boolean).join('\n')}
                     readOnly={recoveryMode}
                     plotScale={plotScale}
@@ -1788,7 +1795,7 @@ const PanelBuilder = ({
                 />
             </div>
             {showPanelWizard && (
-                <Suspense fallback={<div className={`panel-wizard-backdrop ${resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}`} />}>
+                <Suspense fallback={<div className={`panel-wizard-backdrop ${renderedTheme}`} />}>
                     <PanelWizard
                         key={`panel-wizard-${wizardSyncRevision}`}
                         cytometer={cytometer}
@@ -1801,7 +1808,7 @@ const PanelBuilder = ({
                         assetResolver={host.assets}
                         slots={slots}
                         markerNames={markers}
-                        theme={resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme)}
+                        theme={renderedTheme}
                         initialState={wizardState}
                         onStateChange={handleWizardStateChange}
                         onClearPanel={clearPanelContent}
