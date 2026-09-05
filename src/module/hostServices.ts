@@ -6,8 +6,9 @@ import type {
 } from '../projectStore'
 import type { AppTheme } from '../themePreference'
 import { createDefaultOpenPanelHostServices } from '../standalone/standaloneHost'
+import { OPEN_SUITE_UI_FOUNDATION_MANIFEST } from '../ui-foundation/manifest'
 
-export const OPEN_PANEL_UI_CONTRACT_VERSION = '0.1.0-bootstrap' as const
+export const OPEN_PANEL_UI_CONTRACT_VERSION = OPEN_SUITE_UI_FOUNDATION_MANIFEST.uiContractVersion
 
 export type OpenPanelHostOwnership = {
   globalChrome?: boolean

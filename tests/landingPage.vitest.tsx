@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   LandingPage,
@@ -26,7 +26,7 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
-  localStorage.clear()
+  window.localStorage?.clear()
 })
 
 const callbacks = () => ({
@@ -52,6 +52,22 @@ const panel = (overrides: Partial<StoredPanelProject> = {}): StoredPanelProject 
 })
 
 describe('LandingPage workflows', () => {
+  test('keeps rename input and error visible after a persistence failure and submits once', async () => {
+    const props = callbacks()
+    props.onRename.mockRejectedValue(new Error('Storage is unavailable.'))
+    render(<LandingPage panels={[panel()]} {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions for Panel 1' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    const input = screen.getByRole('textbox', { name: 'Project name' })
+    fireEvent.change(input, { target: { value: 'Renamed' } })
+    const dialog = screen.getByRole('dialog', { name: 'Rename project' })
+    fireEvent.submit(dialog)
+    fireEvent.submit(dialog)
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Storage is unavailable.'))
+    expect(props.onRename).toHaveBeenCalledTimes(1)
+    expect((screen.getByRole('textbox', { name: 'Project name' }) as HTMLInputElement).value).toBe('Renamed')
+  })
+
   test('allows opening a recovered panel without enabling mutating actions', async () => {
     const props = callbacks()
     const recovery = panel({ id: 'recovery', name: 'Recovery', loadError: 'project.slots is too large.' })
@@ -201,8 +217,12 @@ describe('LandingPage workflows', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Name A–Z' }))
     fireEvent.click(screen.getByRole('button', { name: 'Project actions for Panel 1' }))
     expect(screen.getByRole('menu', { name: 'Panel 1 actions' })).not.toBeNull()
-    vi.spyOn(window, 'prompt').mockReturnValue('Renamed')
     fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    const renameDialog = screen.getByRole('dialog', { name: 'Rename project' })
+    const renameInput = screen.getByRole('textbox', { name: 'Project name' })
+    expect((renameInput as HTMLInputElement).value).toBe('Panel 1')
+    fireEvent.change(renameInput, { target: { value: ' Renamed ' } })
+    fireEvent.click(within(renameDialog).getByRole('button', { name: 'Save name' }))
     await waitFor(() => expect(props.onRename).toHaveBeenCalledWith(expect.objectContaining({ id: 'panel-1' }), 'Renamed'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Project actions for Panel 1' }))
@@ -217,9 +237,10 @@ describe('LandingPage workflows', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Restore' }))
     expect(props.onRestore).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Project actions for Archived' }))
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
-    expect(props.onDelete).toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog', { name: 'Delete Archived?' })).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete project' }))
+    await waitFor(() => expect(props.onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'panel-2' })))
     fireEvent.click(screen.getByRole('button', { name: 'Open Panel 1' }))
     expect(props.onOpen).toHaveBeenCalled()
   })

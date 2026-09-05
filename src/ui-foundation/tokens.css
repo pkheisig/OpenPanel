@@ -1,0 +1,110 @@
+/*
+ * OpenSuite UI foundation 1.0.0, scoped for the OpenPanel module root.
+ * Source digest: 6f723015c258a1b30bee5824a8735fbc01ec53c4feee006fcaa7f165b8d6b05c
+ * The scope is the module integration boundary; values are the pinned
+ * generated artifact and are not a runtime dependency on OpenSuite source.
+ */
+@layer foundation {
+  .openpanel-module-root {
+    --suite-font-family-app: Inter, "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --suite-font-family-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --suite-font-size-xs: 0.75rem;
+    --suite-font-size-sm: 0.8125rem;
+    --suite-font-size-md: 0.875rem;
+    --suite-font-size-lg: 1rem;
+    --suite-font-size-xl: clamp(1.75rem, 3vw, 2.5rem);
+    --suite-line-height-compact: 1.25;
+    --suite-line-height-body: 1.5;
+    --suite-font-weight-medium: 560;
+    --suite-font-weight-semibold: 650;
+    --suite-space-1: 0.25rem;
+    --suite-space-2: 0.5rem;
+    --suite-space-3: 0.75rem;
+    --suite-space-4: 1rem;
+    --suite-space-5: 1.25rem;
+    --suite-space-6: 1.5rem;
+    --suite-space-8: 2rem;
+    --suite-space-10: 2.5rem;
+    --suite-space-12: 3rem;
+    --suite-radius-control: 0.4375rem;
+    --suite-radius-input: 0.375rem;
+    --suite-radius-card: 0.625rem;
+    --suite-radius-dialog: 0.625rem;
+    --suite-radius-pill: 999px;
+    --suite-border-width: 1px;
+    --suite-header-height: 3.5rem;
+    --suite-content-max: 92rem;
+    --suite-content-inset-wide: 2rem;
+    --suite-content-inset-medium: 1.5rem;
+    --suite-content-inset-narrow: 1rem;
+    --suite-breakpoint-content-medium: 75rem;
+    --suite-breakpoint-content-narrow: 50rem;
+    --suite-icon-size: 1rem;
+    --suite-focus-width: 2px;
+    --suite-focus-offset: 2px;
+    --suite-target-min: 2.75rem;
+    --suite-motion-fast: 120ms;
+    --suite-motion-normal: 160ms;
+    --suite-motion-slow: 220ms;
+    --suite-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --suite-layer-shell: 10;
+    --suite-layer-sticky: 20;
+    --suite-layer-popover: 40;
+    --suite-layer-dialog: 60;
+    --suite-layer-toast: 80;
+    --suite-layer-emergency: 100;
+    --suite-control-height-normal: 2.25rem;
+    --suite-control-height-compact: 1.875rem;
+    --suite-space-control-gap: 0.5rem;
+    --suite-color-shell: #eee7db;
+    --suite-color-surface: #fffaf0;
+    --suite-color-surface-raised: #fffdf8;
+    --suite-color-subtle: #e7ded1;
+    --suite-color-text: #29251f;
+    --suite-color-text-muted: #766c61;
+    --suite-color-text-on-accent: #fffaf0;
+    --suite-color-border: #cfc3b4;
+    --suite-color-border-strong: #ab9b8a;
+    --suite-color-accent: #b84f1e;
+    --suite-color-accent-hover: #aa4819;
+    --suite-color-accent-soft: #f4d8c6;
+    --suite-color-connected: #1f7a6d;
+    --suite-color-success: #1f7a6d;
+    --suite-color-warning: #8a6412;
+    --suite-color-danger: #a13e34;
+    --suite-color-focus: #b84f1e;
+    --suite-color-overlay: rgb(41 37 31 / 38%);
+    --suite-shadow-sm: 0 1px 2px rgb(41 37 31 / 10%);
+    --suite-shadow-md: 0 10px 30px rgb(41 37 31 / 12%);
+  }
+
+  .openpanel-module-root[data-openpanel-theme="dark"] {
+    --suite-color-shell: #1d1916;
+    --suite-color-surface: #2a241f;
+    --suite-color-surface-raised: #322a24;
+    --suite-color-subtle: #393029;
+    --suite-color-text: #f6eee5;
+    --suite-color-text-muted: #c4b5a7;
+    --suite-color-text-on-accent: #1d1916;
+    --suite-color-border: #56493e;
+    --suite-color-border-strong: #766558;
+    --suite-color-accent: #ff9654;
+    --suite-color-accent-hover: #ffad77;
+    --suite-color-accent-soft: #5a321f;
+    --suite-color-connected: #55c7b6;
+    --suite-color-success: #55c7b6;
+    --suite-color-warning: #e2bd67;
+    --suite-color-danger: #ff9589;
+    --suite-color-focus: #ff9654;
+    --suite-color-overlay: rgb(0 0 0 / 58%);
+    --suite-shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+    --suite-shadow-md: 0 10px 30px rgb(0 0 0 / 32%);
+  }
+
+  .openpanel-module-root[data-openpanel-density="compact"] {
+    --suite-control-height-normal: 1.875rem;
+    --suite-control-height-compact: 1.625rem;
+    --suite-space-control-gap: 0.375rem;
+  }
+}
+

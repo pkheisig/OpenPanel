@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./ui-foundation/tokens.css";
+@import "./ui-foundation/primitives.css";
 
 @layer reset, foundation, primitives, shell;
 
@@ -39,30 +41,30 @@
 
 @layer foundation {
   .openpanel-module-root {
-    --openpanel-font-family: var(--suite-font-app, Inter, "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-    --openpanel-motion-fast: var(--suite-motion-fast, 120ms);
-    --openpanel-motion-base: var(--suite-motion-normal, 160ms);
-    --openpanel-motion-slow: var(--suite-motion-slow, 220ms);
-    --openpanel-motion-ease: var(--suite-ease-standard, cubic-bezier(.2, .7, .2, 1));
-    --openpanel-bg-shell: var(--suite-bg-shell, #eee7db);
-    --openpanel-bg-surface: var(--suite-bg-surface, #fffaf0);
-    --openpanel-bg-raised: var(--suite-bg-surface-raised, #fffdf8);
-    --openpanel-bg-subtle: var(--suite-bg-subtle, #e7ded1);
-    --openpanel-text: var(--suite-text-main, #29251f);
-    --openpanel-muted: var(--suite-text-muted, #766c61);
-    --openpanel-border: var(--suite-border, #cfc3b4);
-    --openpanel-border-strong: var(--suite-border-strong, #ab9b8a);
-    --openpanel-accent: var(--suite-accent, #c65a24);
-    --openpanel-accent-hover: var(--suite-accent-hover, #aa4819);
-    --openpanel-accent-soft: var(--suite-accent-soft, #f4d8c6);
-    --openpanel-connected: var(--suite-semantic-connected, #1f7a6d);
-    --openpanel-danger: var(--suite-semantic-danger, #a13e34);
-    --openpanel-on-accent: #fff;
-    --openpanel-focus: var(--suite-focus, var(--openpanel-accent));
-    --openpanel-radius-control: var(--suite-radius-control, 7px);
-    --openpanel-radius-card: var(--suite-radius-card, 10px);
-    --openpanel-shadow-card: var(--suite-shadow-md, 0 4px 12px rgb(41 37 31 / 8%));
-    --openpanel-shadow-popover: var(--suite-shadow-md, 0 16px 42px rgb(13 28 36 / 22%));
+    --openpanel-font-family: var(--suite-font-family-app);
+    --openpanel-motion-fast: var(--suite-motion-fast);
+    --openpanel-motion-base: var(--suite-motion-normal);
+    --openpanel-motion-slow: var(--suite-motion-slow);
+    --openpanel-motion-ease: var(--suite-ease-standard);
+    --openpanel-bg-shell: var(--suite-color-shell);
+    --openpanel-bg-surface: var(--suite-color-surface);
+    --openpanel-bg-raised: var(--suite-color-surface-raised);
+    --openpanel-bg-subtle: var(--suite-color-subtle);
+    --openpanel-text: var(--suite-color-text);
+    --openpanel-muted: var(--suite-color-text-muted);
+    --openpanel-border: var(--suite-color-border);
+    --openpanel-border-strong: var(--suite-color-border-strong);
+    --openpanel-accent: var(--suite-color-accent);
+    --openpanel-accent-hover: var(--suite-color-accent-hover);
+    --openpanel-accent-soft: var(--suite-color-accent-soft);
+    --openpanel-connected: var(--suite-color-connected);
+    --openpanel-danger: var(--suite-color-danger);
+    --openpanel-on-accent: var(--suite-color-text-on-accent);
+    --openpanel-focus: var(--suite-color-focus);
+    --openpanel-radius-control: var(--suite-radius-control);
+    --openpanel-radius-card: var(--suite-radius-card);
+    --openpanel-shadow-card: var(--suite-shadow-sm);
+    --openpanel-shadow-popover: var(--suite-shadow-md);
     display: block;
     min-width: 0;
     min-height: 0;
@@ -72,38 +74,10 @@
   }
 
   .openpanel-module-root[data-openpanel-theme="dark"] {
-    --openpanel-bg-shell: var(--suite-bg-shell, #1d1916);
-    --openpanel-bg-surface: var(--suite-bg-surface, #2a241f);
-    --openpanel-bg-raised: var(--suite-bg-surface-raised, #2d2722);
-    --openpanel-bg-subtle: var(--suite-bg-subtle, #332a24);
-    --openpanel-text: var(--suite-text-main, #f6eee5);
-    --openpanel-muted: var(--suite-text-muted, #c4b5a7);
-    --openpanel-border: var(--suite-border, #504338);
-    --openpanel-border-strong: var(--suite-border-strong, #665548);
-    --openpanel-accent: var(--suite-accent, #ff9654);
-    --openpanel-accent-hover: var(--suite-accent-hover, #ffad73);
-    --openpanel-accent-soft: var(--suite-accent-soft, #4a2d1e);
-    --openpanel-connected: var(--suite-semantic-connected, #55c7b6);
-    --openpanel-danger: var(--suite-semantic-danger, #bd5149);
-    --openpanel-on-accent: #2a180e;
     color-scheme: dark;
   }
 
   .openpanel-module-root :where(.launch-screen.dark, .panel-builder.dark, .panel-wizard-backdrop.dark, .omip-library-backdrop.dark) {
-    --openpanel-bg-shell: var(--suite-bg-shell, #1d1916);
-    --openpanel-bg-surface: var(--suite-bg-surface, #2a241f);
-    --openpanel-bg-raised: var(--suite-bg-surface-raised, #2d2722);
-    --openpanel-bg-subtle: var(--suite-bg-subtle, #332a24);
-    --openpanel-text: var(--suite-text-main, #f6eee5);
-    --openpanel-muted: var(--suite-text-muted, #c4b5a7);
-    --openpanel-border: var(--suite-border, #504338);
-    --openpanel-border-strong: var(--suite-border-strong, #665548);
-    --openpanel-accent: var(--suite-accent, #ff9654);
-    --openpanel-accent-hover: var(--suite-accent-hover, #ffad73);
-    --openpanel-accent-soft: var(--suite-accent-soft, #4a2d1e);
-    --openpanel-connected: var(--suite-semantic-connected, #55c7b6);
-    --openpanel-danger: var(--suite-semantic-danger, #bd5149);
-    --openpanel-on-accent: #2a180e;
     color-scheme: dark;
   }
 
@@ -148,7 +122,7 @@
     background: var(--openpanel-bg-surface);
     box-shadow: var(--openpanel-shadow-popover);
     border-color: var(--openpanel-border);
-    border-radius: var(--openpanel-radius-control);
+    border-radius: var(--suite-radius-control);
   }
 
   .openpanel-module-root :where(.ui-select-option, .file-action-popout button, .fluor-option):hover,
@@ -157,18 +131,18 @@
   }
 
   .openpanel-module-root :where(.ui-select-options) {
-    --launch-border: var(--openpanel-border);
-    --launch-text: var(--openpanel-text);
-    --launch-menu: var(--openpanel-bg-surface);
-    --launch-bg: var(--openpanel-bg-shell);
-    --launch-surface: var(--openpanel-bg-surface);
-    --launch-accent: var(--openpanel-accent);
-    --launch-accent-soft: var(--openpanel-accent-soft);
-    --input-border: var(--openpanel-border);
-    --input-bg: var(--openpanel-bg-surface);
-    --omip-border: var(--openpanel-border);
-    --omip-text: var(--openpanel-text);
-    --omip-bg: var(--openpanel-bg-surface);
+    --launch-border: var(--suite-color-border);
+    --launch-text: var(--suite-color-text);
+    --launch-menu: var(--suite-color-surface);
+    --launch-bg: var(--suite-color-shell);
+    --launch-surface: var(--suite-color-surface);
+    --launch-accent: var(--suite-color-accent);
+    --launch-accent-soft: var(--suite-color-accent-soft);
+    --input-border: var(--suite-color-border);
+    --input-bg: var(--suite-color-surface);
+    --omip-border: var(--suite-color-border);
+    --omip-text: var(--suite-color-text);
+    --omip-bg: var(--suite-color-surface);
   }
 }
 

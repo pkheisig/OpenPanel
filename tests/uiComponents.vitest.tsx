@@ -67,10 +67,13 @@ describe('UiSelect', () => {
 
     const moduleRoot = document.createElement('div')
     moduleRoot.className = 'openpanel-module-root'
+    const portalRoot = document.createElement('div')
+    portalRoot.dataset.openpanelPortalRoot = 'true'
+    moduleRoot.appendChild(portalRoot)
     const moduleChild = document.createElement('button')
-    moduleRoot.appendChild(moduleChild)
+    portalRoot.appendChild(moduleChild)
     document.body.appendChild(moduleRoot)
-    expect(uiSelectPortalTarget(moduleChild)).toBe(moduleRoot)
+    expect(uiSelectPortalTarget(moduleChild)).toBe(portalRoot)
     moduleRoot.remove()
   })
   test('opens, chooses options, and supports trigger and option keyboard navigation', () => {

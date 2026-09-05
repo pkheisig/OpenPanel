@@ -15,6 +15,7 @@ import type {
   OpenPanelLifecycleState,
   OpenPanelLifecycleReporter,
 } from './hostServices'
+import { OPEN_SUITE_UI_FOUNDATION_MANIFEST } from '../ui-foundation/manifest'
 
 export const OPEN_PANEL_APPLICATION_MANIFEST = {
   schemaVersion: 1,
@@ -25,6 +26,7 @@ export const OPEN_PANEL_APPLICATION_MANIFEST = {
   applicationContractVersion: '0.1.0-bootstrap',
   runtimeContractVersion: '0.1.0-bootstrap',
   uiContractVersion: OPEN_PANEL_UI_CONTRACT_VERSION,
+  uiFoundation: OPEN_SUITE_UI_FOUNDATION_MANIFEST,
   entrypoints: {
     application: './openpanel.js',
     stylesheet: './openpanel.css',
@@ -63,6 +65,11 @@ export function validateOpenPanelApplicationManifest(
   }
   if (manifest.uiContractVersion !== OPEN_PANEL_UI_CONTRACT_VERSION) {
     throw new Error('OpenPanel module manifest UI contract version is unsupported.')
+  }
+  if (manifest.uiFoundation.packageName !== OPEN_SUITE_UI_FOUNDATION_MANIFEST.packageName
+    || manifest.uiFoundation.version !== OPEN_SUITE_UI_FOUNDATION_MANIFEST.version
+    || manifest.uiFoundation.sourceDigest !== OPEN_SUITE_UI_FOUNDATION_MANIFEST.sourceDigest) {
+    throw new Error('OpenPanel module manifest UI foundation release is unsupported.')
   }
   if (!manifest.entrypoints.application || !manifest.entrypoints.stylesheet) {
     throw new Error('OpenPanel module manifest entrypoints are required.')
@@ -111,6 +118,7 @@ export function OpenPanelApplication({
         data-openpanel-theme={normalizedContext.theme ?? 'light'}
         data-openpanel-density={normalizedContext.density}
         data-openpanel-ui-contract={normalizedContext.uiContractVersion}
+        data-openpanel-portal-root="true"
       >
         {children ?? <App />}
       </div>
@@ -145,6 +153,7 @@ export function createOpenPanelModule(
             data-openpanel-theme={currentContext.theme ?? 'light'}
             data-openpanel-density={currentContext.density}
             data-openpanel-ui-contract={currentContext.uiContractVersion}
+            data-openpanel-portal-root="true"
             data-suspended={suspended ? 'true' : 'false'}
             hidden={suspended}
           >
