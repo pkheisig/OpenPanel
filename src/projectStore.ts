@@ -13,7 +13,7 @@ import {
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
-import { createOpenSuiteProvenance, inspectOpenPanelProjectProvenance, inspectOpenSuiteProvenance, type OpenSuiteProvenance } from './provenance'
+import { createOpenSuiteProvenance, inspectOpenPanelProjectProvenance, openPanelProjectPayload, ProvenanceValidationError, type OpenSuiteProvenance } from './provenance'
 import type {
   AntigenDensity,
   WizardPanelResult,
@@ -614,7 +614,7 @@ function serializeNormalizedProject(normalizedState: ProjectState): string {
   const provenance = createOpenSuiteProvenance({
     artifactType: 'openpanel-project',
     artifactName: 'Save OpenPanel project',
-    payload,
+    payload: openPanelProjectPayload(payload),
     configurationId: `${payload.cytometer}:${payload.configuration}`,
     parents: prior ? [{ id: prior.artifact.id, type: prior.artifact.type, sha256: prior.artifact.checksum.digest }] : undefined,
     originalProvenance: original,
@@ -624,6 +624,14 @@ function serializeNormalizedProject(normalizedState: ProjectState): string {
   })
   const project: OpenPanelProject = { ...payload, provenance }
   return `${JSON.stringify(project, null, 2)}\n`
+}
+
+function projectStateFromSerialized(serialized: string): ProjectState {
+  const project = JSON.parse(serialized) as Record<string, unknown>
+  delete project.kind
+  delete project.version
+  delete project.savedAt
+  return project as ProjectState
 }
 
 function normalizeState(
@@ -672,7 +680,17 @@ function normalizeState(
       ? (legacyPlotHeight / 230) * 100
       : DEFAULT_PLOT_SCALE
   const rawProvenance = value.provenance
-  const provenance = rawProvenance === undefined ? undefined : inspectOpenSuiteProvenance(rawProvenance)
+  let provenance: OpenSuiteProvenance | undefined
+  if (rawProvenance !== undefined) {
+    try {
+      const inspection = inspectOpenPanelProjectProvenance(value)
+      if (inspection.status === 'mismatch') throw new ProjectValidationError('This project file has a mismatching provenance checksum.')
+      if (inspection.status === 'verified') provenance = inspection.provenance
+    } catch (error) {
+      if (error instanceof ProvenanceValidationError) throw new ProjectValidationError(error.message)
+      throw error
+    }
+  }
   return {
     cytometer,
     configuration: activePanel.configuration || configuration,
@@ -716,10 +734,6 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
     ? record.config as Record<string, unknown>
     : record
   try {
-    if (legacyConfig === record && record.provenance !== undefined) {
-      const provenance = inspectOpenPanelProjectProvenance(record)
-      if (provenance.status === 'mismatch') throw new ProjectValidationError('This project file has a mismatching provenance checksum.')
-    }
     assertProjectResourceLimits(value, false)
     if (legacyConfig !== value) assertProjectResourceLimits(legacyConfig, false)
     if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
@@ -769,8 +783,9 @@ export async function saveActiveProject(state: ProjectState): Promise<void> {
   assertNoDuplicateSlots(state as unknown as Record<string, unknown>)
   const normalizedState = normalizeState(state as unknown as Record<string, unknown>)
   const serializedState = serializeProject(normalizedState)
+  const persistedState = projectStateFromSerialized(serializedState)
   try {
-    await (await database()).put(PROJECT_STORE, normalizedState, ACTIVE_PROJECT_KEY)
+    await (await database()).put(PROJECT_STORE, persistedState, ACTIVE_PROJECT_KEY)
   } catch {
     if (!writeLocalStorage(LEGACY_STORAGE_KEY, serializedState)) {
       throw new Error('OpenPanel active project could not be persisted in local storage.')
@@ -1113,7 +1128,7 @@ export async function createPanelProject(
     name: normalizePanelName(name),
     createdAt: now,
     updatedAt: now,
-    state: normalizedState,
+    state: projectStateFromSerialized(serializedState),
   }
   try {
     const db = await database()
@@ -1146,7 +1161,7 @@ export async function savePanelProject(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     archivedAt: existing?.archivedAt,
-    state: normalizedState,
+    state: projectStateFromSerialized(serializedState),
   }
   try {
     const db = await database()

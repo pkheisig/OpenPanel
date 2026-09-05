@@ -43,16 +43,42 @@ export type OpenSuiteProvenance = {
   extensions: Record<string, Record<string, unknown>>
 }
 
+export class ProvenanceValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProvenanceValidationError'
+  }
+}
+
 export function canonicalJson(value: unknown): string {
   const normalize = (candidate: unknown): unknown => {
     if (Array.isArray(candidate)) return candidate.map(normalize)
+    if (candidate instanceof Date) {
+      if (!Number.isFinite(candidate.getTime())) throw new ProvenanceValidationError('Provenance contains an invalid date.')
+      return candidate.toISOString()
+    }
     if (candidate && typeof candidate === 'object') {
       return Object.fromEntries(Object.keys(candidate as Record<string, unknown>).sort().map((key) => [key, normalize((candidate as Record<string, unknown>)[key])]))
     }
-    if (typeof candidate === 'number' && !Number.isFinite(candidate)) throw new Error('Provenance contains a non-finite number.')
+    if (typeof candidate === 'number' && !Number.isFinite(candidate)) throw new ProvenanceValidationError('Provenance contains a non-finite number.')
     return candidate
   }
   return JSON.stringify(normalize(value))
+}
+
+export function portableJson(value: OpenSuiteProvenance): string {
+  const json = canonicalJson(value)
+  if (new TextEncoder().encode(json).length > 65536) throw new ProvenanceValidationError('Portable provenance exceeds the 65,536-byte limit.')
+  return json
+}
+
+export function openPanelProjectPayload(value: Record<string, unknown>): Record<string, unknown> {
+  const payload = { ...value }
+  delete payload.provenance
+  delete payload.kind
+  delete payload.version
+  delete payload.savedAt
+  return payload
 }
 
 const available = <T>(value: T): ProvenanceEvidence<T> => ({ status: 'available', value })
@@ -71,6 +97,7 @@ export function createOpenSuiteProvenance(options: {
   parents?: ProvenanceReference[]
   responseProvenance?: unknown
   originalProvenance?: OpenSuiteProvenance
+  extensions?: Record<string, unknown>
 }): OpenSuiteProvenance {
   const payloadDigest = sha256(canonicalJson(options.payload))
   const createdAt = new Date().toISOString().replace(/(\.\d{3})\dZ$/, '$1Z')
@@ -113,6 +140,7 @@ export function createOpenSuiteProvenance(options: {
     extensions: {
       openpanel: {
         projectSchemaVersion: 1,
+        ...(options.extensions ?? {}),
         ...(options.responseProvenance === undefined ? {} : { responseProvenance: options.responseProvenance }),
         ...(options.originalProvenance === undefined ? {} : { originalProvenance: options.originalProvenance }),
       },
@@ -128,23 +156,23 @@ function isEvidence(value: unknown): boolean {
 }
 
 export function inspectOpenSuiteProvenance(value: unknown): OpenSuiteProvenance {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Project provenance must be an object.')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ProvenanceValidationError('Project provenance must be an object.')
   const record = value as Record<string, unknown>
   const required = ['producer', 'artifact', 'operation', 'configuration', 'lineage', 'runtime', 'randomness', 'serialization', 'extensions']
   if (record.schemaName !== 'opensuite-provenance' || record.schemaVersion !== 1 || required.some((key) => !(key in record))) {
-    throw new Error('Project provenance does not match OpenSuite schema version 1.')
+    throw new ProvenanceValidationError('Project provenance does not match OpenSuite schema version 1.')
   }
   const artifact = record.artifact as Record<string, unknown>
   const checksum = artifact?.checksum as Record<string, unknown>
   if (!artifact || typeof artifact.id !== 'string' || typeof artifact.type !== 'string' || !checksum || checksum.algorithm !== 'sha256' || checksum.encoding !== 'hex' || typeof checksum.digest !== 'string' || !/^[0-9a-f]{64}$/.test(checksum.digest) || !['artifact-bytes', 'artifact-payload-bytes'].includes(String(checksum.scope))) {
-    throw new Error('Project provenance contains an invalid artifact checksum.')
+    throw new ProvenanceValidationError('Project provenance contains an invalid artifact checksum.')
   }
-  if (!isEvidence(record.operation) || !isEvidence(record.configuration)) throw new Error('Project provenance contains invalid operation or configuration evidence.')
+  if (!isEvidence(record.operation) || !isEvidence(record.configuration)) throw new ProvenanceValidationError('Project provenance contains invalid operation or configuration evidence.')
   const lineage = record.lineage as Record<string, unknown>
   const runtime = record.runtime as Record<string, unknown>
-  if (!lineage || ['sourceInputs', 'controlRun', 'sampleRun', 'referenceMatrix', 'adjustedMatrix', 'spectralLibrary', 'parents'].some((key) => !isEvidence(lineage[key]))) throw new Error('Project provenance contains invalid lineage evidence.')
-  if (!runtime || !isEvidence(runtime.platform) || !isEvidence(runtime.r) || !isEvidence(runtime.packages)) throw new Error('Project provenance contains invalid runtime evidence.')
-  if (!record.extensions || typeof record.extensions !== 'object' || Array.isArray(record.extensions)) throw new Error('Project provenance extensions must be an object.')
+  if (!lineage || ['sourceInputs', 'controlRun', 'sampleRun', 'referenceMatrix', 'adjustedMatrix', 'spectralLibrary', 'parents'].some((key) => !isEvidence(lineage[key]))) throw new ProvenanceValidationError('Project provenance contains invalid lineage evidence.')
+  if (!runtime || !isEvidence(runtime.platform) || !isEvidence(runtime.r) || !isEvidence(runtime.packages)) throw new ProvenanceValidationError('Project provenance contains invalid runtime evidence.')
+  if (!record.extensions || typeof record.extensions !== 'object' || Array.isArray(record.extensions)) throw new ProvenanceValidationError('Project provenance extensions must be an object.')
   return value as OpenSuiteProvenance
 }
 
@@ -154,12 +182,11 @@ export type OpenPanelProjectProvenanceInspection =
   | { status: 'mismatch'; provenance: OpenSuiteProvenance; expectedDigest: string; actualDigest: string }
 
 export function inspectOpenPanelProjectProvenance(value: unknown): OpenPanelProjectProvenanceInspection {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('OpenPanel project must be an object.')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ProvenanceValidationError('OpenPanel project must be an object.')
   const record = value as Record<string, unknown>
   if (record.provenance === undefined) return { status: 'legacy', reason: 'Project predates embedded OpenSuite provenance.' }
   const provenance = inspectOpenSuiteProvenance(record.provenance)
-  const payload = { ...record }
-  delete payload.provenance
+  const payload = openPanelProjectPayload(record)
   const actualDigest = sha256(canonicalJson(payload))
   const expectedDigest = provenance.artifact.checksum.digest
   return actualDigest === expectedDigest

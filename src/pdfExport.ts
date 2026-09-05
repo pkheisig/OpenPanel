@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { responseProvenanceForPayload, responseProvenanceWarningForPayload } from './panelBuilderShared'
-import { canonicalJson, createOpenSuiteProvenance } from './provenance'
+import { createOpenSuiteProvenance, portableJson } from './provenance'
 import type { DetectorInfo, NumericRow, PanelPayload } from './panelBuilderShared'
 
 type PanelReportRow = {
@@ -228,19 +228,38 @@ function addSignatureChart(
 // builder below remains the normal entry point used by the UI.
 export { addSimilarityPage }
 
+function panelProvenancePayload(payload: PanelPayload, rows: PanelReportRow[]): Record<string, unknown> {
+  return {
+    cytometer: payload.cytometer,
+    configuration: payload.configuration,
+    measurement_mode: payload.measurement_mode,
+    selected: payload.selected,
+    detectors: payload.detectors,
+    fluorophores: payload.fluorophores,
+    response_provenance: payload.response_provenance,
+    rows: rows.map((row) => ({ fluor: row.fluor, marker: row.marker })),
+    complexity_index: payload.complexity_index,
+    spectralLibraryRows: payload.spectra.length,
+  }
+}
+
 export function createPanelOverviewPdf(payload: PanelPayload, rows: PanelReportRow[]): Blob {
   const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter', compress: true })
   const provenance = createOpenSuiteProvenance({
     artifactType: 'pdf',
     artifactName: 'Export OpenPanel panel overview PDF',
-    payload: { payload, rows },
+    payload: panelProvenancePayload(payload, rows),
+    configurationId: `${payload.cytometer}:${payload.configuration}`,
     responseProvenance: payload.response_provenance,
+    extensions: {
+      payloadDefinition: 'Bounded panel descriptor; spectral response is identified by response provenance and row count.',
+    },
   })
   document.setProperties({
     title: 'OpenPanel panel overview',
     creator: 'OpenPanel',
     subject: `OpenSuite provenance ${provenance.artifact.id}`,
-    keywords: canonicalJson(provenance),
+    keywords: portableJson(provenance),
   })
   if (rows.length >= 2) addSimilarityPage(document, payload, rows)
 
