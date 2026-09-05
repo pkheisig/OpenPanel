@@ -17,16 +17,18 @@ export const OPEN_PANEL_APPLICATION_MANIFEST = {
   schemaVersion: 1,
   id: 'openpanel',
   displayName: 'OpenPanel',
-  moduleVersion: '0.1.0',
+  moduleVersion: import.meta.env.VITE_MODULE_VERSION || '1.0.0',
   sourceCommit: import.meta.env.VITE_GIT_COMMIT_SHA || 'dev',
   applicationContractVersion: '0.1.0-bootstrap',
   runtimeContractVersion: '0.1.0-bootstrap',
   uiContractVersion: '0.1.0-bootstrap',
   entrypoints: {
-    application: './module/OpenPanelApplication.tsx',
-    stylesheet: './index.css',
+    application: './openpanel.js',
+    stylesheet: './openpanel.css',
   },
-  assetManifest: './data/',
+  assetManifest: './asset-manifest.json',
+  types: './index.d.ts',
+  dependenciesManifest: './dependencies.json',
   peerDependencies: {
     react: '^19.2.0',
     'react-dom': '^19.2.0',
@@ -50,11 +52,17 @@ export function validateOpenPanelApplicationManifest(
 ): void {
   if (manifest.schemaVersion !== 1) throw new Error('OpenPanel module manifest schema version is unsupported.')
   if (manifest.id !== 'openpanel') throw new Error('OpenPanel module manifest identity is invalid.')
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.moduleVersion)) {
+    throw new Error('OpenPanel module manifest version is invalid.')
+  }
   if (!manifest.applicationContractVersion || !manifest.runtimeContractVersion) {
     throw new Error('OpenPanel module manifest contract versions are required.')
   }
   if (!manifest.entrypoints.application || !manifest.entrypoints.stylesheet) {
     throw new Error('OpenPanel module manifest entrypoints are required.')
+  }
+  if (!manifest.assetManifest || !manifest.types || !manifest.dependenciesManifest) {
+    throw new Error('OpenPanel module manifest asset, type, and dependency manifests are required.')
   }
   if (manifest.peerDependencies.react !== '^19.2.0' || manifest.peerDependencies['react-dom'] !== '^19.2.0') {
     throw new Error('OpenPanel module manifest must declare React and ReactDOM as peer dependencies.')

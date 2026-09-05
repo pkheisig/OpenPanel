@@ -56,9 +56,16 @@ describe('OpenPanel application module', () => {
   test('publishes a validated manifest and lifecycle-safe mount surface', async () => {
     validateOpenPanelApplicationManifest()
     expect(OPEN_PANEL_APPLICATION_MANIFEST.id).toBe('openpanel')
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.moduleVersion).toBe('1.0.0')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.applicationContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.runtimeContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe('0.1.0-bootstrap')
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.entrypoints).toEqual({
+      application: './openpanel.js',
+      stylesheet: './openpanel.css',
+    })
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.assetManifest).toBe('./asset-manifest.json')
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.dependenciesManifest).toBe('./dependencies.json')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.sourceCommit).toMatch(/^(dev|[0-9a-f]{40})$/)
 
     const exit = vi.fn()

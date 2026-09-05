@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": false,
+    "outDir": "dist-module/package/types",
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist-module/tsconfig.module.tsbuildinfo"
+  },
+  "include": ["src/module/moduleEntry.ts"]
+}
