@@ -25,6 +25,7 @@ import {
     serializeProject,
 } from './projectStore';
 import type { CytometerPanelState, ProjectState } from './projectStore';
+import type { OpenSuiteProvenance } from './provenance';
 import type { WizardProjectState } from './panelWizardEngine';
 import {
     PdfIcon,
@@ -189,6 +190,7 @@ export function createPanelBuilderProjectState(
     plotScale: number,
     wizard: WizardProjectState | null,
     cytometerPanels: Record<string, CytometerPanelState>,
+    provenance?: OpenSuiteProvenance,
 ): ProjectState {
     const activeCytometer = getCytometerName(cytometer);
     const activePanel: CytometerPanelState = {
@@ -232,6 +234,7 @@ export function createPanelBuilderProjectState(
             ...canonicalPanels,
             [activeCytometer]: activePanel,
         },
+        ...(provenance ? { provenance } : {}),
     };
 }
 
@@ -592,8 +595,9 @@ const PanelBuilder = ({
             plotScale,
             wizardState,
             cytometerPanels,
+            initialProject?.provenance,
         );
-    }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels]);
+    }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels, initialProject?.provenance]);
 
     const persistProjectState = useCallback(async (state: ProjectState = projectState) => {
         if (recoveryMode) return;

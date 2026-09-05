@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { responseProvenanceForPayload, responseProvenanceWarningForPayload } from './panelBuilderShared'
+import { canonicalJson, createOpenSuiteProvenance } from './provenance'
 import type { DetectorInfo, NumericRow, PanelPayload } from './panelBuilderShared'
 
 type PanelReportRow = {
@@ -229,6 +230,18 @@ export { addSimilarityPage }
 
 export function createPanelOverviewPdf(payload: PanelPayload, rows: PanelReportRow[]): Blob {
   const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter', compress: true })
+  const provenance = createOpenSuiteProvenance({
+    artifactType: 'pdf',
+    artifactName: 'Export OpenPanel panel overview PDF',
+    payload: { payload, rows },
+    responseProvenance: payload.response_provenance,
+  })
+  document.setProperties({
+    title: 'OpenPanel panel overview',
+    creator: 'OpenPanel',
+    subject: `OpenSuite provenance ${provenance.artifact.id}`,
+    keywords: canonicalJson(provenance),
+  })
   if (rows.length >= 2) addSimilarityPage(document, payload, rows)
 
   const spectra = new Map(payload.spectra.map((row) => [row.fluorophore, row]))

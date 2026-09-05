@@ -13,6 +13,7 @@ import {
   WIZARD_SCORING_VERSION,
 } from './panelBuilderShared'
 import type { TabId } from './panelBuilderShared'
+import { createOpenSuiteProvenance, inspectOpenPanelProjectProvenance, inspectOpenSuiteProvenance, type OpenSuiteProvenance } from './provenance'
 import type {
   AntigenDensity,
   WizardPanelResult,
@@ -97,6 +98,7 @@ export type OpenPanelProject = {
   plotScaleMode: 'fit-width'
   wizard: WizardProjectState | null
   cytometerPanels: Record<string, CytometerPanelState>
+  provenance?: OpenSuiteProvenance
 }
 
 export type ProjectState = Omit<OpenPanelProject, 'kind' | 'version' | 'savedAt'>
@@ -599,13 +601,28 @@ export function serializeProject(state: ProjectState): string {
 }
 
 function serializeNormalizedProject(normalizedState: ProjectState): string {
-  const project: OpenPanelProject = {
+  const payload: Omit<OpenPanelProject, 'provenance'> = {
     kind: PROJECT_FILE_KIND,
     version: PROJECT_FILE_VERSION,
     savedAt: new Date().toISOString(),
     ...normalizedState,
     markers: Object.fromEntries(Object.entries(normalizedState.markers).map(([key, value]) => [Number(key), String(value)])),
   }
+  delete (payload as Record<string, unknown>).provenance
+  const prior = normalizedState.provenance
+  const original = (prior?.extensions?.openpanel?.originalProvenance as OpenSuiteProvenance | undefined) ?? prior
+  const provenance = createOpenSuiteProvenance({
+    artifactType: 'openpanel-project',
+    artifactName: 'Save OpenPanel project',
+    payload,
+    configurationId: `${payload.cytometer}:${payload.configuration}`,
+    parents: prior ? [{ id: prior.artifact.id, type: prior.artifact.type, sha256: prior.artifact.checksum.digest }] : undefined,
+    originalProvenance: original,
+    responseProvenance: {
+      ...(normalizedState.wizard ? { wizard: 'panel-builder' } : {}),
+    },
+  })
+  const project: OpenPanelProject = { ...payload, provenance }
   return `${JSON.stringify(project, null, 2)}\n`
 }
 
@@ -654,6 +671,8 @@ function normalizeState(
     : Number.isFinite(legacyPlotHeight)
       ? (legacyPlotHeight / 230) * 100
       : DEFAULT_PLOT_SCALE
+  const rawProvenance = value.provenance
+  const provenance = rawProvenance === undefined ? undefined : inspectOpenSuiteProvenance(rawProvenance)
   return {
     cytometer,
     configuration: activePanel.configuration || configuration,
@@ -671,6 +690,7 @@ function normalizeState(
     plotScaleMode: 'fit-width',
     wizard: activePanel.wizard,
     cytometerPanels,
+    ...(provenance ? { provenance } : {}),
   }
 }
 
@@ -696,6 +716,10 @@ function parseProjectText(text: string, rejectDuplicateSlots: boolean): ProjectS
     ? record.config as Record<string, unknown>
     : record
   try {
+    if (legacyConfig === record && record.provenance !== undefined) {
+      const provenance = inspectOpenPanelProjectProvenance(record)
+      if (provenance.status === 'mismatch') throw new ProjectValidationError('This project file has a mismatching provenance checksum.')
+    }
     assertProjectResourceLimits(value, false)
     if (legacyConfig !== value) assertProjectResourceLimits(legacyConfig, false)
     if (rejectDuplicateSlots) assertNoDuplicateSlots(legacyConfig)
