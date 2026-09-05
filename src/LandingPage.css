@@ -1,16 +1,16 @@
 .launch-screen {
-  --launch-bg: #f4f3ed;
-  --launch-surface: #fffef9;
-  --launch-text: #1d2926;
-  --launch-muted: #6f7d79;
-  --launch-border: #c9d0cc;
-  --launch-line: #d3d9d5;
-  --launch-accent: #157e7c;
-  --launch-accent-dark: #116967;
-  --launch-accent-soft: #e6f0ec;
-  --launch-menu: #fff;
-  --launch-danger: #b84539;
-  --launch-preview-bg: #fff;
+  --launch-bg: var(--openpanel-bg-shell);
+  --launch-surface: var(--openpanel-bg-surface);
+  --launch-text: var(--openpanel-text);
+  --launch-muted: var(--openpanel-muted);
+  --launch-border: var(--openpanel-border);
+  --launch-line: var(--openpanel-border);
+  --launch-accent: var(--openpanel-accent);
+  --launch-accent-dark: var(--openpanel-accent-hover);
+  --launch-accent-soft: var(--openpanel-accent-soft);
+  --launch-menu: var(--openpanel-bg-surface);
+  --launch-danger: var(--openpanel-danger);
+  --launch-preview-bg: var(--openpanel-bg-raised);
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: 100%;
@@ -18,22 +18,24 @@
   overflow: auto;
   color: var(--launch-text);
   background: var(--launch-bg);
-  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  font-family: var(--openpanel-font-family);
+  color-scheme: light;
 }
 
 .launch-screen.dark {
-  --launch-bg: #111a17;
-  --launch-surface: #1a2420;
-  --launch-text: #eef3f0;
-  --launch-muted: #97a6a1;
-  --launch-border: #394641;
-  --launch-line: #35423d;
-  --launch-accent: #58c7b5;
-  --launch-accent-dark: #67d2c0;
-  --launch-accent-soft: #21352f;
-  --launch-menu: #1d2824;
-  --launch-danger: #ef7b70;
-  --launch-preview-bg: #101815;
+  --launch-bg: var(--suite-bg-shell, #1d1916);
+  --launch-surface: var(--suite-bg-surface, #2a241f);
+  --launch-text: var(--suite-text-main, #f6eee5);
+  --launch-muted: var(--suite-text-muted, #c4b5a7);
+  --launch-border: var(--suite-border, #504338);
+  --launch-line: var(--suite-border, #504338);
+  --launch-accent: var(--suite-accent, #ff9654);
+  --launch-accent-dark: var(--suite-accent-hover, #ffad73);
+  --launch-accent-soft: var(--suite-accent-soft, #4a2d1e);
+  --launch-menu: var(--suite-bg-surface, #2a241f);
+  --launch-danger: var(--suite-semantic-danger, #bd5149);
+  --launch-preview-bg: var(--suite-bg-surface-raised, #2d2722);
+  color-scheme: dark;
 }
 
 .launch-header {

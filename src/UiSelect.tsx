@@ -12,7 +12,7 @@ export type UiSelectOption = {
 }
 
 export function uiSelectPortalTarget(element: Element): Element {
-  return element.closest('.panel-builder, .launch-screen') ?? document.body
+  return element.closest('.openpanel-module-root, .panel-builder, .launch-screen') ?? document.body
 }
 
 export function positionPortalMenu(

@@ -7,6 +7,12 @@ import {
   createOpenPanelModule,
   validateOpenPanelApplicationManifest,
 } from '../src/module/OpenPanelApplication'
+import {
+  OPEN_PANEL_UI_CONTRACT_VERSION,
+  normalizeOpenPanelApplicationContext,
+  openPanelHostOwns,
+  validateOpenPanelApplicationContext,
+} from '../src/module/hostServices'
 import type { OpenPanelHostServices } from '../src/module/hostServices'
 
 vi.mock('../src/App', () => ({
@@ -60,6 +66,7 @@ describe('OpenPanel application module', () => {
     expect(OPEN_PANEL_APPLICATION_MANIFEST.applicationContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.runtimeContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe('0.1.0-bootstrap')
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe(OPEN_PANEL_UI_CONTRACT_VERSION)
     expect(OPEN_PANEL_APPLICATION_MANIFEST.entrypoints).toEqual({
       application: './openpanel.js',
       stylesheet: './openpanel.css',
@@ -78,6 +85,14 @@ describe('OpenPanel application module', () => {
       context: { mode: 'embedded', projectId: 'embedded-panel' },
     })
     await waitFor(() => expect(container.querySelector('[data-testid="mock-openpanel-app"]')).not.toBeNull())
+    expect(container.querySelector('.openpanel-module-root')).toMatchObject({
+      dataset: expect.objectContaining({
+        openpanelMode: 'embedded',
+        openpanelTheme: 'light',
+        openpanelDensity: 'compact',
+        openpanelUiContract: OPEN_PANEL_UI_CONTRACT_VERSION,
+      }),
+    })
 
     module.suspend()
     expect(module.getLifecycleState().status).toBe('suspended')
@@ -106,5 +121,26 @@ describe('OpenPanel application module', () => {
     module.mount(container)
     expect(() => module.mount(container)).toThrow(/already mounted/)
     module.unmount()
+  })
+
+  test('normalizes and validates host-owned UI context', () => {
+    const context = normalizeOpenPanelApplicationContext({
+      mode: 'embedded',
+      theme: 'dark',
+      ownership: { globalChrome: true, theme: true, windowClose: true },
+    })
+    expect(context).toMatchObject({
+      mode: 'embedded',
+      theme: 'dark',
+      density: 'compact',
+      uiContractVersion: OPEN_PANEL_UI_CONTRACT_VERSION,
+    })
+    expect(openPanelHostOwns(context, 'globalChrome')).toBe(true)
+    expect(openPanelHostOwns(context, 'theme')).toBe(true)
+    expect(openPanelHostOwns({ mode: 'embedded' }, 'globalChrome')).toBe(false)
+    expect(openPanelHostOwns({ mode: 'embedded' }, 'windowClose')).toBe(false)
+    expect(openPanelHostOwns({ ...context, ownership: { windowClose: false } }, 'windowClose')).toBe(false)
+    expect(openPanelHostOwns({ mode: 'standalone' }, 'theme')).toBe(false)
+    expect(() => validateOpenPanelApplicationContext({ uiContractVersion: '9.9.9' })).toThrow(/unsupported/)
   })
 })

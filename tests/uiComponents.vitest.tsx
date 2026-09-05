@@ -64,6 +64,14 @@ describe('UiSelect', () => {
     const bare = document.createElement('button')
     expect(uiSelectPortalTarget(bare)).toBe(document.body)
     shell.remove()
+
+    const moduleRoot = document.createElement('div')
+    moduleRoot.className = 'openpanel-module-root'
+    const moduleChild = document.createElement('button')
+    moduleRoot.appendChild(moduleChild)
+    document.body.appendChild(moduleRoot)
+    expect(uiSelectPortalTarget(moduleChild)).toBe(moduleRoot)
+    moduleRoot.remove()
   })
   test('opens, chooses options, and supports trigger and option keyboard navigation', () => {
     const onChange = vi.fn()

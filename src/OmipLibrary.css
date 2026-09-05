@@ -1,13 +1,13 @@
 .omip-library-backdrop {
-  --omip-bg: #fffdfa;
-  --omip-surface: #f8f7f3;
-  --omip-header: #ece7db;
-  --omip-text: #17201d;
-  --omip-muted: #68736e;
-  --omip-border: #d8d5cc;
-  --omip-border-soft: #e6e2d9;
-  --omip-accent: #1f7a6d;
-  --omip-accent-soft: #eef7f3;
+  --omip-bg: var(--openpanel-bg-surface);
+  --omip-surface: var(--openpanel-bg-raised);
+  --omip-header: var(--openpanel-bg-subtle);
+  --omip-text: var(--openpanel-text);
+  --omip-muted: var(--openpanel-muted);
+  --omip-border: var(--openpanel-border);
+  --omip-border-soft: var(--openpanel-bg-subtle);
+  --omip-accent: var(--openpanel-connected);
+  --omip-accent-soft: var(--openpanel-accent-soft);
   position: fixed;
   z-index: 950;
   inset: 0;
@@ -15,21 +15,23 @@
   place-items: center;
   padding: 28px;
   color: var(--omip-text);
-  background: rgb(8 17 14 / 0.62);
-  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+  background: color-mix(in srgb, var(--openpanel-text) 62%, transparent);
+  font-family: var(--openpanel-font-family);
+  color-scheme: light;
   animation: omip-library-backdrop-in 150ms ease-out both;
 }
 
 .omip-library-backdrop.dark {
-  --omip-bg: #1e2522;
-  --omip-surface: #121816;
-  --omip-header: #252e2a;
-  --omip-text: #f0f3f2;
-  --omip-muted: #9ba7a2;
-  --omip-border: #3b4541;
-  --omip-border-soft: #303a36;
-  --omip-accent: #55c7b6;
-  --omip-accent-soft: #1c2b26;
+  --omip-bg: var(--suite-bg-surface, #2a241f);
+  --omip-surface: var(--suite-bg-surface-raised, #2d2722);
+  --omip-header: var(--suite-bg-subtle, #332a24);
+  --omip-text: var(--suite-text-main, #f6eee5);
+  --omip-muted: var(--suite-text-muted, #c4b5a7);
+  --omip-border: var(--suite-border, #504338);
+  --omip-border-soft: var(--suite-bg-subtle, #332a24);
+  --omip-accent: var(--suite-semantic-connected, #55c7b6);
+  --omip-accent-soft: var(--suite-accent-soft, #4a2d1e);
+  color-scheme: dark;
 }
 
 .omip-library-window {

@@ -1,554 +1,190 @@
 @import "tailwindcss";
 
-:root {
-  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
-  color: #1d2a2c;
-  background: #e8e3d8;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-}
+@layer reset, foundation, primitives, shell;
 
-* { box-sizing: border-box; }
+@layer reset {
+  .openpanel-module-root,
+  .openpanel-module-root *,
+  .openpanel-module-root *::before,
+  .openpanel-module-root *::after {
+    box-sizing: border-box;
+  }
 
-/* Keep every surface scrollable without reserving space for scrollbar chrome. */
-html,
-body,
-#root,
-#root * {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none;
-}
+  .openpanel-module-root :where(button, input, select, textarea) {
+    font: inherit;
+  }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar,
-#root::-webkit-scrollbar,
-#root *::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
-  display: none !important;
-}
+  .openpanel-module-root :where(button, a, summary, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="combobox"], input, select, textarea) {
+    transition:
+      color var(--openpanel-motion-fast) var(--openpanel-motion-ease),
+      background-color var(--openpanel-motion-fast) var(--openpanel-motion-ease),
+      border-color var(--openpanel-motion-fast) var(--openpanel-motion-ease),
+      box-shadow var(--openpanel-motion-fast) var(--openpanel-motion-ease),
+      opacity var(--openpanel-motion-fast) var(--openpanel-motion-ease);
+  }
 
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+  .openpanel-module-root :where(button, a, summary, [role="button"], [role="tab"], [role="menuitem"], [role="option"]):not(:disabled) {
+    cursor: pointer;
+  }
 
-html:has(.panel-builder),
-body:has(.panel-builder),
-#root:has(.panel-builder) {
-  height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-button, input, select { font: inherit; }
-select, option { font-weight: 400; }
-button { cursor: pointer; }
-button:disabled { cursor: not-allowed; }
+  .openpanel-module-root :where(button, a, summary, [role="button"], [role="tab"], [role="menuitem"], [role="option"]):not(:disabled):active {
+    transform: translateY(1px) scale(0.985);
+  }
 
-:where(
-  button,
-  a,
-  summary,
-  [role="button"],
-  [role="tab"],
-  [role="option"],
-  input,
-  select
-) {
-  transition:
-    color 160ms ease,
-    background-color 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    opacity 160ms ease,
-    transform 160ms ease;
-}
-
-:where(button, a, summary, [role="button"], [role="tab"], [role="option"]):not(:disabled):active {
-  transform: translateY(1px) scale(0.985);
-}
-
-.launch-screen,
-.panel-builder {
-  animation: openpanel-page-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-
-@keyframes openpanel-page-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
+  .openpanel-module-root :where(button, select, summary, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="combobox"], [tabindex]:not(input):not(textarea)):focus-visible {
+    outline: 2px solid var(--openpanel-focus);
+    outline-offset: 2px;
   }
 }
 
-.cockpit-app { min-width: 1180px; }
-.app-loading { min-height: 100vh; display: grid; place-items: center; color: #5f6d68; font-size: 17px; }
+@layer foundation {
+  .openpanel-module-root {
+    --openpanel-font-family: var(--suite-font-app, Inter, "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+    --openpanel-motion-fast: var(--suite-motion-fast, 120ms);
+    --openpanel-motion-base: var(--suite-motion-normal, 160ms);
+    --openpanel-motion-slow: var(--suite-motion-slow, 220ms);
+    --openpanel-motion-ease: var(--suite-ease-standard, cubic-bezier(.2, .7, .2, 1));
+    --openpanel-bg-shell: var(--suite-bg-shell, #eee7db);
+    --openpanel-bg-surface: var(--suite-bg-surface, #fffaf0);
+    --openpanel-bg-raised: var(--suite-bg-surface-raised, #fffdf8);
+    --openpanel-bg-subtle: var(--suite-bg-subtle, #e7ded1);
+    --openpanel-text: var(--suite-text-main, #29251f);
+    --openpanel-muted: var(--suite-text-muted, #766c61);
+    --openpanel-border: var(--suite-border, #cfc3b4);
+    --openpanel-border-strong: var(--suite-border-strong, #ab9b8a);
+    --openpanel-accent: var(--suite-accent, #c65a24);
+    --openpanel-accent-hover: var(--suite-accent-hover, #aa4819);
+    --openpanel-accent-soft: var(--suite-accent-soft, #f4d8c6);
+    --openpanel-connected: var(--suite-semantic-connected, #1f7a6d);
+    --openpanel-danger: var(--suite-semantic-danger, #a13e34);
+    --openpanel-on-accent: #fff;
+    --openpanel-focus: var(--suite-focus, var(--openpanel-accent));
+    --openpanel-radius-control: var(--suite-radius-control, 7px);
+    --openpanel-radius-card: var(--suite-radius-card, 10px);
+    --openpanel-shadow-card: var(--suite-shadow-md, 0 4px 12px rgb(41 37 31 / 8%));
+    --openpanel-shadow-popover: var(--suite-shadow-md, 0 16px 42px rgb(13 28 36 / 22%));
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    color: var(--openpanel-text);
+    font-family: var(--openpanel-font-family);
+    color-scheme: light;
+  }
 
-/* OpenGate visual system
-   Keep OpenPanel's existing HTML and interaction model, but share the same
-   visual tokens, typography, compact control sizing, and theme behavior. */
-:root {
-  color-scheme: light;
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-  color: #29251f;
-  background: #eee7db;
-  --ui-motion-fast: 120ms;
-  --ui-motion-base: 160ms;
-  --ui-motion-slow: 200ms;
-  --ui-motion-ease: cubic-bezier(.2, .7, .2, 1);
+  .openpanel-module-root[data-openpanel-theme="dark"] {
+    --openpanel-bg-shell: var(--suite-bg-shell, #1d1916);
+    --openpanel-bg-surface: var(--suite-bg-surface, #2a241f);
+    --openpanel-bg-raised: var(--suite-bg-surface-raised, #2d2722);
+    --openpanel-bg-subtle: var(--suite-bg-subtle, #332a24);
+    --openpanel-text: var(--suite-text-main, #f6eee5);
+    --openpanel-muted: var(--suite-text-muted, #c4b5a7);
+    --openpanel-border: var(--suite-border, #504338);
+    --openpanel-border-strong: var(--suite-border-strong, #665548);
+    --openpanel-accent: var(--suite-accent, #ff9654);
+    --openpanel-accent-hover: var(--suite-accent-hover, #ffad73);
+    --openpanel-accent-soft: var(--suite-accent-soft, #4a2d1e);
+    --openpanel-connected: var(--suite-semantic-connected, #55c7b6);
+    --openpanel-danger: var(--suite-semantic-danger, #bd5149);
+    --openpanel-on-accent: #2a180e;
+    color-scheme: dark;
+  }
+
+  .openpanel-module-root :where(.launch-screen.dark, .panel-builder.dark, .panel-wizard-backdrop.dark, .omip-library-backdrop.dark) {
+    --openpanel-bg-shell: var(--suite-bg-shell, #1d1916);
+    --openpanel-bg-surface: var(--suite-bg-surface, #2a241f);
+    --openpanel-bg-raised: var(--suite-bg-surface-raised, #2d2722);
+    --openpanel-bg-subtle: var(--suite-bg-subtle, #332a24);
+    --openpanel-text: var(--suite-text-main, #f6eee5);
+    --openpanel-muted: var(--suite-text-muted, #c4b5a7);
+    --openpanel-border: var(--suite-border, #504338);
+    --openpanel-border-strong: var(--suite-border-strong, #665548);
+    --openpanel-accent: var(--suite-accent, #ff9654);
+    --openpanel-accent-hover: var(--suite-accent-hover, #ffad73);
+    --openpanel-accent-soft: var(--suite-accent-soft, #4a2d1e);
+    --openpanel-connected: var(--suite-semantic-connected, #55c7b6);
+    --openpanel-danger: var(--suite-semantic-danger, #bd5149);
+    --openpanel-on-accent: #2a180e;
+    color-scheme: dark;
+  }
+
+  .openpanel-module-root .app-loading {
+    min-height: 40vh;
+    display: grid;
+    place-items: center;
+    color: var(--openpanel-muted);
+    font-size: 17px;
+  }
+
+  .openpanel-module-root :where(.launch-screen, .panel-builder, .module-loading-state, .omip-library-backdrop) {
+    font-family: var(--openpanel-font-family);
+  }
+
+  .openpanel-module-root :where(.launch-screen, .panel-builder, .module-loading-state) {
+    animation: openpanel-surface-in var(--openpanel-motion-slow) var(--openpanel-motion-ease) both;
+  }
+
+  @keyframes openpanel-surface-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 }
 
-body {
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-  color: #29251f;
-  background: #eee7db;
+@layer primitives {
+  .openpanel-module-root :where(button, input, select, textarea) {
+    color: var(--openpanel-text);
+  }
+
+  .openpanel-module-root :where(button, input, select, textarea):disabled {
+    cursor: not-allowed;
+  }
+
+  .openpanel-module-root :where(input, select, textarea):focus-visible {
+    outline: 2px solid var(--openpanel-focus);
+    outline-offset: 2px;
+  }
+
+  .openpanel-module-root :where(.ui-select-options, .file-action-popout, .fluor-dropdown) {
+    color: var(--openpanel-text);
+    background: var(--openpanel-bg-surface);
+    box-shadow: var(--openpanel-shadow-popover);
+    border-color: var(--openpanel-border);
+    border-radius: var(--openpanel-radius-control);
+  }
+
+  .openpanel-module-root :where(.ui-select-option, .file-action-popout button, .fluor-option):hover,
+  .openpanel-module-root :where(.ui-select-option, .file-action-popout button, .fluor-option):focus-visible {
+    background: var(--openpanel-accent-soft);
+  }
+
+  .openpanel-module-root :where(.ui-select-options) {
+    --launch-border: var(--openpanel-border);
+    --launch-text: var(--openpanel-text);
+    --launch-menu: var(--openpanel-bg-surface);
+    --launch-bg: var(--openpanel-bg-shell);
+    --launch-surface: var(--openpanel-bg-surface);
+    --launch-accent: var(--openpanel-accent);
+    --launch-accent-soft: var(--openpanel-accent-soft);
+    --input-border: var(--openpanel-border);
+    --input-bg: var(--openpanel-bg-surface);
+    --omip-border: var(--openpanel-border);
+    --omip-text: var(--openpanel-text);
+    --omip-bg: var(--openpanel-bg-surface);
+  }
 }
 
-button,
-input,
-select,
-textarea {
-  font-family: inherit;
+@media (prefers-reduced-motion: reduce) {
+  .openpanel-module-root *,
+  .openpanel-module-root *::before,
+  .openpanel-module-root *::after {
+    scroll-behavior: auto;
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+    transition-duration: 1ms;
+  }
 }
 
-.launch-screen {
-  --launch-bg: #eee7db;
-  --launch-surface: #fffaf0;
-  --launch-text: #29251f;
-  --launch-muted: #766c61;
-  --launch-border: #d5c8b7;
-  --launch-line: #d5c8b7;
-  --launch-accent: #c65a24;
-  --launch-accent-dark: #c65a24;
-  --launch-accent-soft: #f7e2d3;
-  --launch-menu: #fffaf0;
-  --launch-danger: #bd5149;
-  --launch-preview-bg: #f7f6f0;
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-  color-scheme: light;
-}
-
-.launch-screen.dark {
-  --launch-bg: #1d1916;
-  --launch-surface: #2a241f;
-  --launch-text: #f6eee5;
-  --launch-muted: #c4b5a7;
-  --launch-border: #504338;
-  --launch-line: #504338;
-  --launch-accent: #ff9654;
-  --launch-accent-dark: #ff9654;
-  --launch-accent-soft: #4a2d1e;
-  --launch-menu: #2d2722;
-  --launch-danger: #bd5149;
-  --launch-preview-bg: #231e1a;
-  color-scheme: dark;
-}
-
-.panel-builder {
-  --bg-app: #eee7db;
-  --bg-gradient:
-    linear-gradient(90deg, rgb(198 90 36 / 3%) 1px, transparent 1px),
-    linear-gradient(rgb(198 90 36 / 3%) 1px, transparent 1px);
-  --text-primary: #29251f;
-  --text-secondary: #29251f;
-  --text-muted: #766c61;
-  --border-color: #d5c8b7;
-  --border-color-soft: #e5dbce;
-  --bg-topbar: #fffaf0;
-  --bg-sidebar: #f7f6f0;
-  --bg-card: #fffaf0;
-  --bg-cell-empty: #f7f6f0;
-  --bg-cell-header: #f1e9df;
-  --bg-cell-diag: #d5c8b7;
-  --bg-spectrum: #f7f6f0;
-  --chart-grid: #d8cbbb;
-  --chart-axis: #766c61;
-  --chart-axis-text: #766c61;
-  --bg-cell-impossible: #eaded2;
-  --input-bg: #fffaf0;
-  --input-border: #d5c8b7;
-  --button-bg: #fffaf0;
-  --button-text: #29251f;
-  --button-border: #d5c8b7;
-  --accent: #c65a24;
-  --accent-hover: #b94f0f;
-  --accent-soft: #f7e2d3;
-  --accent-2: #bd5149;
-  --shadow: 0 4px 12px rgb(74 43 24 / 8%);
-  --shadow-dropdown: 0 16px 42px rgb(13 28 36 / 22%);
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-  color-scheme: light;
-}
-
-.panel-builder.dark {
-  --bg-app: #1d1916;
-  --bg-gradient:
-    linear-gradient(90deg, rgb(255 150 84 / 3%) 1px, transparent 1px),
-    linear-gradient(rgb(255 150 84 / 3%) 1px, transparent 1px);
-  --text-primary: #f6eee5;
-  --text-secondary: #f6eee5;
-  --text-muted: #c4b5a7;
-  --border-color: #504338;
-  --border-color-soft: #3d322a;
-  --bg-topbar: #2a241f;
-  --bg-sidebar: #332a24;
-  --bg-card: #2a241f;
-  --bg-cell-empty: #231e1a;
-  --bg-cell-header: #332a24;
-  --bg-cell-diag: #504338;
-  --bg-spectrum: #231e1a;
-  --chart-grid: #504338;
-  --chart-axis: #c4b5a7;
-  --chart-axis-text: #c4b5a7;
-  --bg-cell-impossible: #2a211c;
-  --input-bg: #2d2722;
-  --input-border: #504338;
-  --button-bg: #2a241f;
-  --button-text: #f6eee5;
-  --button-border: #504338;
-  --accent: #ff9654;
-  --accent-hover: #ffad73;
-  --accent-soft: #4a2d1e;
-  --accent-2: #bd5149;
-  --shadow: 0 4px 20px rgb(0 0 0 / 35%);
-  --shadow-dropdown: 0 18px 46px rgb(0 0 0 / 48%);
-  color-scheme: dark;
-}
-
-body:has(.launch-screen.dark),
-body:has(.panel-builder.dark) {
-  color: #f6eee5;
-  background: #1d1916;
-}
-
-/* OpenGate uses small, steady controls and restrained geometry throughout. */
-.panel-topbar {
-  min-height: 68px;
-  padding: 10px 24px;
-}
-
-.panel-topbar h1 {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.panel-topbar p {
-  font-size: 12px;
-}
-
-.launch-brand {
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -.02em;
-}
-
-.launch-card .launch-name-input {
-  height: 32px;
-  min-height: 32px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  background: var(--launch-surface);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.25;
-}
-
-.panel-shell {
-  height: calc(100vh - 68px);
-}
-
-.export-button,
-.panel-back-button,
-.panel-sidebar-toggle,
-.wizard-tool-button,
-.wizard-info-trigger,
-.wizard-close,
-.panel-confirm-cancel,
-.panel-confirm-submit {
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.panel-builder .export-button {
-  height: 36px;
-  padding-inline: 12px;
-  font-weight: 650;
-}
-
-.panel-builder .export-button.icon-only {
-  width: 36px;
-  padding: 0;
-}
-
-.plot-size-controls,
-.history-controls {
-  border-radius: 7px;
-}
-
-.plot-size-controls .export-button,
-.history-controls .export-button {
-  width: 30px;
-  height: 30px;
-}
-
-.panel-builder .panel-sidebar {
-  background: var(--bg-sidebar);
-}
-
-.selector-list {
-  padding: 12px;
-  gap: 6px;
-}
-
-.selector-row {
-  min-height: 48px;
-  padding: 5px 8px;
-  border-radius: 5px;
-}
-
-.selector-input {
-  font-size: 13px;
-}
-
-.tabs-bar {
-  min-height: 52px;
-  gap: 10px;
-}
-
-.tab-button {
-  height: 32px;
-  border-radius: 5px;
-  padding-inline: 12px;
-  font-size: 12px;
-}
-
-.panel-matrix-wrap,
-.similarity-wrap,
-.signatures-wrap {
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgb(74 43 24 / 7%);
-}
-
-.panel-wizard-backdrop {
-  background:
-    linear-gradient(rgb(29 25 22 / 68%), rgb(29 25 22 / 78%)),
-    repeating-linear-gradient(90deg, transparent 0 31px, rgb(255 255 255 / 3%) 32px);
-}
-
-.panel-wizard-window {
-  border-radius: 10px;
-  box-shadow: 0 28px 80px rgb(13 8 5 / 42%);
-}
-
-.wizard-icon {
-  border-radius: 7px;
-}
-
-.wizard-primary,
-.wizard-secondary,
-.wizard-calculate {
-  min-height: 36px;
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.panel-builder.dark .wizard-icon,
-.panel-builder.dark .wizard-primary,
-.panel-builder.dark .wizard-calculate,
-.panel-builder.dark .wizard-tabs button.active > span {
-  color: #2a180e;
-}
-
-/* Shared custom select styling matches OpenGate's compact 32px controls. */
-.launch-screen .ui-select-trigger,
-.panel-builder .ui-select-trigger,
-.panel-wizard-window .ui-select-trigger,
-.omip-library-window .ui-select-trigger {
-  min-height: 32px;
-  height: auto;
-  padding: 5px 9px 5px 10px;
-  border: 1px solid var(--launch-border, var(--input-border, #d5c8b7));
-  border-radius: 5px;
-  color: var(--launch-text, var(--text-primary, #29251f));
-  background: var(--launch-surface, var(--input-bg, #fffaf0));
-  box-shadow: 0 1px 1px rgb(13 28 36 / 3%);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.25;
-}
-
-.panel-builder .ui-select-trigger {
-  border-color: var(--input-border);
-  color: var(--text-primary);
-  background: var(--input-bg);
-}
-
-.omip-library-window .ui-select-trigger {
-  border-color: var(--omip-border);
-  color: var(--omip-text);
-  background: var(--omip-surface);
-}
-
-.launch-screen .ui-select-trigger:hover,
-.panel-builder .ui-select-trigger:hover,
-.panel-wizard-window .ui-select-trigger:hover,
-.omip-library-window .ui-select-trigger:hover,
-.launch-screen .ui-select.is-open .ui-select-trigger,
-.panel-builder .ui-select.is-open .ui-select-trigger,
-.panel-wizard-window .ui-select.is-open .ui-select-trigger,
-.omip-library-window .ui-select.is-open .ui-select-trigger {
-  border-color: var(--launch-accent, var(--accent, var(--omip-accent, #c65a24)));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--launch-accent, var(--accent, var(--omip-accent, #c65a24))) 15%, transparent);
-}
-
-.launch-screen .ui-select-trigger svg,
-.panel-builder .ui-select-trigger svg,
-.panel-wizard-window .ui-select-trigger svg,
-.omip-library-window .ui-select-trigger svg {
-  color: var(--launch-muted, var(--text-muted, var(--omip-muted, #766c61)));
-}
-
-.ui-select-options {
-  padding: 5px;
-  border: 1px solid var(--launch-border, var(--input-border, var(--omip-border, #d5c8b7)));
-  border-radius: 7px;
-  color: var(--launch-text, var(--text-primary, var(--omip-text, #29251f)));
-  background: var(--launch-menu, var(--bg-card, var(--omip-bg, #fffaf0)));
-  box-shadow: 0 16px 42px rgb(13 28 36 / 22%), 0 3px 10px rgb(13 28 36 / 10%);
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-  font-size: 13px;
-}
-
-.ui-select-search {
-  min-height: 38px;
-  padding-inline: 10px;
-  border-radius: 8px;
-  border-color: var(--launch-border, var(--input-border, var(--omip-border, #d5c8b7)));
-  background: var(--launch-bg, var(--bg-app, var(--omip-surface, #f7f6f0)));
-}
-
-.ui-select-option {
-  min-height: 34px;
-  padding: 6px 8px 6px 10px;
-  border-radius: 4px;
-  color: inherit;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.25;
-}
-
-.ui-select-option:hover,
-.ui-select-option:focus-visible,
-.ui-select-option.is-selected {
-  outline: 0;
-  color: inherit;
-  background: var(--launch-accent-soft, var(--accent-soft, var(--omip-accent-soft, #f7e2d3)));
-}
-
-.ui-select-option.is-selected {
-  font-weight: 500;
-}
-
-.launch-screen.dark .ui-select-option.is-selected,
-.panel-builder.dark .ui-select-option.is-selected {
-  color: inherit;
-}
-
-.module-loading-state {
-  color: #29251f;
-  background-color: #eee7db;
-  background-image: none;
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-}
-
-.module-loading-state.theme-dark {
-  color: #f6eee5;
-  background-color: #1d1916;
-  background-image: none;
-}
-
-.module-loading-card {
-  border-color: #d5c8b7;
-  border-radius: 10px;
-  background: #fffaf0;
-  box-shadow: 0 18px 42px rgb(41 37 31 / 12%);
-}
-
-.module-loading-spinner {
-  color: #c65a24;
-}
-
-.theme-dark .module-loading-card {
-  border-color: #504338;
-  background: #2a241f;
-  box-shadow: 0 18px 42px rgb(0 0 0 / 28%);
-}
-
-.theme-dark .module-loading-spinner {
-  color: #ff9654;
-}
-
-.clear-panel-confirm-backdrop {
-  background: rgb(29 25 22 / 68%);
-}
-
-.clear-panel-confirm {
-  border-radius: 10px;
-  box-shadow: 0 24px 70px rgb(13 8 5 / 36%);
-}
-
-.clear-panel-confirm h3 {
-  font-size: 22px;
-}
-
-.clear-panel-confirm p {
-  font-size: 14px;
-}
-
-.clear-panel-confirm button {
-  font-size: 12px;
-}
-
-.omip-library-backdrop {
-  --omip-bg: #fffaf0;
-  --omip-surface: #f7f6f0;
-  --omip-header: #f1e9df;
-  --omip-text: #29251f;
-  --omip-muted: #766c61;
-  --omip-border: #d5c8b7;
-  --omip-border-soft: #e5dbce;
-  --omip-accent: #c65a24;
-  --omip-accent-soft: #f7e2d3;
-  background: rgb(29 25 22 / 68%);
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-}
-
-.omip-library-backdrop.dark {
-  --omip-bg: #2a241f;
-  --omip-surface: #332a24;
-  --omip-header: #332a24;
-  --omip-text: #f6eee5;
-  --omip-muted: #c4b5a7;
-  --omip-border: #504338;
-  --omip-border-soft: #3d322a;
-  --omip-accent: #ff9654;
-  --omip-accent-soft: #4a2d1e;
-}
-
-.omip-library-window {
-  border-radius: 10px;
-  box-shadow: 0 28px 80px rgb(13 8 5 / 42%);
-}
-
-.omip-library-heading h2 {
-  font-family: "Avenir Next", Inter, system-ui, sans-serif;
-  font-size: 18px;
-  font-weight: 650;
+@media (forced-colors: active) {
+  .openpanel-module-root :where(button, input, select, textarea, [role="button"], [role="tab"], [role="option"]) {
+    forced-color-adjust: auto;
+  }
 }

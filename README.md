@@ -39,6 +39,12 @@ ReactDOM remain external peer dependencies. The module entry has no service
 worker, standalone stale-chunk recovery, or page-global startup behavior; a
 host supplies persistence, file, navigation, theme, and asset services.
 
+The public application context is versioned with `0.1.0-bootstrap`. Embedded
+hosts can provide `theme`, `density`, and explicit `ownership` for global
+chrome, theme control, updating, and window close; standalone mode keeps those
+controls local. Module CSS is rooted at `[data-openpanel-module-root]`, and
+portal menus mount below that root.
+
 The release workflow runs on `v*` tags and manual dispatch. OpenSuite imports a
 reviewed module artifact by exact version, source SHA, and content hashes; it
 must not resolve a mutable branch or a local checkout for a release.
