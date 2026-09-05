@@ -100,6 +100,23 @@ afterEach(() => {
 })
 
 describe('App surface restoration and handoff', () => {
+  test('delegates embedded editor exit to the host navigation callback', async () => {
+    const hostExit = vi.fn()
+    render(
+      <App
+        applicationContext={{
+          mode: 'embedded',
+          initialProject: fixtures.project.state,
+          onRequestExit: hostExit,
+        }}
+      />,
+    )
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock editor' })).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'exit' }))
+    await waitFor(() => expect(hostExit).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('region', { name: 'mock landing' })).toBeNull()
+  })
+
   test('restores the landing surface, routes callbacks, and returns from the editor', async () => {
     render(<App />)
     await waitFor(() => expect(screen.getByRole('region', { name: 'mock landing' })).not.toBeNull())
@@ -135,6 +152,7 @@ describe('App surface restoration and handoff', () => {
       'aurora',
       '5l_uv_v_b_yg_r',
       [],
+      expect.anything(),
     )
   })
 

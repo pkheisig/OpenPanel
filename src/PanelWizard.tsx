@@ -49,6 +49,7 @@ import type {
   WizardTab,
 } from './panelWizardEngine'
 import type { PanelMeasurementMode, ResponseMatrixProvenance } from './panelBuilderShared'
+import type { OpenPanelAssetResolver } from './module/hostServices'
 
 export type WizardApplication = {
   markers: WizardMarker[]
@@ -64,6 +65,7 @@ type PanelWizardProps = {
   maxPanelSize: number
   measurementMode: PanelMeasurementMode
   responseProvenance?: ResponseMatrixProvenance
+  assetResolver?: OpenPanelAssetResolver
   slots: string[]
   markerNames: Record<number, string>
   theme: 'light' | 'dark'
@@ -319,6 +321,7 @@ export function PanelWizard({
   maxPanelSize,
   measurementMode,
   responseProvenance: providedResponseProvenance,
+  assetResolver,
   slots,
   markerNames,
   theme,
@@ -511,7 +514,10 @@ export function PanelWizard({
       setResultsInvalidated(false)
     }
     let active = true
-    void loadPanelWizardReferences(cytometer, configuration).then((references) => {
+    const loadReferences = assetResolver
+      ? loadPanelWizardReferences(cytometer, configuration, assetResolver)
+      : loadPanelWizardReferences(cytometer, configuration)
+    void loadReferences.then((references) => {
       if (!active || referenceRequestVersionRef.current !== referenceRequestVersion) return
       setMarkerReferenceOptions(references.markerOptions)
       setLoadedReferenceContext(referenceContext)
@@ -528,7 +534,7 @@ export function PanelWizard({
     return () => {
       active = false
     }
-  }, [configuration, cytometer, referenceContext, referenceRetryVersion])
+  }, [assetResolver, configuration, cytometer, referenceContext, referenceRetryVersion])
 
   useEffect(() => {
     onStateChange({
@@ -709,12 +715,12 @@ export function PanelWizard({
     setResultsInvalidated(false)
     await new Promise((resolve) => window.setTimeout(resolve, 30))
     try {
-      const candidatePayload = await buildPanelPayload(
-        cytometer,
-        configuration,
-        availableFluorophores,
-      )
-      const references = await loadPanelWizardReferences(cytometer, configuration)
+      const candidatePayload = assetResolver
+        ? await buildPanelPayload(cytometer, configuration, availableFluorophores, false, assetResolver)
+        : await buildPanelPayload(cytometer, configuration, availableFluorophores)
+      const references = assetResolver
+        ? await loadPanelWizardReferences(cytometer, configuration, assetResolver)
+        : await loadPanelWizardReferences(cytometer, configuration)
       if (calculationRequestVersionRef.current !== calculationRequestVersion) return
       setResults(generateWizardResults(
         candidatePayload,

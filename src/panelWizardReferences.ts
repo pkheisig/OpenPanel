@@ -11,6 +11,8 @@ import {
 import { canonicalizeFluorophoreName } from './fluorophoreNames'
 import { buildMarkerOptions } from './panelWizardKnowledge'
 import type { UiSelectOption } from './UiSelect'
+import type { OpenPanelAssetResolver } from './module/hostServices'
+import { createBrowserAssetResolver } from './standalone/browserAssetResolver'
 
 export type WizardReferenceData = {
   brightnessByFluorophore: Record<string, number>
@@ -25,26 +27,26 @@ type ReferenceRows = {
 }
 
 let referenceRowsPromise: Promise<ReferenceRows> | null = null
-function dataUrl(filename: string): string {
-  const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
-  return new URL(`data/${filename}`, new URL(import.meta.env.BASE_URL, origin)).toString()
-}
+const defaultAssetResolver = createBrowserAssetResolver()
+let activeAssetResolver: OpenPanelAssetResolver = defaultAssetResolver
 
-async function loadCsv(filename: string): Promise<string[][]> {
-  let response: Response
+async function loadCsv(filename: string, assetResolver?: OpenPanelAssetResolver): Promise<string[][]> {
+  const resolver = assetResolver ?? defaultAssetResolver
+  let text: string
   try {
-    response = await fetch(dataUrl(filename))
+    text = await resolver.loadText(filename)
   } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    const detail = reason.startsWith('could not load bundled data file (')
+      ? reason.replace('could not load bundled data file', 'could not load bundled reference data')
+      : `could not load bundled reference data: ${reason}`
     throw new BundledDataValidationError(
-      `${filename}: could not load bundled reference data: ${error instanceof Error ? error.message : String(error)}`,
+      `${filename}: ${detail}`,
     )
-  }
-  if (!response.ok) {
-    throw new BundledDataValidationError(`${filename}: could not load bundled reference data (${response.status}).`)
   }
   let rows: string[][]
   try {
-    rows = parseCsv(await response.text())
+    rows = parseCsv(text)
   } catch (error) {
     if (error instanceof BundledDataValidationError) throw error
     throw new BundledDataValidationError(`${filename}: ${error instanceof Error ? error.message : String(error)}`)
@@ -76,12 +78,18 @@ function rowsToRecords(rows: string[][]): Array<Record<string, string>> {
 export async function loadPanelWizardReferences(
   cytometer: string,
   configuration: string,
+  assetResolver?: OpenPanelAssetResolver,
 ): Promise<WizardReferenceData> {
+  const resolver = assetResolver ?? defaultAssetResolver
+  if (activeAssetResolver !== resolver) {
+    activeAssetResolver = resolver
+    referenceRowsPromise = null
+  }
   if (!referenceRowsPromise) {
     const pending = Promise.all([
-      loadCsv('panel_wizard_brightness.csv'),
-      loadCsv('panel_wizard_antigen_density.csv'),
-      loadCsv('marker_dictionary.csv'),
+      loadCsv('panel_wizard_brightness.csv', resolver),
+      loadCsv('panel_wizard_antigen_density.csv', resolver),
+      loadCsv('marker_dictionary.csv', resolver),
     ]).then(([brightness, antigenDensity, markerDictionary]) => ({
       brightness,
       antigenDensity,

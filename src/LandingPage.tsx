@@ -22,7 +22,6 @@ import {
   getSpectralPanelLibraries,
 } from './spectralEngine'
 import type { PanelPayload } from './panelBuilderShared'
-import { writeLocalStorage } from './browserStorage'
 import {
   omipTemplateAssignmentsForPanel,
   omipTemplateAssignmentsForPanelBestEffort,
@@ -31,7 +30,8 @@ import type { OmipCatalogEntry, OmipTemplate } from './panelWizardKnowledge'
 import type { StoredPanelProject } from './projectStore'
 import { UiSelect } from './UiSelect'
 import { OmipLibrary } from './OmipLibrary'
-import { readThemePreference, saveThemePreference } from './themePreference'
+import { useOpenPanelHostServices } from './module/hostServices'
+import type { OpenPanelAssetResolver } from './module/hostServices'
 import './LandingPage.css'
 
 export type PanelLaunchSelection = {
@@ -269,12 +269,14 @@ export function LandingPage({
   onRestore,
   onDelete,
 }: LandingPageProps) {
+  const host = useOpenPanelHostServices()
+  const assetResolver = host.assets
   const libraries = useMemo(
     () => [...getSpectralPanelLibraries()].sort((left, right) => left.label.localeCompare(right.label)),
     [],
   )
   const importInput = useRef<HTMLInputElement>(null)
-  const [theme, setTheme] = useState<'light' | 'dark'>(readThemePreference)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => host.theme.read())
   const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
   const [starting, setStarting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -311,8 +313,8 @@ export function LandingPage({
   )
 
   useEffect(() => {
-    saveThemePreference(theme)
-  }, [theme])
+    host.theme.save(theme)
+  }, [host.theme, theme])
 
   useEffect(() => {
     const closeMenu = (event: PointerEvent) => {
@@ -334,21 +336,24 @@ export function LandingPage({
   useEffect(() => {
     if (!showOmipLibrary || !setupReady) return
     let cancelled = false
-    void buildPanelPayload(cytometer, configuration).then((nextPayload) => {
-      if (!cancelled) setOmipPayload(nextPayload)
+    const nextPayload = assetResolver
+      ? buildPanelPayload(cytometer, configuration, undefined, false, assetResolver)
+      : buildPanelPayload(cytometer, configuration)
+    void nextPayload.then((resolvedPayload) => {
+      if (!cancelled) setOmipPayload(resolvedPayload)
     }).catch(() => {
       if (!cancelled) setOmipPayload(null)
     })
     return () => {
       cancelled = true
     }
-  }, [configuration, cytometer, setupReady, showOmipLibrary])
+  }, [assetResolver, configuration, cytometer, setupReady, showOmipLibrary])
 
   const startPanel = async () => {
     if (!setupReady) return
     setError('')
-    writeLocalStorage('spectreasy_cytometer', cytometer)
-    writeLocalStorage('spectreasy_configuration', configuration)
+    host.storage.setItem('spectreasy_cytometer', cytometer)
+    host.storage.setItem('spectreasy_configuration', configuration)
     setStarting(true)
     try {
       await onStart({ name: panelName, cytometer, configuration })
@@ -368,7 +373,9 @@ export function LandingPage({
     try {
       const payload = target.cytometer === cytometer && target.configuration === configuration
         ? omipPayload
-        : await buildPanelPayload(target.cytometer, target.configuration)
+        : assetResolver
+          ? await buildPanelPayload(target.cytometer, target.configuration, undefined, false, assetResolver)
+          : await buildPanelPayload(target.cytometer, target.configuration)
       if (payload === null) {
         return
       } else {
@@ -385,8 +392,8 @@ export function LandingPage({
         )
         if (assignments.length === 0) return
 
-        writeLocalStorage('spectreasy_cytometer', target.cytometer)
-        writeLocalStorage('spectreasy_configuration', target.configuration)
+        host.storage.setItem('spectreasy_cytometer', target.cytometer)
+        host.storage.setItem('spectreasy_configuration', target.configuration)
         await onStart({
           name: template.name,
           cytometer: target.cytometer,
@@ -632,6 +639,7 @@ export function LandingPage({
                 <ProjectCard
                   key={panel.id}
                   panel={panel}
+                  assetResolver={assetResolver}
                   cytometer={cytometerLabel(panel.state.cytometer)}
                   configuration={configurationLabel(panel)}
                   onOpen={() => onOpen(panel)}
@@ -664,6 +672,7 @@ export function LandingPage({
                     <ProjectCard
                       key={panel.id}
                       panel={panel}
+                      assetResolver={assetResolver}
                       cytometer={cytometerLabel(panel.state.cytometer)}
                       configuration={configurationLabel(panel)}
                       archived
@@ -723,6 +732,7 @@ export function LandingPage({
 
 function ProjectCard({
   panel,
+  assetResolver,
   cytometer,
   configuration,
   archived = false,
@@ -730,6 +740,7 @@ function ProjectCard({
   onMenu,
 }: {
   panel: StoredPanelProject
+  assetResolver?: OpenPanelAssetResolver
   cytometer: string
   configuration: string
   archived?: boolean
@@ -751,7 +762,7 @@ function ProjectCard({
         onClick={onOpen}
         aria-label={`Open ${panel.name}`}
       >
-        <ProjectSpectrumPreview panel={panel} />
+        <ProjectSpectrumPreview panel={panel} assetResolver={assetResolver} />
         <span className="panel-preview-count">
           {colors} {colors === 1 ? 'color' : 'colors'}
         </span>
@@ -785,24 +796,39 @@ function ProjectCard({
   )
 }
 
-function ProjectSpectrumPreview({ panel }: { panel: StoredPanelProject }) {
+function ProjectSpectrumPreview({
+  panel,
+  assetResolver,
+}: {
+  panel: StoredPanelProject
+  assetResolver?: OpenPanelAssetResolver
+}) {
   const [payload, setPayload] = useState<PanelPayload | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    void buildPanelPayload(
-      panel.state.cytometer,
-      panel.state.configuration,
-      panel.state.slots.filter(Boolean),
-    ).then((nextPayload) => {
-      if (!cancelled) setPayload(nextPayload)
+    const nextPayload = assetResolver
+      ? buildPanelPayload(
+        panel.state.cytometer,
+        panel.state.configuration,
+        panel.state.slots.filter(Boolean),
+        false,
+        assetResolver,
+      )
+      : buildPanelPayload(
+        panel.state.cytometer,
+        panel.state.configuration,
+        panel.state.slots.filter(Boolean),
+      )
+    void nextPayload.then((resolvedPayload) => {
+      if (!cancelled) setPayload(resolvedPayload)
     }).catch(() => {
       if (!cancelled) setPayload(null)
     })
     return () => {
       cancelled = true
     }
-  }, [panel.state.configuration, panel.state.cytometer, panel.state.slots])
+  }, [assetResolver, panel.state.configuration, panel.state.cytometer, panel.state.slots])
 
   const width = 258
   const height = 146
