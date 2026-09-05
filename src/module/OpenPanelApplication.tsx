@@ -125,6 +125,7 @@ export function createOpenPanelModule(
     manifest,
     mount: (container, initialContext = {}) => {
       if (root) throw new Error('OpenPanel module is already mounted.')
+      suspended = false
       currentContext = { mode: 'standalone', ...initialContext }
       lifecycle.updateContext(currentContext)
       moduleRoot = document.createElement('div')
@@ -163,6 +164,7 @@ export function createOpenPanelModule(
       root = null
       moduleRoot?.remove()
       moduleRoot = null
+      suspended = false
       lifecycle.setStatus('unmounted')
     },
   }

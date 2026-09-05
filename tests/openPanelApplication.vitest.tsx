@@ -59,6 +59,7 @@ describe('OpenPanel application module', () => {
     expect(OPEN_PANEL_APPLICATION_MANIFEST.applicationContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.runtimeContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe('0.1.0-bootstrap')
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.sourceCommit).toMatch(/^(dev|[0-9a-f]{40})$/)
 
     const exit = vi.fn()
     const container = document.createElement('section')
@@ -82,6 +83,11 @@ describe('OpenPanel application module', () => {
     module.unmount()
     expect(module.getLifecycleState().status).toBe('unmounted')
     expect(container.childElementCount).toBe(0)
+
+    module.mount(container)
+    await waitFor(() => expect(container.querySelector('[data-testid="mock-openpanel-app"]')).not.toBeNull())
+    expect(container.querySelector('[data-openpanel-module-root="true"]')?.hasAttribute('hidden')).toBe(false)
+    module.unmount()
   })
 
   test('rejects unsupported manifests and duplicate mounts', () => {

@@ -348,9 +348,19 @@ function AppContent() {
     )
   }
 
+  const controlledProjectIdentity = applicationContext.initialProject
+    ? JSON.stringify(applicationContext.initialProject)
+    : activePanel.updatedAt
+  const editorKey = [
+    activePanel.id,
+    applicationContext.projectRevision ?? '',
+    applicationContext.projectName ?? activePanel.name,
+    controlledProjectIdentity,
+  ].join(':')
+
   return (
     <PanelBuilder
-      key={activePanel.id}
+      key={editorKey}
       projectId={activePanel.id}
       projectName={activePanel.name}
       initialProject={activePanel.state}
