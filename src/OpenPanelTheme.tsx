@@ -56,13 +56,38 @@ function initialStandaloneSelection(
   applicationContext: OpenPanelApplicationContext,
 ): OpenSuiteThemeSelectionSummary {
   const saved = services.theme.readSelection?.()
-  if (saved) return saved
   return {
-    style: applicationContext.style ?? DEFAULT_THEME_SELECTION.style,
-    palette: applicationContext.palette ?? DEFAULT_THEME_SELECTION.palette,
+    style: applicationContext.style ?? saved?.style ?? DEFAULT_THEME_SELECTION.style,
+    palette: applicationContext.palette ?? saved?.palette ?? DEFAULT_THEME_SELECTION.palette,
     appearance: applicationContext.appearance
       ?? applicationContext.theme
+      ?? saved?.appearance
       ?? services.theme.read(applicationContext.theme),
+  }
+}
+
+const THEME_DATA_ATTRIBUTES = [
+  'data-suite-theme-root',
+  'data-suite-ui',
+  'data-suite-style',
+  'data-suite-palette',
+  'data-suite-appearance',
+  'data-suite-theme-contract-version',
+  'data-suite-decoration',
+  'data-suite-surface-treatment',
+  'data-theme',
+] as const
+
+function captureThemeState(element: HTMLElement): () => void {
+  const style = element.getAttribute('style')
+  const attributes = THEME_DATA_ATTRIBUTES.map((name) => [name, element.getAttribute(name)] as const)
+  return () => {
+    if (style === null) element.removeAttribute('style')
+    else element.setAttribute('style', style)
+    for (const [name, value] of attributes) {
+      if (value === null) element.removeAttribute(name)
+      else element.setAttribute(name, value)
+    }
   }
 }
 
@@ -92,7 +117,7 @@ export function OpenPanelThemeRoot({
         theme: applicationContext.theme,
       }
       : localSelection,
-    currentSystemTheme,
+    hostOwnsTheme ? (applicationContext.theme ?? currentSystemTheme) : currentSystemTheme,
   ), [
     applicationContext.appearance,
     applicationContext.palette,
@@ -123,12 +148,25 @@ export function OpenPanelThemeRoot({
     root.dataset.openpanelStyle = selection.style
     root.dataset.openpanelPalette = selection.palette
     root.dataset.openpanelThemeContract = selection.themeContractVersion
-    if (!hostOwnsTheme) applyStandaloneThemeSelection(root, selection)
-    if (applicationContext.mode === 'standalone') {
-      applyStandaloneThemeSelection(document.documentElement, selection)
-      if (document.body) applyStandaloneThemeSelection(document.body, selection)
-    }
-  }, [applicationContext.mode, hostOwnsTheme, selection])
+  }, [selection])
+
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root || hostOwnsTheme) return
+    const restore = captureThemeState(root)
+    applyStandaloneThemeSelection(root, selection)
+    return restore
+  }, [hostOwnsTheme, selection])
+
+  useLayoutEffect(() => {
+    if (applicationContext.mode !== 'standalone') return
+    const roots = [document.documentElement, document.body].filter(
+      (element): element is HTMLElement => element instanceof HTMLElement,
+    )
+    const restorers = roots.map(captureThemeState)
+    roots.forEach((root) => applyStandaloneThemeSelection(root, selection))
+    return () => restorers.reverse().forEach((restore) => restore())
+  }, [applicationContext.mode, selection])
 
   const updateSelection = useCallback((patch: Partial<OpenSuiteThemeSelectionSummary>) => {
     if (hostOwnsTheme) return

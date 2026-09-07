@@ -221,4 +221,79 @@ describe('OpenPanel application module', () => {
     }))
     expect(screen.queryByRole('button', { name: 'Theme settings' })).toBeNull()
   })
+
+  test('lets explicit standalone context override a persisted global selection', async () => {
+    const host = services()
+    host.theme.readSelection = () => ({
+      style: 'bauhaus',
+      palette: 'classic-bauhaus',
+      appearance: 'light',
+    })
+    render(
+      <OpenPanelApplication
+        services={host}
+        applicationContext={{
+          mode: 'standalone',
+          style: 'glass',
+          palette: 'ocean',
+          appearance: 'dark',
+        }}
+      />,
+    )
+    await waitFor(() => expect(document.querySelector('.openpanel-module-root')).toMatchObject({
+      dataset: expect.objectContaining({
+        openpanelStyle: 'glass',
+        openpanelPalette: 'ocean',
+        openpanelAppearance: 'dark',
+        openpanelTheme: 'dark',
+      }),
+    }))
+  })
+
+  test('uses a theme-owning host resolved value for system appearance', async () => {
+    render(
+      <OpenPanelApplication
+        services={services()}
+        applicationContext={{
+          mode: 'embedded',
+          ownership: { theme: true },
+          style: 'default',
+          palette: 'opensuite-default',
+          appearance: 'system',
+          theme: 'dark',
+        }}
+      />,
+    )
+    await waitFor(() => expect(document.querySelector('.openpanel-module-root')).toMatchObject({
+      dataset: expect.objectContaining({
+        openpanelAppearance: 'system',
+        openpanelTheme: 'dark',
+      }),
+    }))
+  })
+
+  test('restores document and module inline theme state after standalone ownership ends', async () => {
+    document.documentElement.setAttribute('style', '--host-token: keep')
+    document.documentElement.dataset.suiteUi = 'host'
+    document.body.setAttribute('style', '--body-token: keep')
+    const host = services()
+    const view = render(
+      <OpenPanelApplication services={host} applicationContext={{ mode: 'standalone' }} />,
+    )
+    const root = document.querySelector<HTMLElement>('.openpanel-module-root')!
+    await waitFor(() => expect(root.style.getPropertyValue('--suite-color-accent')).not.toBe(''))
+    expect(document.documentElement.dataset.suiteUi).toBe('openpanel')
+
+    view.rerender(
+      <OpenPanelApplication
+        services={host}
+        applicationContext={{ mode: 'embedded', ownership: { theme: true }, theme: 'light' }}
+      />,
+    )
+    await waitFor(() => expect(root.style.getPropertyValue('--suite-color-accent')).toBe(''))
+    expect(document.documentElement.getAttribute('style')).toBe('--host-token: keep')
+    expect(document.documentElement.dataset.suiteUi).toBe('host')
+    expect(document.body.getAttribute('style')).toBe('--body-token: keep')
+    document.body.removeAttribute('style')
+  })
 })
