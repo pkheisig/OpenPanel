@@ -63,6 +63,8 @@ process.env.VITE_MODULE_VERSION = versionMetadata.version
 await build({ configFile: path.join(root, 'vite.module.config.ts') })
 await execFileAsync(path.join(root, 'node_modules/.bin/tsc'), ['-p', 'tsconfig.module.json'], { cwd: root })
 await cp(path.join(root, 'public/data'), path.join(packageRoot, 'data'), { recursive: true })
+await cp(path.join(root, 'src/fonts/OpenSuiteSans-OFL.txt'), path.join(packageRoot, 'OpenSuiteSans-OFL.txt'))
+await cp(path.join(root, 'src/fonts/OpenSuiteMono-OFL.txt'), path.join(packageRoot, 'OpenSuiteMono-OFL.txt'))
 await cp(path.join(root, 'LICENSE'), path.join(packageRoot, 'LICENSE'))
 await cp(path.join(root, 'THIRD_PARTY_NOTICES.md'), path.join(packageRoot, 'THIRD_PARTY_NOTICES.md'))
 await cp(path.join(root, 'README.md'), path.join(packageRoot, 'README.md'))
@@ -134,6 +136,7 @@ const manifest = {
   applicationContractVersion: '0.1.0-bootstrap',
   runtimeContractVersion: '0.1.0-bootstrap',
   uiContractVersion: '1.0.0',
+  themeContractVersion: '1.1.0',
   uiFoundation: {
     packageName: '@pkheisig/opensuite-ui-foundation',
     version: '1.0.0',

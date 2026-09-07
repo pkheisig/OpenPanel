@@ -49,6 +49,12 @@ export function createDefaultOpenPanelHostServices(): OpenPanelHostServices {
     theme: {
       read: moduleExport(themePreference, 'readThemePreference', () => 'light' as const),
       save: moduleExport(themePreference, 'saveThemePreference', () => undefined),
+      readSelection: moduleExport(themePreference, 'readThemeSelection', () => ({
+        style: 'default',
+        palette: 'opensuite-default',
+        appearance: 'system',
+      } as const)),
+      saveSelection: moduleExport(themePreference, 'saveThemeSelection', () => undefined),
     },
     assets: createBrowserAssetResolver(),
   }

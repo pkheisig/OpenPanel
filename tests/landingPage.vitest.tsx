@@ -179,7 +179,7 @@ describe('LandingPage workflows', () => {
     expect(recommendedSetupForOmip({ ...makeEntry('Aurora 5L'), cytometers: ['Aurora 5L', 'Unknown'] })).toEqual({ cytometer: 'aurora', configuration: '5l_uv_v_b_yg_r' })
   })
 
-  test('configures a cytometer, starts a panel, toggles theme, and opens archive disclosure', async () => {
+  test('configures a cytometer, starts a panel, exposes theme settings, and opens archive disclosure', async () => {
     const props = callbacks()
     render(<LandingPage panels={[]} {...props} />)
     expect(screen.getByText('No projects yet.')).not.toBeNull()
@@ -200,9 +200,9 @@ describe('LandingPage workflows', () => {
     fireEvent.submit(screen.getByRole('form', { name: 'Panel configuration' }))
     await waitFor(() => expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({ name: 'My panel', cytometer: 'aurora' })))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Use dark mode' }))
-    expect(screen.getByRole('main').classList.contains('dark')).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Use light mode' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Theme settings' }))
+    expect(screen.getByRole('dialog', { name: 'Theme settings' })).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Close theme settings' }))
     const archiveDisclosure = document.querySelector('.archive-disclosure') as HTMLButtonElement
     fireEvent.click(archiveDisclosure)
     expect(archiveDisclosure.getAttribute('aria-expanded')).toBe('true')

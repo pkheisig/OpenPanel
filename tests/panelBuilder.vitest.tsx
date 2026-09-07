@@ -341,8 +341,9 @@ describe('PanelBuilder', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Decrease plot size' }))
     fireEvent.click(screen.getByRole('button', { name: 'Increase plot size' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Theme settings' }))
+    expect(screen.getByRole('dialog', { name: 'Theme settings' })).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Close theme settings' }))
 
     fireEvent.keyDown(document, { key: 'Escape' })
 
@@ -403,7 +404,7 @@ describe('PanelBuilder', () => {
     expect(onRequestExit).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
-    expect(screen.queryByRole('button', { name: 'Toggle theme' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Theme settings' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Close panel builder and return to cockpit' }))
     expect(onRequestExit).toHaveBeenCalledTimes(2)
   })
@@ -549,7 +550,7 @@ describe('PanelBuilder', () => {
     mocks.buildPanelPayload.mockResolvedValue(conventional)
     const { rerender } = render(<PanelBuilder embedded cockpitTheme="dark" initialCytometer="fortessa" initialConfiguration="fortessa_3l" initialProject={{ ...project, cytometer: 'fortessa', configuration: 'fortessa_3l', slots: ['A', '', ''], cytometerPanels: {} }} />)
     await waitFor(() => expect(screen.getByTestId('mock-visualizations')).not.toBeNull())
-    expect(screen.queryByRole('button', { name: 'Toggle theme' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Theme settings' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Mock similarity' }))
     const selector = screen.getAllByPlaceholderText('Select fluorophore')[0]
     fireEvent.focus(selector)

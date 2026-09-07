@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "themeContractVersion": "1.1.0",
+  "exceptions": [
+    {
+      "id": "opensuite-theme-contract-consumer",
+      "scope": "src/ui-foundation/themes.json",
+      "reason": "Pinned verbatim copy of the qualified OpenSuite theme contract; OpenPanel contains no app-specific theme definitions."
+    },
+    {
+      "id": "opensuite-structural-treatment-slot",
+      "scope": "src/index.css",
+      "reason": "Narrow OpenPanel selectors map existing chrome surfaces to contract-owned structural roles without changing workflow composition or scientific rendering."
+    }
+  ]
+}

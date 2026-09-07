@@ -5,6 +5,14 @@ import type {
   StoredPanelProject,
 } from '../projectStore'
 import type { AppTheme } from '../themePreference'
+import {
+  OPENSUITE_THEME_CONTRACT_VERSION,
+  validateThemeSelection,
+  type OpenSuiteThemeSelectionSummary,
+  type ThemeAppearance,
+  type StructuralThemeId,
+  type ColorPaletteId,
+} from '../uiThemes'
 import { createDefaultOpenPanelHostServices } from '../standalone/standaloneHost'
 import { OPEN_SUITE_UI_FOUNDATION_MANIFEST } from '../ui-foundation/manifest'
 
@@ -55,6 +63,8 @@ export type OpenPanelProjectRepository = {
 export type OpenPanelThemeServices = {
   read(fallback?: AppTheme): AppTheme
   save(theme: AppTheme): void
+  readSelection?(): OpenSuiteThemeSelectionSummary
+  saveSelection?(selection: OpenSuiteThemeSelectionSummary): void
 }
 
 export type OpenPanelNavigationServices = {
@@ -73,6 +83,10 @@ export type OpenPanelHostServices = {
 export type OpenPanelApplicationContext = {
   mode?: 'standalone' | 'embedded'
   theme?: AppTheme
+  appearance?: ThemeAppearance
+  style?: StructuralThemeId
+  palette?: ColorPaletteId
+  themeContractVersion?: typeof OPENSUITE_THEME_CONTRACT_VERSION
   density?: 'compact' | 'comfortable'
   uiContractVersion?: string
   ownership?: OpenPanelHostOwnership
@@ -107,6 +121,20 @@ export function validateOpenPanelApplicationContext(
   }
   if (context.density && !['compact', 'comfortable'].includes(context.density)) {
     throw new Error(`OpenPanel density is unsupported: ${context.density}.`)
+  }
+  if (context.theme && context.theme !== 'light' && context.theme !== 'dark') {
+    throw new Error(`OpenPanel theme is unsupported: ${context.theme}.`)
+  }
+  if (context.themeContractVersion && context.themeContractVersion !== OPENSUITE_THEME_CONTRACT_VERSION) {
+    throw new Error(`OpenPanel theme contract version is unsupported: ${context.themeContractVersion}.`)
+  }
+  if (context.style !== undefined || context.palette !== undefined || context.appearance !== undefined) {
+    const errors = validateThemeSelection({
+      style: context.style,
+      palette: context.palette,
+      appearance: context.appearance,
+    })
+    if (errors.length > 0) throw new Error(`OpenPanel theme selection is unsupported: ${errors.join('; ')}.`)
   }
 }
 

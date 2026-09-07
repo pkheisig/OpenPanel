@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { cleanup, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   OPEN_PANEL_APPLICATION_MANIFEST,
+  OpenPanelApplication,
   createOpenPanelModule,
   validateOpenPanelApplicationManifest,
 } from '../src/module/OpenPanelApplication'
@@ -14,6 +15,8 @@ import {
   validateOpenPanelApplicationContext,
 } from '../src/module/hostServices'
 import type { OpenPanelHostServices } from '../src/module/hostServices'
+import { ThemeSelector } from '../src/ThemeSelector'
+import { OPENSUITE_THEME_CONTRACT_VERSION } from '../src/uiThemes'
 
 vi.mock('../src/App', () => ({
   default: () => React.createElement('div', { 'data-testid': 'mock-openpanel-app' }, 'OpenPanel'),
@@ -56,7 +59,15 @@ function services(navigation?: () => void): OpenPanelHostServices {
   }
 }
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  for (const attribute of [...document.documentElement.attributes]) {
+    if (attribute.name.startsWith('data-suite-') || attribute.name === 'data-theme') {
+      document.documentElement.removeAttribute(attribute.name)
+    }
+  }
+  document.documentElement.removeAttribute('style')
+})
 
 describe('OpenPanel application module', () => {
   test('publishes a validated manifest and lifecycle-safe mount surface', async () => {
@@ -67,6 +78,7 @@ describe('OpenPanel application module', () => {
     expect(OPEN_PANEL_APPLICATION_MANIFEST.runtimeContractVersion).toBe('0.1.0-bootstrap')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe('1.0.0')
     expect(OPEN_PANEL_APPLICATION_MANIFEST.uiContractVersion).toBe(OPEN_PANEL_UI_CONTRACT_VERSION)
+    expect(OPEN_PANEL_APPLICATION_MANIFEST.themeContractVersion).toBe(OPENSUITE_THEME_CONTRACT_VERSION)
     expect(OPEN_PANEL_APPLICATION_MANIFEST.uiFoundation).toMatchObject({
       packageName: '@pkheisig/opensuite-ui-foundation',
       version: '1.0.0',
@@ -147,5 +159,141 @@ describe('OpenPanel application module', () => {
     expect(openPanelHostOwns({ ...context, ownership: { windowClose: false } }, 'windowClose')).toBe(false)
     expect(openPanelHostOwns({ mode: 'standalone' }, 'theme')).toBe(false)
     expect(() => validateOpenPanelApplicationContext({ uiContractVersion: '9.9.9' })).toThrow(/unsupported/)
+  })
+
+  test('persists standalone selection outside project state and applies it without remounting children', async () => {
+    const host = services()
+    const saveSelection = vi.fn()
+    const saveTheme = vi.fn()
+    host.theme.saveSelection = saveSelection
+    host.theme.save = saveTheme
+    const mounted = vi.fn()
+    function StableChild() {
+      React.useEffect(() => mounted(), [])
+      return <ThemeSelector buttonClassName="theme-button" />
+    }
+
+    render(<OpenPanelApplication services={host} applicationContext={{ mode: 'standalone' }}><StableChild /></OpenPanelApplication>)
+    fireEvent.click(screen.getByRole('button', { name: 'Theme settings' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Style' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Bauhaus' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Palette' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Classic Bauhaus' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Appearance' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Dark' }))
+
+    await waitFor(() => expect(document.querySelector('.openpanel-module-root')).toMatchObject({
+      dataset: expect.objectContaining({
+        openpanelStyle: 'bauhaus',
+        openpanelPalette: 'classic-bauhaus',
+        openpanelAppearance: 'dark',
+        openpanelTheme: 'dark',
+      }),
+    }))
+    expect(saveSelection).toHaveBeenLastCalledWith({ style: 'bauhaus', palette: 'classic-bauhaus', appearance: 'dark' })
+    expect(saveTheme).toHaveBeenLastCalledWith('dark')
+    expect(mounted).toHaveBeenCalledTimes(1)
+  })
+
+  test('uses host-owned selections and suppresses the duplicate selector', async () => {
+    render(
+      <OpenPanelApplication
+        services={services()}
+        applicationContext={{
+          mode: 'embedded',
+          ownership: { theme: true },
+          themeContractVersion: OPENSUITE_THEME_CONTRACT_VERSION,
+          style: 'glass',
+          palette: 'ocean',
+          appearance: 'dark',
+        }}
+      >
+        <ThemeSelector buttonClassName="theme-button" />
+      </OpenPanelApplication>,
+    )
+    await waitFor(() => expect(document.querySelector('.openpanel-module-root')).toMatchObject({
+      dataset: expect.objectContaining({
+        openpanelStyle: 'glass',
+        openpanelPalette: 'ocean',
+        openpanelAppearance: 'dark',
+        openpanelTheme: 'dark',
+      }),
+    }))
+    expect(screen.queryByRole('button', { name: 'Theme settings' })).toBeNull()
+  })
+
+  test('lets explicit standalone context override a persisted global selection', async () => {
+    const host = services()
+    host.theme.readSelection = () => ({
+      style: 'bauhaus',
+      palette: 'classic-bauhaus',
+      appearance: 'light',
+    })
+    render(
+      <OpenPanelApplication
+        services={host}
+        applicationContext={{
+          mode: 'standalone',
+          style: 'glass',
+          palette: 'ocean',
+          appearance: 'dark',
+        }}
+      />,
+    )
+    await waitFor(() => expect(document.querySelector('.openpanel-module-root')).toMatchObject({
+      dataset: expect.objectContaining({
+        openpanelStyle: 'glass',
+        openpanelPalette: 'ocean',
+        openpanelAppearance: 'dark',
+        openpanelTheme: 'dark',
+      }),
+    }))
+  })
+
+  test('uses a theme-owning host resolved value for system appearance', async () => {
+    render(
+      <OpenPanelApplication
+        services={services()}
+        applicationContext={{
+          mode: 'embedded',
+          ownership: { theme: true },
+          style: 'default',
+          palette: 'opensuite-default',
+          appearance: 'system',
+          theme: 'dark',
+        }}
+      />,
+    )
+    await waitFor(() => expect(document.querySelector('.openpanel-module-root')).toMatchObject({
+      dataset: expect.objectContaining({
+        openpanelAppearance: 'system',
+        openpanelTheme: 'dark',
+      }),
+    }))
+  })
+
+  test('restores document and module inline theme state after standalone ownership ends', async () => {
+    document.documentElement.setAttribute('style', '--host-token: keep')
+    document.documentElement.dataset.suiteUi = 'host'
+    document.body.setAttribute('style', '--body-token: keep')
+    const host = services()
+    const view = render(
+      <OpenPanelApplication services={host} applicationContext={{ mode: 'standalone' }} />,
+    )
+    const root = document.querySelector<HTMLElement>('.openpanel-module-root')!
+    await waitFor(() => expect(root.style.getPropertyValue('--suite-color-accent')).not.toBe(''))
+    expect(document.documentElement.dataset.suiteUi).toBe('openpanel')
+
+    view.rerender(
+      <OpenPanelApplication
+        services={host}
+        applicationContext={{ mode: 'embedded', ownership: { theme: true }, theme: 'light' }}
+      />,
+    )
+    await waitFor(() => expect(root.style.getPropertyValue('--suite-color-accent')).toBe(''))
+    expect(document.documentElement.getAttribute('style')).toBe('--host-token: keep')
+    expect(document.documentElement.dataset.suiteUi).toBe('host')
+    expect(document.body.getAttribute('style')).toBe('--body-token: keep')
+    document.body.removeAttribute('style')
   })
 })

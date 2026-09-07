@@ -8,17 +8,15 @@ body,
 }
 
 body {
-  color: #29251f;
-  background: #eee7db;
-  font-family: Inter, "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--suite-color-text, #29251f);
+  background: var(--suite-color-shell, #eee7db);
+  font-family: var(--suite-font-family-app, "OpenSuite Sans", sans-serif);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
 html[data-theme="dark"] body {
-  color: #f6eee5;
-  background: #1d1916;
   color-scheme: dark;
 }
 

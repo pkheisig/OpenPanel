@@ -2,6 +2,22 @@
 @import "./ui-foundation/tokens.css";
 @import "./ui-foundation/primitives.css";
 
+@font-face {
+  font-family: "OpenSuite Sans";
+  src: url("./fonts/OpenSuiteSans-wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OpenSuite Mono";
+  src: url("./fonts/OpenSuiteMono-wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer reset, foundation, primitives, shell;
 
 @layer reset {
@@ -65,6 +81,10 @@
     --openpanel-radius-card: var(--suite-radius-card);
     --openpanel-shadow-card: var(--suite-shadow-sm);
     --openpanel-shadow-popover: var(--suite-shadow-md);
+    --openpanel-border-width: var(--suite-border-width);
+    --openpanel-backdrop-filter: var(--suite-style-backdrop-filter, none);
+    --openpanel-control-height-normal: calc(var(--suite-control-height-normal) * var(--suite-style-control-height-scale, 1));
+    --openpanel-control-height-compact: calc(var(--suite-control-height-compact) * var(--suite-style-control-height-scale, 1));
     display: block;
     min-width: 0;
     min-height: 0;
@@ -125,6 +145,14 @@
     border-radius: var(--suite-radius-control);
   }
 
+  .openpanel-module-root :where(.suite-button, .suite-input) {
+    min-height: var(--openpanel-control-height-normal);
+  }
+
+  .openpanel-module-root .suite-button--quiet {
+    min-height: var(--openpanel-control-height-compact);
+  }
+
   .openpanel-module-root :where(.ui-select-option, .file-action-popout button, .fluor-option):hover,
   .openpanel-module-root :where(.ui-select-option, .file-action-popout button, .fluor-option):focus-visible {
     background: var(--openpanel-accent-soft);
@@ -143,6 +171,196 @@
     --omip-border: var(--suite-color-border);
     --omip-text: var(--suite-color-text);
     --omip-bg: var(--suite-color-surface);
+  }
+}
+
+@layer shell {
+  .openpanel-theme-control {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .openpanel-theme-popover {
+    position: absolute;
+    z-index: var(--suite-layer-dialog, 60);
+    top: calc(100% + 0.5rem);
+    right: 0;
+    display: grid;
+    gap: 0.75rem;
+    width: min(20rem, calc(100vw - 2rem));
+    padding: var(--suite-style-content-inset, 0.75rem);
+    border: var(--suite-border-width, 1px) solid var(--suite-color-border);
+    border-radius: var(--suite-radius-dialog);
+    color: var(--suite-color-text);
+    background: var(--suite-color-surface-raised);
+    box-shadow: var(--suite-shadow-md);
+    backdrop-filter: var(--openpanel-backdrop-filter);
+  }
+
+  .openpanel-theme-popover > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .openpanel-theme-popover > header > div {
+    display: grid;
+    gap: 0.125rem;
+  }
+
+  .openpanel-theme-popover > header span {
+    color: var(--suite-color-text-muted);
+    font-size: var(--suite-font-size-xs);
+  }
+
+  .openpanel-module-root :where(
+    button,
+    input,
+    textarea,
+    .ui-select-trigger,
+    .ui-select-options,
+    .file-action-popout,
+    .fluor-dropdown
+  ) {
+    border-width: var(--suite-border-width, 1px);
+  }
+
+  .openpanel-module-root :where(
+    button,
+    input,
+    textarea,
+    .ui-select-trigger,
+    .file-action-popout,
+    .fluor-dropdown
+  ) {
+    border-radius: var(--suite-radius-control);
+  }
+
+  .openpanel-module-root :where(
+    .launch-card,
+    .panel-library-card,
+    .archive-panel-inner,
+    .panel-sidebar,
+    .main-panel,
+    .signature-card,
+    .panel-confirm-modal,
+    .panel-wizard-window,
+    .wizard-subdialog,
+    .omip-library-window,
+    .project-action-dialog,
+    .module-loading-card,
+    .clear-panel-confirm
+  ) {
+    border-width: var(--suite-border-width, 1px);
+    border-radius: var(--suite-radius-card);
+  }
+
+  .openpanel-module-root :where(
+    .panel-confirm-modal,
+    .panel-wizard-window,
+    .wizard-subdialog,
+    .omip-library-window,
+    .project-action-dialog,
+    .clear-panel-confirm
+  ) {
+    border-radius: var(--suite-radius-dialog);
+    box-shadow: var(--suite-shadow-md);
+  }
+
+  [data-suite-surface-treatment="translucent"] :where(
+    .launch-card,
+    .panel-library-card,
+    .panel-sidebar,
+    .main-panel,
+    .signature-card,
+    .openpanel-theme-popover,
+    .ui-select-options,
+    .file-action-popout,
+    .fluor-dropdown,
+    .panel-confirm-modal,
+    .panel-wizard-window,
+    .wizard-subdialog,
+    .omip-library-window,
+    .project-action-dialog,
+    .module-loading-card,
+    .clear-panel-confirm
+  ),
+  [data-suite-surface-treatment="glossy"] :where(
+    .launch-card,
+    .panel-library-card,
+    .panel-sidebar,
+    .main-panel,
+    .signature-card,
+    .openpanel-theme-popover,
+    .ui-select-options,
+    .file-action-popout,
+    .fluor-dropdown,
+    .panel-confirm-modal,
+    .panel-wizard-window,
+    .wizard-subdialog,
+    .omip-library-window,
+    .project-action-dialog,
+    .module-loading-card,
+    .clear-panel-confirm
+  ) {
+    background-color: color-mix(in srgb, var(--suite-color-surface-raised) 84%, transparent);
+    backdrop-filter: var(--openpanel-backdrop-filter);
+  }
+
+  [data-suite-surface-treatment="paper"] :where(
+    .launch-card,
+    .panel-library-card,
+    .panel-sidebar,
+    .main-panel,
+    .signature-card,
+    .openpanel-theme-popover,
+    .ui-select-options,
+    .file-action-popout,
+    .fluor-dropdown,
+    .panel-confirm-modal,
+    .panel-wizard-window,
+    .wizard-subdialog,
+    .omip-library-window,
+    .project-action-dialog,
+    .module-loading-card,
+    .clear-panel-confirm
+  ) {
+    background-color: color-mix(in srgb, var(--suite-color-surface-raised) 94%, transparent);
+  }
+
+  [data-suite-decoration="specular"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window),
+  [data-suite-decoration="ornamental"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    background-image: linear-gradient(135deg, rgb(255 255 255 / 18%), transparent 42%);
+  }
+
+  [data-suite-decoration="scanline"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    background-image: repeating-linear-gradient(0deg, transparent 0 7px, rgb(255 255 255 / 5%) 7px 8px);
+  }
+
+  [data-suite-decoration="ruled"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    background-image: repeating-linear-gradient(0deg, transparent 0 1.25rem, color-mix(in srgb, var(--suite-color-border) 24%, transparent) 1.25rem 1.3125rem);
+  }
+
+  [data-suite-decoration="memphis"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    background-image: radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--suite-color-accent) 18%, transparent) 0 1.5rem, transparent 1.55rem);
+  }
+
+  [data-suite-decoration="geometric"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    background-image: linear-gradient(135deg, color-mix(in srgb, var(--suite-color-accent) 16%, transparent) 0 10px, transparent 10px 100%);
+  }
+
+  [data-suite-decoration="rule"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    background-image: linear-gradient(90deg, color-mix(in srgb, var(--suite-color-border-strong) 42%, transparent) 0 1px, transparent 1px 100%);
+    background-size: 12px 100%;
+  }
+
+  [data-suite-decoration="block"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    background-image: linear-gradient(90deg, color-mix(in srgb, var(--suite-color-accent) 20%, transparent) 0 7px, transparent 7px 100%);
+  }
+
+  [data-suite-decoration="indicator"] :where(.launch-card, .panel-library-card, .main-panel, .signature-card, .openpanel-theme-popover, .ui-select-options, .panel-wizard-window, .omip-library-window) {
+    box-shadow: inset max(var(--suite-border-width, 1px), 3px) 0 0 var(--suite-color-accent), var(--suite-shadow-sm);
   }
 }
 
