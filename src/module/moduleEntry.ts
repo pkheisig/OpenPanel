@@ -11,6 +11,16 @@ export {
   normalizeOpenPanelApplicationContext,
   validateOpenPanelApplicationContext,
 } from './hostServices'
+export {
+  COLOR_PALETTES,
+  DEFAULT_THEME_SELECTION,
+  OPENSUITE_THEME_CONTRACT_VERSION,
+  STRUCTURAL_THEMES,
+  SUPPORTED_APPEARANCES,
+  THEME_CONTRACT,
+  resolveThemeSelection,
+  validateThemeSelection,
+} from '../uiThemes'
 export type {
   OpenPanelApplicationManifest,
   OpenPanelCloseResult,
@@ -27,3 +37,13 @@ export type {
   OpenPanelStorage,
   OpenPanelThemeServices,
 } from './hostServices'
+export type {
+  ColorPaletteDefinition,
+  ColorPaletteId,
+  OpenSuiteThemeSelection,
+  OpenSuiteThemeSelectionSummary,
+  ResolvedTheme,
+  StructuralThemeDefinition,
+  StructuralThemeId,
+  ThemeAppearance,
+} from '../uiThemes'

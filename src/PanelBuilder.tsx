@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- pure panel helpers remain colocated with their component contract */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, Moon, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Sun, Trash2, Undo2, Upload, WandSparkles, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Download, FileJson2, FileSpreadsheet, Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload, WandSparkles, X } from 'lucide-react';
 import './PanelBuilder.css';
 import { ClearPanelConfirmation } from './ClearPanelConfirmation';
 import { ModuleLoadingState } from './ModuleLoadingState';
@@ -30,6 +30,8 @@ import {
 } from './module/hostServices';
 import type { OpenPanelAssetResolver } from './module/hostServices';
 import type { OpenSuiteProvenance } from './provenance';
+import { ThemeSelector } from './ThemeSelector';
+import { useOpenPanelTheme } from './OpenPanelTheme';
 import type { WizardProjectState } from './panelWizardEngine';
 import {
     PdfIcon,
@@ -474,8 +476,8 @@ const PanelBuilder = ({
     const lifecycle = useOpenPanelLifecycle();
     const effectiveEmbedded = (mode ?? (embedded ? 'embedded' : 'standalone')) === 'embedded';
     const effectiveCockpitTheme = hostTheme ?? cockpitTheme;
-    const hostOwnsTheme = openPanelHostOwns(applicationContext, 'theme');
     const hostOwnsWindowClose = openPanelHostOwns(applicationContext, 'windowClose');
+    const { selection: themeSelection } = useOpenPanelTheme();
     const exitHandler = onRequestExit ?? host.navigation?.requestExit ?? applicationContext.onRequestExit;
     const [payload, setPayload] = useState<PanelPayload | null>(null);
     const [cytometer, setCytometer] = useState(() => getCytometerName(initialProject?.cytometer ?? initialCytometer));
@@ -507,14 +509,12 @@ const PanelBuilder = ({
     const [exporting, setExporting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [hoveredFluor, setHoveredFluor] = useState<string | null>(null);
-    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const [projectTheme, setProjectTheme] = useState<'light' | 'dark'>(() => {
         if (applicationContext.theme) return applicationContext.theme;
         if (effectiveEmbedded && effectiveCockpitTheme) return effectiveCockpitTheme;
         return host.theme.read(initialProject?.theme);
     });
-    const renderedTheme = hostOwnsTheme
-        ? applicationContext.theme ?? effectiveCockpitTheme ?? theme
-        : resolvePanelBuilderTheme(effectiveEmbedded, effectiveCockpitTheme, theme);
+    const renderedTheme = themeSelection.theme;
     const [guiStateLoaded, setGuiStateLoaded] = useState(false);
     const [sidebarWidth, setSidebarWidth] = useState(initialProject?.sidebarWidth ?? 214);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(initialProject?.sidebarCollapsed ?? false);
@@ -582,16 +582,6 @@ const PanelBuilder = ({
     }, [configuration, host.storage]);
 
     useEffect(() => {
-        if (effectiveEmbedded || hostOwnsTheme) return;
-        host.theme.save(theme);
-    }, [effectiveEmbedded, host.theme, hostOwnsTheme, theme]);
-
-    useEffect(() => {
-        if (hostOwnsTheme) return;
-        panelRootRef.current?.closest<HTMLElement>('.openpanel-module-root')?.setAttribute('data-openpanel-theme', renderedTheme);
-    }, [hostOwnsTheme, renderedTheme]);
-
-    useEffect(() => {
         host.storage.setItem('spectreasy_slots', JSON.stringify(slots));
     }, [host.storage, slots]);
 
@@ -611,7 +601,7 @@ const PanelBuilder = ({
         return createPanelBuilderProjectState(
             cytometer,
             configuration,
-            theme,
+            projectTheme,
             slots,
             markers,
             tab,
@@ -622,7 +612,7 @@ const PanelBuilder = ({
             cytometerPanels,
             initialProject?.provenance,
         );
-    }, [cytometer, configuration, theme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels, initialProject?.provenance]);
+    }, [cytometer, configuration, projectTheme, slots, markers, tab, sidebarWidth, sidebarCollapsed, plotScale, wizardState, cytometerPanels, initialProject?.provenance]);
     const projectFingerprint = useMemo(() => JSON.stringify(projectState), [projectState]);
 
     useEffect(() => {
@@ -1411,7 +1401,7 @@ const PanelBuilder = ({
             setSlots(nextSlots);
             setMarkers(nextMarkers);
             setTab(state.tab);
-            setTheme(state.theme);
+            setProjectTheme(state.theme);
             setSidebarWidth(state.sidebarWidth);
             setSidebarCollapsed(state.sidebarCollapsed);
             setPlotScale(state.plotScale);
@@ -1556,16 +1546,7 @@ const PanelBuilder = ({
                     >
                         <Trash2 size={16} />
                     </button>
-                    {!effectiveEmbedded && !hostOwnsTheme && <button
-                        type="button"
-                        className="export-button"
-                        onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-                        disabled={recoveryMode}
-                        aria-label="Toggle theme"
-                        style={{ padding: '0 10px', width: '40px' }}
-                    >
-                        {renderedTheme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-                    </button>}
+                    {!effectiveEmbedded && <ThemeSelector buttonClassName="export-button icon-only" disabled={recoveryMode} />}
                     <input
                         ref={importInputRef}
                         type="file"

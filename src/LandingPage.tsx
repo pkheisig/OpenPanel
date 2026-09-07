@@ -9,9 +9,7 @@ import {
   Download,
   FlaskConical,
   MoreHorizontal,
-  Moon,
   Pencil,
-  Sun,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -32,6 +30,8 @@ import { UiSelect } from './UiSelect'
 import { OmipLibrary } from './OmipLibrary'
 import { ProjectActionDialog } from './ProjectActionDialog'
 import type { ProjectActionDialogMode } from './ProjectActionDialog'
+import { ThemeSelector } from './ThemeSelector'
+import { useOpenPanelTheme } from './OpenPanelTheme'
 import {
   openPanelHostOwns,
   useOpenPanelApplicationContext,
@@ -284,14 +284,13 @@ export function LandingPage({
   const host = useOpenPanelHostServices()
   const applicationContext = useOpenPanelApplicationContext()
   const hostOwnsChrome = openPanelHostOwns(applicationContext, 'globalChrome')
-  const hostOwnsTheme = openPanelHostOwns(applicationContext, 'theme')
+  const { selection: themeSelection } = useOpenPanelTheme()
   const assetResolver = host.assets
   const libraries = useMemo(
     () => [...getSpectralPanelLibraries()].sort((left, right) => left.label.localeCompare(right.label)),
     [],
   )
   const importInput = useRef<HTMLInputElement>(null)
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => applicationContext.theme ?? host.theme.read())
   const [panelName, setPanelName] = useState(`Panel ${panels.length + 1}`)
   const [starting, setStarting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -334,17 +333,7 @@ export function LandingPage({
     [orderedPanels],
   )
 
-  useEffect(() => {
-    if (hostOwnsTheme) return
-    host.theme.save(theme)
-  }, [host.theme, hostOwnsTheme, theme])
-
-  const renderedTheme = hostOwnsTheme ? (applicationContext.theme ?? theme) : theme
-
-  useEffect(() => {
-    if (hostOwnsTheme) return
-    launchRef.current?.closest<HTMLElement>('.openpanel-module-root')?.setAttribute('data-openpanel-theme', theme)
-  }, [hostOwnsTheme, theme])
+  const renderedTheme = themeSelection.theme
 
   useEffect(() => {
     const closeMenu = (event: PointerEvent) => {
@@ -555,17 +544,7 @@ export function LandingPage({
               event.currentTarget.value = ''
             }}
           />
-          {!hostOwnsTheme && (
-            <button
-              type="button"
-              className="suite-button suite-button--quiet suite-button--icon launch-theme-button"
-              onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
-              aria-label={renderedTheme === 'light' ? 'Use dark mode' : 'Use light mode'}
-              title={renderedTheme === 'light' ? 'Use dark mode' : 'Use light mode'}
-            >
-              {renderedTheme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-            </button>
-          )}
+          <ThemeSelector buttonClassName="suite-button suite-button--quiet suite-button--icon launch-theme-button" />
         </div>
       </header>
 

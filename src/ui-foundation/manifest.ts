@@ -10,6 +10,9 @@ export const OPEN_SUITE_UI_FOUNDATION_MANIFEST = {
   packageName: '@pkheisig/opensuite-ui-foundation',
   version: '1.0.0',
   uiContractVersion: '1.0.0',
+  themeContractVersion: '1.1.0',
+  themeSourceCommit: '590e9722479814e31fe0a8e141b5da078655e1c7',
+  themeSourceDigest: '241e8010849eb1915dd3a07bc488bf55ed10a61a78fe23747860d22253afedd5',
   sourceDigest: '6f723015c258a1b30bee5824a8735fbc01ec53c4feee006fcaa7f165b8d6b05c',
   artifacts: {
     tokens: '0ab326ce5e34a55be7c63e350bfb92501b91b49719a6f2a11682ebcc4f47a65b',
@@ -17,4 +20,3 @@ export const OPEN_SUITE_UI_FOUNDATION_MANIFEST = {
     contract: 'b8ef5ae3bafed785299d3319805f0638a39bbfdb069d3c726e2af3240db25f41',
   },
 } as const
-

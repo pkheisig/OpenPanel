@@ -9,7 +9,12 @@ import {
 } from '../src/browserFiles'
 import { createRefreshSequence } from '../src/refreshSequence'
 import { installStaleChunkRecovery, isStaleChunkLoadError, shouldReloadStaleChunk, STALE_CHUNK_RELOAD_COOLDOWN_MS } from '../src/staleChunkRecovery'
-import { readThemePreference, saveThemePreference } from '../src/themePreference'
+import {
+  readThemePreference,
+  readThemeSelection,
+  saveThemePreference,
+  saveThemeSelection,
+} from '../src/themePreference'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -209,18 +214,27 @@ describe('refresh and stale chunk recovery', () => {
 
 describe('theme preference', () => {
   test('reads, saves, and migrates theme preferences', () => {
+    const values = new Map<string, string>()
+    const localStorage = {
+      getItem: vi.fn((key: string) => values.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+      removeItem: vi.fn((key: string) => values.delete(key)),
+    }
     vi.stubGlobal('window', {
-      localStorage: window.localStorage,
+      localStorage,
       matchMedia: vi.fn(() => ({ matches: true })),
     })
     expect(readThemePreference()).toBe('dark')
     saveThemePreference('light')
     expect(readThemePreference()).toBe('light')
-    window.localStorage.removeItem('spectreasy-theme')
-    window.localStorage.setItem('spectreasy_theme', 'dark')
+    localStorage.removeItem('spectreasy-theme')
+    localStorage.setItem('spectreasy_theme', 'dark')
     expect(readThemePreference('light')).toBe('dark')
-    window.localStorage.setItem('spectreasy_theme', 'invalid')
+    localStorage.setItem('spectreasy_theme', 'invalid')
     expect(readThemePreference('light')).toBe('light')
     expect(document.documentElement.dataset.theme).toBe('light')
+
+    saveThemeSelection({ style: 'bauhaus', palette: 'classic-bauhaus', appearance: 'system' })
+    expect(readThemeSelection()).toEqual({ style: 'bauhaus', palette: 'classic-bauhaus', appearance: 'system' })
   })
 })

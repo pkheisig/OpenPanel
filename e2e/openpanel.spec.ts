@@ -30,6 +30,26 @@ async function chooseOption(
   await page.getByRole('option', { name: option }).click()
 }
 
+async function chooseAppearance(
+  page: import('@playwright/test').Page,
+  appearance: 'Light' | 'Dark',
+  force = false,
+) {
+  const trigger = page.getByRole('button', { name: 'Theme settings' })
+  if (force) await trigger.evaluate((button) => (button as HTMLButtonElement).click())
+  else await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Theme settings' })
+  const appearanceSelect = dialog.getByRole('combobox', { name: 'Appearance' })
+  if (force) await appearanceSelect.evaluate((button) => (button as HTMLButtonElement).click())
+  else await appearanceSelect.click()
+  const option = page.getByRole('option', { name: appearance, exact: true })
+  if (force) await option.evaluate((button) => (button as HTMLButtonElement).click())
+  else await option.click()
+  const close = dialog.getByRole('button', { name: 'Close theme settings' })
+  if (force) await close.evaluate((button) => (button as HTMLButtonElement).click())
+  else await close.click()
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: undefined })
@@ -213,19 +233,19 @@ test('shares light and dark mode between the landing page and editor', async ({ 
   await openEmptyPanel(page)
   await expect(page.locator('.panel-builder')).toHaveClass(/light/)
 
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await chooseAppearance(page, 'Dark')
   await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
   await page.waitForTimeout(650)
   await page.getByRole('button', { name: 'Open panel library' }).click()
   await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
-  await expect(page.getByRole('button', { name: 'Use light mode' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Theme settings' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Use light mode' }).click()
+  await chooseAppearance(page, 'Light')
   await expect(page.locator('.launch-screen')).toHaveClass(/light/)
   await page.getByRole('button', { name: 'Open Panel 1' }).click()
   await expect(page.locator('.panel-builder')).toHaveClass(/light/)
 
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await chooseAppearance(page, 'Dark')
   await expect(page.locator('.panel-builder')).toHaveClass(/dark/)
   await page.getByRole('button', { name: 'Open panel library' }).click()
   await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
@@ -395,7 +415,7 @@ test('selects the instrument and configuration before opening a clean workspace'
   await expect(page.getByLabel('Panel name')).toHaveValue('OMIP-120')
   await page.getByRole('button', { name: 'Open panel library' }).click()
   await expect(page.getByRole('button', { name: 'Open OMIP-120' })).toContainText('Aurora 4L: UV/V/B/R')
-  await page.getByRole('button', { name: 'Use dark mode' }).click()
+  await chooseAppearance(page, 'Dark')
   await expect(page.locator('.launch-screen')).toHaveClass(/dark/)
   await expect(page.getByRole('combobox', { name: 'CYTOMETER' })).toContainText('Select cytometer')
   await expect(page.getByRole('combobox', { name: 'DETECTOR CONFIGURATION' })).toContainText(
@@ -444,7 +464,7 @@ test('selects the instrument and configuration before opening a clean workspace'
   ))).toContain('Platelet GPVI')
   const plotControls = page.getByRole('group', { name: 'Plot size' })
   const clearProjectPanel = page.getByRole('button', { name: 'Clear project panel' })
-  const themeButton = page.getByRole('button', { name: 'Toggle theme' })
+  const themeButton = page.getByRole('button', { name: 'Theme settings' })
   const [plotControlsBox, clearButtonBox, themeButtonBox] = await Promise.all([
     plotControls.boundingBox(),
     clearProjectPanel.boundingBox(),
@@ -454,7 +474,7 @@ test('selects the instrument and configuration before opening a clean workspace'
   expect(clearButtonBox!.x + clearButtonBox!.width).toBeLessThan(themeButtonBox!.x)
   await page.mouse.move(0, 0)
   await clearProjectPanel.evaluate((button) => (button as HTMLButtonElement).blur())
-  await expect(clearProjectPanel).toHaveCSS('color', 'rgb(189, 81, 73)')
+  await expect(clearProjectPanel).toHaveCSS('color', 'rgb(255, 149, 137)')
   await clearProjectPanel.click()
   const editorClearConfirmation = page.getByRole('alertdialog', { name: 'Clear the panel?' })
   await expect(editorClearConfirmation).toContainText(
@@ -465,9 +485,9 @@ test('selects the instrument and configuration before opening a clean workspace'
     description: getComputedStyle(dialog.querySelector('p')!).fontSize,
     button: getComputedStyle(dialog.querySelector('button')!).fontSize,
   }))).toEqual({
-    title: '22px',
-    description: '14px',
-    button: '12px',
+    title: '24px',
+    description: '16.5px',
+    button: '15px',
   })
   await editorClearConfirmation.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.locator('.panel-sidebar-color-count')).toHaveText('(16 colors)')
@@ -558,11 +578,11 @@ test('selects the instrument and configuration before opening a clean workspace'
     .toHaveAttribute('stroke-width', '0.9')
   await expect(savedCard.locator('.panel-preview-complexity')).toHaveText('44.00')
   await expect(savedCard.locator('.panel-preview-grid')).toHaveCount(0)
-  expect(await savedPanel.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(247, 246, 240)')
-  await page.getByRole('button', { name: 'Use dark mode' }).click()
+  expect(await savedPanel.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgb(50, 42, 36)')
+  await chooseAppearance(page, 'Light', true)
   await expect.poll(
     () => savedPanel.evaluate((element) => getComputedStyle(element).backgroundColor),
-  ).toBe('rgb(35, 30, 26)')
+  ).toBe('rgb(255, 253, 248)')
   const countMetric = await savedCard.locator('.panel-preview-count').boundingBox()
   const complexityMetric = await savedCard.locator('.panel-preview-complexity').boundingBox()
   expect(countMetric!.x).toBeLessThan(complexityMetric!.x)
@@ -1030,8 +1050,9 @@ test('manages saved panels from the OpenSketch-style project library and context
   await projectCard.click({ button: 'right' })
   await expect(page.getByRole('menu', { name: 'Archive me actions' })).toBeVisible()
 
-  page.once('dialog', (dialog) => dialog.accept('Renamed panel'))
   await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await page.getByRole('textbox', { name: 'Project name' }).fill('Renamed panel')
+  await page.getByRole('button', { name: 'Save name' }).click()
   await expect(page.getByRole('button', { name: 'Open Renamed panel' })).toBeVisible()
 
   const renamedCard = page.locator('.panel-library-card').filter({
@@ -1066,8 +1087,8 @@ test('manages saved panels from the OpenSketch-style project library and context
     has: page.getByRole('button', { name: 'Open Renamed panel copy' }),
   })
   await copiedCard.click({ button: 'right' })
-  page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('menuitem', { name: 'Delete' }).click()
+  await page.getByRole('button', { name: 'Delete project' }).click()
   await expect(page.getByRole('button', { name: 'Open Renamed panel copy' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Open Renamed panel' })).toBeVisible()
 })
@@ -1090,8 +1111,9 @@ test('orders projects by creation by default and supports alternate project orde
     has: page.getByRole('button', { name: 'Open Panel 1' }),
   })
   await firstProjectCard.click({ button: 'right' })
-  page.once('dialog', (dialog) => dialog.accept('First project edited'))
   await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await page.getByRole('textbox', { name: 'Project name' }).fill('First project edited')
+  await page.getByRole('button', { name: 'Save name' }).click()
   await expect(page.getByRole('button', { name: 'Open First project edited' })).toBeVisible()
   await expect(projectCards.first()).toContainText('Panel 2')
 
@@ -1099,8 +1121,9 @@ test('orders projects by creation by default and supports alternate project orde
     has: page.getByRole('button', { name: 'Open Panel 2' }),
   })
   await secondProjectCard.click({ button: 'right' })
-  page.once('dialog', (dialog) => dialog.accept('Second project'))
   await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await page.getByRole('textbox', { name: 'Project name' }).fill('Second project')
+  await page.getByRole('button', { name: 'Save name' }).click()
   await expect(page.getByRole('button', { name: 'Open Second project' })).toBeVisible()
   await expect(projectCards.first()).toContainText('Second project')
 
@@ -1385,7 +1408,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
     search: 16.5,
     databaseLink: 13.5,
     filterLabel: 10.5,
-    filterValue: 13,
+    filterValue: 13.5,
   })
   await chooseOption(page, 'Method', 'Conventional')
   await expect(templateDialog.getByRole('button', { name: 'Preview OMIP-120' })).toHaveCount(0)
@@ -1551,7 +1574,7 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   )) - wizardTopBeforeColorMenu)).toBeLessThan(1)
   const portalMenu = page.locator('.wizard-color-select-menu.is-portal')
   await expect(portalMenu).toBeVisible()
-  expect(await portalMenu.evaluate((menu) => menu.parentElement?.classList.contains('panel-builder'))).toBe(true)
+  expect(await portalMenu.evaluate((menu) => menu.parentElement?.classList.contains('openpanel-module-root'))).toBe(true)
   await page.getByRole('searchbox', { name: 'Search colors' }).fill('egfp')
   await expect(page.getByRole('option', { name: 'EGFP', exact: true })).toHaveCount(0)
   await page.getByRole('searchbox', { name: 'Search colors' }).fill('live dead nir')
@@ -1607,9 +1630,9 @@ test('completes a panel through the staged marker wizard', async ({ page }) => {
   const noneLegend = wizard.locator('.coexpression-legend .level-0')
   expect(Math.round(await noneLegend.evaluate((swatch) => swatch.getBoundingClientRect().width))).toBe(16)
   await expect(noneLegend).toHaveCSS('background-color', 'rgb(204, 213, 209)')
-  await page.getByRole('button', { name: 'Toggle theme' }).evaluate((button) => (button as HTMLButtonElement).click())
+  await chooseAppearance(page, 'Dark', true)
   await expect(noneLegend).toHaveCSS('background-color', 'rgb(89, 102, 96)')
-  await page.getByRole('button', { name: 'Toggle theme' }).evaluate((button) => (button as HTMLButtonElement).click())
+  await chooseAppearance(page, 'Light', true)
   await page.getByRole('button', { name: 'CD3 and CD4 co-expression: Medium' }).click()
   await expect(page.getByRole('button', { name: 'CD3 and CD4 co-expression: High' })).toBeVisible()
   await expect(recommendationsTab).toBeEnabled()

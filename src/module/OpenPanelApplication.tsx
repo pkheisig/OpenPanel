@@ -16,6 +16,8 @@ import type {
   OpenPanelLifecycleReporter,
 } from './hostServices'
 import { OPEN_SUITE_UI_FOUNDATION_MANIFEST } from '../ui-foundation/manifest'
+import { OpenPanelThemeRoot } from '../OpenPanelTheme'
+import { OPENSUITE_THEME_CONTRACT_VERSION } from '../uiThemes'
 
 export const OPEN_PANEL_APPLICATION_MANIFEST = {
   schemaVersion: 1,
@@ -26,6 +28,7 @@ export const OPEN_PANEL_APPLICATION_MANIFEST = {
   applicationContractVersion: '0.1.0-bootstrap',
   runtimeContractVersion: '0.1.0-bootstrap',
   uiContractVersion: OPEN_PANEL_UI_CONTRACT_VERSION,
+  themeContractVersion: OPENSUITE_THEME_CONTRACT_VERSION,
   uiFoundation: OPEN_SUITE_UI_FOUNDATION_MANIFEST,
   entrypoints: {
     application: './openpanel.js',
@@ -65,6 +68,9 @@ export function validateOpenPanelApplicationManifest(
   }
   if (manifest.uiContractVersion !== OPEN_PANEL_UI_CONTRACT_VERSION) {
     throw new Error('OpenPanel module manifest UI contract version is unsupported.')
+  }
+  if (manifest.themeContractVersion !== OPENSUITE_THEME_CONTRACT_VERSION) {
+    throw new Error('OpenPanel module manifest theme contract version is unsupported.')
   }
   if (manifest.uiFoundation.packageName !== OPEN_SUITE_UI_FOUNDATION_MANIFEST.packageName
     || manifest.uiFoundation.version !== OPEN_SUITE_UI_FOUNDATION_MANIFEST.version
@@ -111,17 +117,9 @@ export function OpenPanelApplication({
   validateOpenPanelApplicationContext(normalizedContext)
   return (
     <OpenPanelHostProvider services={services} applicationContext={normalizedContext}>
-      <div
-        className="openpanel-module-root"
-        data-openpanel-module-root="true"
-        data-openpanel-mode={normalizedContext.mode}
-        data-openpanel-theme={normalizedContext.theme ?? 'light'}
-        data-openpanel-density={normalizedContext.density}
-        data-openpanel-ui-contract={normalizedContext.uiContractVersion}
-        data-openpanel-portal-root="true"
-      >
+      <OpenPanelThemeRoot services={services} applicationContext={normalizedContext}>
         {children ?? <App />}
-      </div>
+      </OpenPanelThemeRoot>
     </OpenPanelHostProvider>
   )
 }
@@ -146,19 +144,13 @@ export function createOpenPanelModule(
           applicationContext={currentContext}
           lifecycle={lifecycle}
         >
-          <div
-            className="openpanel-module-root"
-            data-openpanel-module-root="true"
-            data-openpanel-mode={currentContext.mode}
-            data-openpanel-theme={currentContext.theme ?? 'light'}
-            data-openpanel-density={currentContext.density}
-            data-openpanel-ui-contract={currentContext.uiContractVersion}
-            data-openpanel-portal-root="true"
-            data-suspended={suspended ? 'true' : 'false'}
-            hidden={suspended}
+          <OpenPanelThemeRoot
+            services={services}
+            applicationContext={currentContext}
+            suspended={suspended}
           >
             <App />
-          </div>
+          </OpenPanelThemeRoot>
         </OpenPanelHostProvider>
       </StrictMode>,
     )
